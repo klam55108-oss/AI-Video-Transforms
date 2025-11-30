@@ -1,11 +1,10 @@
 """
-Agent Video Tools - Video transcription and file tools for Claude Agent SDK.
+MCP Server configuration for video transcription tools.
 
-This package provides tools for transcribing video content using
-OpenAI's Whisper model and saving outputs to files, designed to work
-with the Claude Agent SDK.
+This module provides a pre-configured MCP server that can be used
+directly with the Claude Agent SDK.
 
-Usage with Claude Agent SDK:
+Example usage:
     from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
     from agent_video import video_tools_server
 
@@ -21,22 +20,16 @@ Usage with Claude Agent SDK:
         await client.query("Transcribe the video at /path/to/video.mp4")
         async for msg in client.receive_response():
             print(msg)
-
-Environment Variables:
-    OPENAI_API_KEY: Required. Your OpenAI API key for Whisper transcription.
-
-Optional Dependencies:
-    yt-dlp: Required for YouTube URL support. Install with: pip install yt-dlp
 """
 
+from claude_agent_sdk import create_sdk_mcp_server
+
 from .file_tool import write_file
-from .server import video_tools_server
 from .transcribe_tool import transcribe_video
 
-__all__ = [
-    "transcribe_video",
-    "video_tools_server",
-    "write_file",
-]
-
-__version__ = "1.1.0"
+# Create MCP server with video tools
+video_tools_server = create_sdk_mcp_server(
+    name="video-tools",
+    version="1.0.0",
+    tools=[transcribe_video, write_file],
+)
