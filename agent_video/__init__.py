@@ -1,8 +1,9 @@
 """
-Agent Video Tools - Video transcription tools for Claude Agent SDK.
+Agent Video Tools - Video transcription and file tools for Claude Agent SDK.
 
 This package provides tools for transcribing video content using
-OpenAI's Whisper model, designed to work with the Claude Agent SDK.
+OpenAI's Whisper model and saving outputs to files, designed to work
+with the Claude Agent SDK.
 
 Usage with Claude Agent SDK:
     from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
@@ -10,7 +11,10 @@ Usage with Claude Agent SDK:
 
     options = ClaudeAgentOptions(
         mcp_servers={"video-tools": video_tools_server},
-        allowed_tools=["mcp__video-tools__transcribe_video"],
+        allowed_tools=[
+            "mcp__video-tools__transcribe_video",
+            "mcp__video-tools__write_file",
+        ],
     )
 
     async with ClaudeSDKClient(options) as client:
@@ -25,12 +29,14 @@ Optional Dependencies:
     yt-dlp: Required for YouTube URL support. Install with: pip install yt-dlp
 """
 
+from .file_tool import write_file
 from .server import video_tools_server
 from .transcribe_tool import transcribe_video
 
 __all__ = [
     "transcribe_video",
     "video_tools_server",
+    "write_file",
 ]
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
