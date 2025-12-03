@@ -1,28 +1,107 @@
-// ============================================
-// Session Management
-// ============================================
+# Frontend Implementation Spec
 
-function getSessionId() {
-    let sessionId = sessionStorage.getItem('agent_session_id');
-    if (!sessionId) {
-        sessionId = crypto.randomUUID();
-        sessionStorage.setItem('agent_session_id', sessionId);
-    }
-    return sessionId;
-}
+## Overview
 
-const sessionId = getSessionId();
+This spec covers all frontend changes for the VideoAgent web application, including UI features, error handling improvements, and integration with new backend endpoints.
 
-// ============================================
-// Element References
-// ============================================
+---
 
-const chatForm = document.getElementById('chat-form');
-const userInput = document.getElementById('user-input');
-const chatMessages = document.getElementById('chat-messages');
-const sendBtn = document.getElementById('send-btn');
-const resetBtn = document.getElementById('reset-btn');
+## Target Files
 
+| File | Action | Description |
+|------|--------|-------------|
+| `templates/index.html` | MODIFY | Sidebar panels, status indicator, attachment button |
+| `static/script.js` | MODIFY | Status polling, history/transcripts, file upload, error handling |
+| `static/style.css` | MODIFY | New component styles (optional) |
+
+---
+
+## Part 1: HTML Template Updates
+
+### 1.1 Add DOMPurify CDN
+
+**File:** `templates/index.html:12` (after marked.js)
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+```
+
+### 1.2 Update Status Indicator with IDs
+
+**File:** `templates/index.html:85-92`
+
+Replace the static status indicator with:
+```html
+<div class="flex items-center space-x-2 px-3 py-1.5 bg-slate-50 rounded-full border border-slate-200">
+    <span id="status-indicator" class="relative flex h-2.5 w-2.5">
+        <span id="status-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+        <span id="status-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-yellow-500"></span>
+    </span>
+    <span id="status-label" class="text-xs font-medium text-slate-600">Initializing...</span>
+</div>
+```
+
+### 1.3 Update Sidebar Navigation with Collapsible Panels
+
+**File:** `templates/index.html:42-59`
+
+Replace the menu items section with:
+```html
+<!-- Menu Items -->
+<div class="space-y-1">
+    <p class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Workspace</p>
+
+    <!-- Current Session (Active) -->
+    <a href="#" class="group flex items-center px-3 py-2 text-sm font-medium rounded-md bg-white/10 text-white shadow-inner">
+        <i class="ph-fill ph-chat-circle-text text-lg mr-3 text-blue-400"></i>
+        Current Session
+    </a>
+
+    <!-- History Section (Collapsible) -->
+    <div id="history-section">
+        <button id="history-toggle" class="group flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors w-full text-left">
+            <i class="ph-fill ph-clock-counter-clockwise text-lg mr-3 text-slate-500 group-hover:text-slate-400"></i>
+            History
+            <i id="history-caret" class="ph-bold ph-caret-right ml-auto text-slate-500 transition-transform duration-200"></i>
+        </button>
+        <div id="history-list" class="hidden ml-6 mt-1 space-y-1 max-h-48 overflow-y-auto">
+            <p class="text-xs text-slate-500 px-2 py-1">Loading...</p>
+        </div>
+    </div>
+
+    <!-- Transcripts Section (Collapsible) -->
+    <div id="transcripts-section">
+        <button id="transcripts-toggle" class="group flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors w-full text-left">
+            <i class="ph-fill ph-folder-open text-lg mr-3 text-slate-500 group-hover:text-slate-400"></i>
+            Transcripts
+            <i id="transcripts-caret" class="ph-bold ph-caret-right ml-auto text-slate-500 transition-transform duration-200"></i>
+        </button>
+        <div id="transcripts-list" class="hidden ml-6 mt-1 space-y-1 max-h-48 overflow-y-auto">
+            <p class="text-xs text-slate-500 px-2 py-1">Loading...</p>
+        </div>
+    </div>
+</div>
+```
+
+### 1.4 Update Attachment Button with ID
+
+**File:** `templates/index.html:110-112`
+
+```html
+<button id="attach-btn" type="button" title="Attach video file" class="p-2 text-slate-400 hover:text-slate-600 transition-colors mb-0.5">
+    <i class="ph-bold ph-paperclip text-lg"></i>
+</button>
+```
+
+---
+
+## Part 2: JavaScript - Core Updates
+
+### 2.1 Add New Element References and State
+
+**File:** `static/script.js` (after existing element references, around line 16)
+
+```javascript
 // New element references
 const attachBtn = document.getElementById('attach-btn');
 const historyToggle = document.getElementById('history-toggle');
@@ -32,22 +111,44 @@ const transcriptsToggle = document.getElementById('transcripts-toggle');
 const transcriptsList = document.getElementById('transcripts-list');
 const transcriptsCaret = document.getElementById('transcripts-caret');
 
-// ============================================
 // State
-// ============================================
-
 let isProcessing = false;
 let statusInterval = null;
 let fileInput = null;
 
-// ============================================
 // Configuration
-// ============================================
-
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1000;
 const STATUS_POLL_INTERVAL_MS = 3000;
+```
 
+### 2.2 Update Session Storage (Security Fix)
+
+**File:** `static/script.js:3-8`
+
+Replace localStorage with sessionStorage:
+```javascript
+function getSessionId() {
+    let sessionId = sessionStorage.getItem('agent_session_id');
+    if (!sessionId) {
+        sessionId = crypto.randomUUID();
+        sessionStorage.setItem('agent_session_id', sessionId);
+    }
+    return sessionId;
+}
+```
+
+### 2.3 Add XSS Protection to Message Rendering
+
+**File:** `static/script.js:86` (in addMessage function)
+
+Replace:
+```javascript
+bubble.innerHTML = marked.parse(text);
+```
+
+With:
+```javascript
 // DOMPurify configuration for safe markdown rendering
 const PURIFY_CONFIG = {
     ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'code', 'pre', 'ul', 'ol', 'li',
@@ -57,41 +158,18 @@ const PURIFY_CONFIG = {
     ALLOW_DATA_ATTR: false
 };
 
-// ============================================
-// Utilities
-// ============================================
+bubble.innerHTML = DOMPurify.sanitize(marked.parse(text), PURIFY_CONFIG);
+```
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
+---
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
+## Part 3: JavaScript - Status Polling
 
-function formatRelativeTime(isoString) {
-    const date = new Date(isoString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+### 3.1 Add Status Polling Functions
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-}
+**File:** `static/script.js` (add new section)
 
-function formatFileSize(bytes) {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
+```javascript
 // ============================================
 // Status Polling
 // ============================================
@@ -146,7 +224,17 @@ function renderStatus(status) {
         ping.classList.remove('animate-ping');
     }
 }
+```
 
+---
+
+## Part 4: JavaScript - History Management
+
+### 4.1 Add History Functions
+
+**File:** `static/script.js` (add new section)
+
+```javascript
 // ============================================
 // History Management
 // ============================================
@@ -229,7 +317,17 @@ async function deleteHistoryItem(historySessionId) {
         console.error('Delete failed:', e);
     }
 }
+```
 
+---
+
+## Part 5: JavaScript - Transcripts Management
+
+### 5.1 Add Transcripts Functions
+
+**File:** `static/script.js` (add new section)
+
+```javascript
 // ============================================
 // Transcripts Management
 // ============================================
@@ -302,7 +400,17 @@ async function deleteTranscript(id) {
         alert('Failed to delete transcript');
     }
 }
+```
 
+---
+
+## Part 6: JavaScript - File Upload
+
+### 6.1 Add File Upload Functions
+
+**File:** `static/script.js` (add new section)
+
+```javascript
 // ============================================
 // File Upload
 // ============================================
@@ -377,150 +485,56 @@ async function handleFileSelect(e) {
     // Reset file input for next upload
     fileInput.value = '';
 }
+```
 
+---
+
+## Part 7: JavaScript - Error Handling Improvements
+
+### 7.1 Refactor sendMessage with Retry Logic
+
+**File:** `static/script.js`
+
+Add helper function:
+```javascript
 // ============================================
-// UI Helpers
-// ============================================
-
-// Auto-resize textarea
-userInput.addEventListener('input', function() {
-    this.style.height = 'auto';
-    this.style.height = (this.scrollHeight) + 'px';
-    if(this.value === '') {
-        this.style.height = '44px'; // Reset to min-height
-    }
-});
-
-// Handle Enter to submit (Shift+Enter for newline)
-userInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        chatForm.requestSubmit();
-    }
-});
-
-function scrollToBottom() {
-    // Smooth scroll to bottom
-    const scrollHeight = chatMessages.scrollHeight;
-    chatMessages.scrollTo({
-        top: scrollHeight,
-        behavior: 'smooth'
-    });
-}
-
-// Add Message to UI
-function addMessage(text, sender) {
-    const isUser = sender === 'user';
-
-    // Outer Container
-    const container = document.createElement('div');
-    container.className = isUser
-        ? "flex items-start gap-4 flex-row-reverse"
-        : "flex items-start gap-4";
-
-    // Avatar
-    const avatar = document.createElement('div');
-    avatar.className = "flex-shrink-0";
-
-    if (isUser) {
-        avatar.innerHTML = `
-            <div class="w-8 h-8 rounded-lg bg-blue-600 shadow-highlight-strong flex items-center justify-center">
-                <span class="text-xs font-bold text-white">C</span>
-            </div>
-        `;
-    } else {
-        avatar.innerHTML = `
-            <div class="w-8 h-8 rounded-lg bg-white border border-slate-200 shadow-sm flex items-center justify-center">
-                <i class="ph-fill ph-robot text-blue-600"></i>
-            </div>
-        `;
-    }
-
-    // Message Content Wrapper
-    const contentWrapper = document.createElement('div');
-    contentWrapper.className = "flex-1 min-w-0";
-
-    // Bubble
-    const bubble = document.createElement('div');
-
-    if (isUser) {
-        // User Styling: Blue background, Top Highlight, Shadow MD
-        bubble.className = "bg-blue-600 text-white rounded-xl rounded-tr-none p-4 shadow-md shadow-highlight-strong text-sm leading-relaxed";
-        bubble.textContent = text;
-    } else {
-        // Agent Styling: White Card, Ring, Prose
-        bubble.className = "message-agent relative bg-white rounded-xl rounded-tl-none p-5 shadow-sm ring-1 ring-slate-900/5 text-sm text-slate-700 prose prose-slate max-w-none";
-        bubble.innerHTML = DOMPurify.sanitize(marked.parse(text), PURIFY_CONFIG);
-    }
-
-    // Timestamp
-    const timestamp = document.createElement('span');
-    timestamp.className = `text-[10px] text-slate-400 font-medium mt-1 block ${isUser ? 'text-right mr-1' : 'ml-1'}`;
-    timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    contentWrapper.appendChild(bubble);
-    contentWrapper.appendChild(timestamp);
-
-    container.appendChild(avatar);
-    container.appendChild(contentWrapper);
-
-    // Append to chat area
-    // The container is inside the main chatMessages div now, but let's stick to the inner wrapper if it exists.
-    // In the HTML we have <div class="max-w-3xl mx-auto space-y-8">.
-    let listContainer = chatMessages.querySelector('div.space-y-8');
-    if (!listContainer) {
-        // Create if missing (e.g. if we cleared HTML)
-        listContainer = document.createElement('div');
-        listContainer.className = "max-w-3xl mx-auto space-y-8";
-        chatMessages.appendChild(listContainer);
-    }
-    listContainer.appendChild(container);
-
-    scrollToBottom();
-}
-
-// Add Loading Indicator
-function showLoading() {
-    const id = 'loading-' + Date.now();
-    const container = document.createElement('div');
-    container.id = id;
-    container.className = "flex items-start gap-4";
-
-    container.innerHTML = `
-        <div class="flex-shrink-0">
-            <div class="w-8 h-8 rounded-lg bg-white border border-slate-200 shadow-sm flex items-center justify-center">
-                <i class="ph-fill ph-robot text-blue-600"></i>
-            </div>
-        </div>
-        <div class="bg-white rounded-xl rounded-tl-none p-4 shadow-sm ring-1 ring-slate-900/5">
-            <div class="flex space-x-1.5 items-center h-5">
-                <div class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></div>
-                <div class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-                <div class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-            </div>
-        </div>
-    `;
-
-    let listContainer = chatMessages.querySelector('div.space-y-8');
-    if (!listContainer) {
-         listContainer = document.createElement('div');
-         listContainer.className = "max-w-3xl mx-auto space-y-8";
-         chatMessages.appendChild(listContainer);
-    }
-    listContainer.appendChild(container);
-    scrollToBottom();
-    return id;
-}
-
-function removeLoading(id) {
-    const el = document.getElementById(id);
-    if (el) el.remove();
-}
-
-// ============================================
-// Message Sending
+// Utilities
 // ============================================
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatRelativeTime(isoString) {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+```
+
+Add sendMessage helper:
+```javascript
 async function sendMessage(message, showInUI = true) {
     if (isProcessing) {
         console.warn('Already processing a message');
@@ -602,78 +616,14 @@ async function sendMessage(message, showInUI = true) {
     isProcessing = false;
     return false;
 }
+```
 
-// ============================================
-// Session Initialization
-// ============================================
+### 7.2 Update Form Submit Handler
 
-async function loadExistingSession() {
-    // Try to load existing messages from history storage
-    try {
-        const response = await fetch(`/history/${sessionId}`);
-        if (!response.ok) return null;
-        const data = await response.json();
-        return data.messages || [];
-    } catch (e) {
-        console.warn('No existing session history:', e);
-        return null;
-    }
-}
+**File:** `static/script.js:196-241`
 
-async function initSession() {
-    // Clear any hardcoded placeholder if we want dynamic.
-    const listContainer = chatMessages.querySelector('div.space-y-8');
-    if (listContainer) {
-        listContainer.innerHTML = ''; // Clear hardcoded placeholder
-    }
-
-    // First, check if this session has existing messages in storage
-    const existingMessages = await loadExistingSession();
-
-    if (existingMessages && existingMessages.length > 0) {
-        // Display existing messages from history
-        for (const msg of existingMessages) {
-            addMessage(msg.content, msg.role);
-        }
-        // Add a visual indicator that this is a restored session
-        const divider = document.createElement('div');
-        divider.className = 'text-center text-xs text-slate-400 py-4 border-t border-slate-200';
-        divider.innerHTML = '<span class="bg-slate-50 px-3 relative -top-2">Session restored from history</span>';
-        const container = chatMessages.querySelector('div.space-y-8');
-        if (container) {
-            container.appendChild(divider);
-        }
-        return; // Session loaded from history
-    }
-
-    // No existing history - initialize new session
-    const loadingId = showLoading();
-
-    try {
-        const response = await fetch('/chat/init', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: sessionId })
-        });
-
-        if (!response.ok) throw new Error('Failed to init session');
-
-        const data = await response.json();
-        removeLoading(loadingId);
-        addMessage(data.response, 'agent');
-
-    } catch (e) {
-        console.error("Init failed", e);
-        removeLoading(loadingId);
-        // Fallback or silent fail
-        addMessage("Welcome! How can I help you with video transcription today?", 'agent');
-    }
-}
-
-// ============================================
-// Form Handlers
-// ============================================
-
+Replace the existing form submit handler:
+```javascript
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -695,7 +645,14 @@ chatForm.addEventListener('submit', async (e) => {
     sendBtn.disabled = false;
     userInput.focus();
 });
+```
 
+### 7.3 Update Reset Handler with Race Condition Fix
+
+**File:** `static/script.js:244-256`
+
+Replace the reset handler:
+```javascript
 resetBtn.addEventListener('click', async () => {
     if (isProcessing) {
         if (!confirm('A message is being processed. Reset anyway?')) {
@@ -720,7 +677,18 @@ resetBtn.addEventListener('click', async () => {
         window.location.reload();
     }
 });
+```
 
+---
+
+## Part 8: JavaScript - Initialization
+
+### 8.1 Update Initialization Code
+
+**File:** `static/script.js` (at the bottom)
+
+Replace/update the initialization:
+```javascript
 // ============================================
 // Initialization
 // ============================================
@@ -751,3 +719,108 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Initialize session
 initSession();
+```
+
+---
+
+## Testing Checklist
+
+### XSS Protection
+- [x] Inject `<script>alert('xss')</script>` in message - should be sanitized ✅ TESTED: displayed as plain text, no alert
+- [x] Inject `<img src=x onerror="alert('xss')">` - should be sanitized ✅ TESTED: displayed as plain text, no alert
+- [x] Markdown still renders correctly (bold, code, lists) ✅ TESTED: agent response showed proper formatting
+
+### Status Indicator
+- [ ] Shows "Initializing" on page load ⚠️ PARTIAL: verified in HTML source, but page loads too fast to catch visually
+- [x] Changes to "Ready" after greeting received ✅ TESTED: saw "Agent Ready" in UI
+- [x] Changes to "Processing" during message handling ✅ TESTED: caught "Processing..." during message send
+- [ ] Shows "Error" if session fails ❌ NOT TESTED: requires network failure/server crash
+
+### History Panel
+- [x] Toggle opens/closes panel ✅ TESTED: clicked toggle, panel appeared/disappeared
+- [x] Shows previous sessions sorted by date ✅ TESTED: saw "Just now", "1m ago" ordering
+- [x] Clicking session switches to it ✅ TESTED: clicked session, page reloaded with new session
+- [x] Shows message count for each session ✅ TESTED: saw "3 msgs", "7 msgs", "8 msgs"
+
+### Transcripts Panel
+- [x] Toggle opens/closes panel ✅ TESTED: clicked toggle, panel appeared/disappeared
+- [x] Shows saved transcripts ✅ TESTED: created mock transcript, appeared in list
+- [x] Download button downloads file ✅ TESTED: clicked, opened new tab with /transcripts/{id}/download
+- [x] Delete button removes transcript ✅ TESTED: clicked, confirmed dialog, transcript removed
+
+### File Upload
+- [x] Attachment button opens file picker ✅ TESTED: clicked, file chooser modal appeared
+- [x] Only accepts video file extensions ✅ TESTED: verified accept=".mp4,.mkv,.avi,.mov,.webm,.m4v"
+- [x] Shows upload progress ✅ TESTED: saw "Uploading: test_video.mp4 (2.2 KB)..."
+- [x] Auto-triggers transcription on success ✅ TESTED: saw "File uploaded successfully. Starting transcription..."
+- [ ] Shows error for oversized files ❌ NOT TESTED: requires 500MB+ file (code verified only)
+
+### Error Handling
+- [ ] Network errors trigger retry ❌ NOT TESTED: requires network simulation (code verified only)
+- [ ] 504 timeout shows appropriate message ❌ NOT TESTED: requires backend timeout (code verified only)
+- [ ] 422 validation shows error detail ❌ NOT TESTED: requires validation failure (code verified only)
+- [x] Reset works even during processing ✅ TESTED: reset dialog appeared and worked
+
+### Session Management
+- [x] Session ID stored in sessionStorage (not localStorage) ✅ TESTED: JS eval showed sessionStorage has ID, localStorage null
+- [x] New tab gets new session ID ✅ TESTED: tab1 had different UUID than tab2
+- [x] Reset clears session and creates new one ✅ TESTED: before/after reset showed different UUIDs
+
+---
+
+## Implementation Order
+
+1. **DOMPurify integration** - Add CDN and sanitization
+2. **Session storage fix** - Replace localStorage with sessionStorage
+3. **Status indicator** - Add IDs, polling, rendering
+4. **Utility functions** - escapeHtml, formatRelativeTime, formatFileSize
+5. **History panel** - HTML structure, toggle, load, render
+6. **Transcripts panel** - HTML structure, toggle, load, render
+7. **File upload** - Input creation, button handler, upload logic
+8. **sendMessage refactor** - Extract from form handler, add retry
+9. **Form handler update** - Use sendMessage helper
+10. **Reset handler update** - Fix race conditions
+11. **Initialization update** - Wire everything together
+
+---
+
+## CSS Additions (Optional)
+
+**File:** `static/style.css`
+
+Add smooth transitions for sidebar panels:
+```css
+/* Sidebar panel transitions */
+#history-list,
+#transcripts-list {
+    transition: max-height 0.2s ease-out;
+}
+
+/* Caret rotation */
+#history-caret,
+#transcripts-caret {
+    transition: transform 0.2s ease-out;
+}
+
+/* Custom scrollbar for sidebar lists */
+#history-list::-webkit-scrollbar,
+#transcripts-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+#history-list::-webkit-scrollbar-track,
+#transcripts-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#history-list::-webkit-scrollbar-thumb,
+#transcripts-list::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 2px;
+}
+
+#history-list::-webkit-scrollbar-thumb:hover,
+#transcripts-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
+}
+```

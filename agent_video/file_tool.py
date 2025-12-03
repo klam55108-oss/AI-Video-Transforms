@@ -7,6 +7,7 @@ to persist transcriptions, summaries, and other generated content.
 
 from __future__ import annotations
 
+import asyncio
 import os
 from pathlib import Path
 from typing import Any
@@ -74,6 +75,23 @@ def _ensure_parent_directory(file_path: Path) -> tuple[bool, str]:
         return False, f"Permission denied creating directory: {file_path.parent}"
     except OSError as e:
         return False, f"Failed to create directory: {e}"
+
+
+def _write_file_sync(path: Path, content: str) -> tuple[int, int]:
+    """
+    Synchronous file write operation.
+
+    Returns:
+        Tuple of (file_size, line_count)
+    """
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    file_size = os.path.getsize(path)
+    line_count = content.count("\n") + (
+        1 if content and not content.endswith("\n") else 0
+    )
+    return file_size, line_count
 
 
 @tool(
@@ -193,15 +211,9 @@ async def write_file(args: dict[str, Any]) -> dict[str, Any]:
             ]
         }
 
-    # Write the file
+    # Write the file asynchronously
     try:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)
-
-        file_size = os.path.getsize(path)
-        line_count = content.count("\n") + (
-            1 if content and not content.endswith("\n") else 0
-        )
+        file_size, line_count = await asyncio.to_thread(_write_file_sync, path, content)
 
         return {
             "content": [

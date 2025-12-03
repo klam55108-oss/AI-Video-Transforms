@@ -19,26 +19,21 @@ A Python video transcription toolkit with two interfaces: CLI and Web UI. Built 
 
 ```
 agent-video-to-data/
-├── agent_video/              # Core package
-│   ├── __init__.py           # Exports: video_tools_server, transcribe_video
+├── agent_video/              # Core transcription package
 │   ├── agent.py              # CLI entry point
 │   ├── server.py             # MCP server configuration
-│   ├── transcribe_tool.py    # Transcription tool
-│   ├── file_tool.py          # File writing tool
-│   └── prompts/
-│       ├── registry.py       # PromptVersion dataclass
-│       └── video_transcription.py
-├── web_app.py                # FastAPI web server with SessionActor
-├── templates/
-│   └── index.html            # Chat UI (Tailwind + Phosphor Icons)
-├── static/
-│   ├── script.js             # Session management, markdown rendering
-│   └── style.css             # Custom scrollbar, message bubbles
-├── .claude/
-│   ├── settings.json         # Permissions
-│   └── agents/               # Custom subagent definitions
-├── pyproject.toml
-└── uv.lock
+│   ├── transcribe_tool.py    # Whisper transcription tool
+│   ├── file_tool.py          # Safe file writing tool
+│   └── prompts/              # Versioned prompt templates
+├── web_app.py                # FastAPI server (SessionActor pattern)
+├── web_app_models.py         # Pydantic request/response models
+├── storage.py                # File-based session/transcript persistence
+├── templates/index.html      # Chat UI (Tailwind + Phosphor Icons)
+├── static/                   # Frontend assets (JS, CSS)
+├── tests/                    # Pytest test suite
+├── data/                     # Runtime: sessions, transcripts (gitignored)
+├── uploads/                  # Runtime: user uploads (gitignored)
+└── specs/                    # Implementation specifications
 ```
 
 ## Commands
@@ -131,5 +126,6 @@ This queue-based actor model prevents race conditions when multiple HTTP request
 - Audio segments: 5 minutes max, auto-downsamples if >23MB
 - YouTube: uses mobile client spoofing via yt-dlp
 - Temp files: auto-cleanup via `tempfile.TemporaryDirectory`
-- Web sessions: stored in-memory dict, cleaned on DELETE endpoint
-- Frontend: localStorage for session ID persistence
+- Sessions: file-based persistence via `StorageManager` in `data/sessions/`
+- Frontend: `sessionStorage` for session ID (tab isolation)
+- Security: UUID v4 validation, Pydantic validators, DOMPurify XSS protection

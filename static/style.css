@@ -49,3 +49,37 @@
     outline: none !important;
     box-shadow: none !important;
 }
+
+/* Sidebar panel transitions */
+#history-list,
+#transcripts-list {
+    transition: max-height 0.2s ease-out;
+}
+
+/* Caret rotation */
+#history-caret,
+#transcripts-caret {
+    transition: transform 0.2s ease-out;
+}
+
+/* Custom scrollbar for sidebar lists */
+#history-list::-webkit-scrollbar,
+#transcripts-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+#history-list::-webkit-scrollbar-track,
+#transcripts-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#history-list::-webkit-scrollbar-thumb,
+#transcripts-list::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 2px;
+}
+
+#history-list::-webkit-scrollbar-thumb:hover,
+#transcripts-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
+}

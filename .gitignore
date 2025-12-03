@@ -65,4 +65,29 @@ htmlcov/
 # Archive directory for deprecated/old files
 archive/
 
+# Alternative AI documentation (if any)
 GEMINI.md
+
+# Runtime storage directories (sessions, transcripts)
+# Keep directory structure but ignore contents except .gitkeep
+data/**
+!data/
+!data/.gitkeep
+!data/sessions/
+!data/sessions/.gitkeep
+!data/transcripts/
+!data/transcripts/.gitkeep
+uploads/**
+!uploads/
+!uploads/.gitkeep
+
+# =============================================================================
+# Testing & Browser Automation
+# =============================================================================
+# Playwright MCP test artifacts (screenshots, traces)
+.playwright-mcp/
+
+# Test videos/audio created during testing
+*.test.mp4
+*.test.webm
+*.test.wav
