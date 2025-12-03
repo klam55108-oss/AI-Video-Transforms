@@ -65,5 +65,3 @@ htmlcov/
 # Archive directory for deprecated/old files
 archive/
 
-# AI documentation (generated/reference docs)
-ai_docs/
