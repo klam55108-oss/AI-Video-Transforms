@@ -12,6 +12,12 @@ import json
 import time
 from pathlib import Path
 
+# Valid UUID v4 test session IDs
+TEST_SESSION_1 = "11111111-1111-4111-8111-111111111111"
+TEST_SESSION_2 = "22222222-2222-4222-8222-222222222222"
+TEST_SESSION_3 = "33333333-3333-4333-8333-333333333333"
+TEST_SESSION_4 = "44444444-4444-4444-8444-444444444444"
+
 
 class TestMessagePersistence:
     """Test that messages persist across server restarts."""
@@ -21,7 +27,7 @@ class TestMessagePersistence:
         from storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
-        session_id = "persist-test-session"
+        session_id = TEST_SESSION_1
 
         # Save messages
         manager.save_message(session_id, "user", "Hello agent")
@@ -41,7 +47,7 @@ class TestMessagePersistence:
         """Test that messages can be read by a new StorageManager instance."""
         from storage import StorageManager
 
-        session_id = "survive-test-session"
+        session_id = TEST_SESSION_1
 
         # First manager instance saves messages
         manager1 = StorageManager(base_dir=temp_storage_dir)
@@ -63,7 +69,7 @@ class TestMessagePersistence:
         from storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
-        session_id = "title-test-session"
+        session_id = TEST_SESSION_1
 
         # First message from agent shouldn't set title
         manager.save_message(session_id, "agent", "Welcome!")
@@ -82,7 +88,7 @@ class TestMessagePersistence:
         from storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
-        session_id = "long-title-session"
+        session_id = TEST_SESSION_1
 
         long_message = "A" * 100
         manager.save_message(session_id, "user", long_message)
@@ -103,19 +109,19 @@ class TestSessionListSorting:
         manager = StorageManager(base_dir=temp_storage_dir)
 
         # Create sessions in order
-        manager.save_message("session-1", "user", "First session")
+        manager.save_message(TEST_SESSION_1, "user", "First session")
         time.sleep(0.01)
-        manager.save_message("session-2", "user", "Second session")
+        manager.save_message(TEST_SESSION_2, "user", "Second session")
         time.sleep(0.01)
-        manager.save_message("session-3", "user", "Third session")
+        manager.save_message(TEST_SESSION_3, "user", "Third session")
 
         sessions = manager.list_sessions()
 
         assert len(sessions) == 3
         # Most recently updated should be first
-        assert sessions[0]["session_id"] == "session-3"
-        assert sessions[1]["session_id"] == "session-2"
-        assert sessions[2]["session_id"] == "session-1"
+        assert sessions[0]["session_id"] == TEST_SESSION_3
+        assert sessions[1]["session_id"] == TEST_SESSION_2
+        assert sessions[2]["session_id"] == TEST_SESSION_1
 
     def test_update_changes_sort_order(self, temp_storage_dir: Path):
         """Test that updating a session changes its position in the list."""
@@ -124,31 +130,34 @@ class TestSessionListSorting:
         manager = StorageManager(base_dir=temp_storage_dir)
 
         # Create sessions
-        manager.save_message("old-session", "user", "Old session")
+        manager.save_message(TEST_SESSION_1, "user", "Old session")
         time.sleep(0.01)
-        manager.save_message("new-session", "user", "New session")
+        manager.save_message(TEST_SESSION_2, "user", "New session")
 
-        # Initially, new-session should be first
+        # Initially, TEST_SESSION_2 should be first (most recent)
         sessions = manager.list_sessions()
-        assert sessions[0]["session_id"] == "new-session"
+        assert sessions[0]["session_id"] == TEST_SESSION_2
 
         # Update old session
         time.sleep(0.01)
-        manager.save_message("old-session", "user", "Updated message")
+        manager.save_message(TEST_SESSION_1, "user", "Updated message")
 
-        # Now old-session should be first
+        # Now TEST_SESSION_1 should be first
         sessions = manager.list_sessions()
-        assert sessions[0]["session_id"] == "old-session"
+        assert sessions[0]["session_id"] == TEST_SESSION_1
 
     def test_list_sessions_respects_limit(self, temp_storage_dir: Path):
         """Test that list_sessions respects the limit parameter."""
+        import uuid as uuid_module
+
         from storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
 
-        # Create many sessions
+        # Create many sessions using valid UUIDs
         for i in range(10):
-            manager.save_message(f"session-{i}", "user", f"Session {i}")
+            session_id = str(uuid_module.uuid4())
+            manager.save_message(session_id, "user", f"Session {i}")
 
         # Request only 3
         sessions = manager.list_sessions(limit=3)
@@ -244,7 +253,7 @@ class TestDeleteOperations:
         from storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
-        session_id = "delete-test-session"
+        session_id = TEST_SESSION_1
 
         # Create session
         manager.save_message(session_id, "user", "Test message")

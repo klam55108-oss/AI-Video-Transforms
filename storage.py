@@ -13,11 +13,23 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+# UUID v4 validation pattern for defense in depth
+_UUID_PATTERN = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+
+
+def _is_valid_uuid(value: str) -> bool:
+    """Check if a string is a valid UUID v4 format."""
+    return bool(_UUID_PATTERN.match(value))
 
 
 class StorageManager:
@@ -84,7 +96,13 @@ class StorageManager:
 
         Returns:
             The saved message object
+
+        Raises:
+            ValueError: If session_id is not a valid UUID v4
         """
+        if not _is_valid_uuid(session_id):
+            raise ValueError(f"Invalid session_id format: {session_id}")
+
         session_file = self.sessions_dir / f"{session_id}.json"
 
         if session_file.exists():
@@ -117,6 +135,9 @@ class StorageManager:
 
     def get_session(self, session_id: str) -> dict[str, Any] | None:
         """Get full session data by ID."""
+        if not _is_valid_uuid(session_id):
+            return None  # Silently return None for invalid IDs (defense in depth)
+
         session_file = self.sessions_dir / f"{session_id}.json"
         if session_file.exists():
             return json.loads(session_file.read_text())
@@ -145,6 +166,9 @@ class StorageManager:
 
     def delete_session(self, session_id: str) -> bool:
         """Delete a session's history."""
+        if not _is_valid_uuid(session_id):
+            return False  # Silently return False for invalid IDs (defense in depth)
+
         session_file = self.sessions_dir / f"{session_id}.json"
         if session_file.exists():
             session_file.unlink()

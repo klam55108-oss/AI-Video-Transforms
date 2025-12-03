@@ -5,8 +5,8 @@ import re
 import time
 import uuid
 from pathlib import Path
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Dict, Optional
 
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
 from fastapi.exceptions import RequestValidationError
@@ -33,6 +33,23 @@ UUID_PATTERN = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
     re.IGNORECASE,
 )
+
+
+def validate_uuid(value: str, field_name: str = "ID") -> None:
+    """
+    Validate that a string is a valid UUID v4 format.
+
+    Args:
+        value: The string to validate
+        field_name: Name of the field for error messages
+
+    Raises:
+        HTTPException: If the value is not a valid UUID v4
+    """
+    if not UUID_PATTERN.match(value):
+        raise HTTPException(
+            status_code=400, detail=f"Invalid {field_name} format (must be UUID v4)"
+        )
 
 from claude_agent_sdk import (  # noqa: E402
     AssistantMessage,
@@ -145,7 +162,7 @@ class SessionActor:
             maxsize=QUEUE_MAX_SIZE
         )
         self.greeting_queue: asyncio.Queue[str] = asyncio.Queue(maxsize=1)
-        self.active_task: Optional[asyncio.Task[None]] = None
+        self.active_task: asyncio.Task[None] | None = None
         self._running_event = asyncio.Event()
         self.last_activity: float = time.time()
         self._is_processing: bool = False
@@ -351,7 +368,7 @@ class SessionActor:
 
 
 # In-memory storage for active sessions
-active_sessions: Dict[str, SessionActor] = {}
+active_sessions: dict[str, SessionActor] = {}
 sessions_lock = asyncio.Lock()  # Protects active_sessions access
 
 
@@ -379,7 +396,7 @@ async def cleanup_expired_sessions() -> None:
 
 
 # Background task reference for cleanup
-_cleanup_task: Optional[asyncio.Task[None]] = None
+_cleanup_task: asyncio.Task[None] | None = None
 
 
 @asynccontextmanager
@@ -568,6 +585,8 @@ async def delete_session(session_id: str):
 @app.get("/status/{session_id}", response_model=StatusResponse)
 async def get_status(session_id: str):
     """Get current status of a session's agent."""
+    validate_uuid(session_id, "session ID")
+
     async with sessions_lock:
         if session_id not in active_sessions:
             return StatusResponse(
@@ -603,6 +622,8 @@ async def list_history(limit: int = 50):
 @app.get("/history/{session_id}", response_model=SessionDetail)
 async def get_history(session_id: str):
     """Get full chat history for a session."""
+    validate_uuid(session_id, "session ID")
+
     session = storage.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session history not found")
@@ -612,6 +633,8 @@ async def get_history(session_id: str):
 @app.delete("/history/{session_id}")
 async def delete_history(session_id: str):
     """Delete a session's history."""
+    validate_uuid(session_id, "session ID")
+
     success = storage.delete_session(session_id)
     return {"success": success}
 
@@ -693,8 +716,17 @@ async def upload_video(file: UploadFile = File(...), session_id: str = Form(...)
                     )
                 buffer.write(chunk)
 
+        # Return relative path to avoid exposing server filesystem structure
+        # The agent can access files from the project root
+        try:
+            relative_path = file_path.relative_to(Path.cwd())
+            path_to_return = str(relative_path)
+        except ValueError:
+            # If file_path is not under cwd (e.g., in tests), return path from UPLOAD_DIR
+            path_to_return = str(UPLOAD_DIR / session_id / safe_filename)
+
         return UploadResponse(
-            success=True, file_id=file_id, file_path=str(file_path.resolve())
+            success=True, file_id=file_id, file_path=path_to_return
         )
     except Exception as e:
         logger.error(f"Upload failed: {e}")

@@ -24,14 +24,17 @@ class TestStatusEndpoint:
         """Test that status returns INITIALIZING for unknown session."""
         from web_app import app
 
+        # Use valid UUID v4 format for unknown session
+        unknown_session_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.get("/status/unknown-session-id")
+            response = await client.get(f"/status/{unknown_session_id}")
 
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "initializing"
-        assert data["session_id"] == "unknown-session-id"
+        assert data["session_id"] == unknown_session_id
 
     @pytest.mark.asyncio
     async def test_status_returns_ready_for_active_session(self):
@@ -40,8 +43,8 @@ class TestStatusEndpoint:
 
         transport = ASGITransport(app=app)
 
-        # Create a mock active session
-        session_id = "active-test-session"
+        # Create a mock active session with valid UUID v4
+        session_id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
         actor = SessionActor(session_id)
         actor._running_event.set()
         actor._is_processing = False
@@ -70,7 +73,7 @@ class TestStatusEndpoint:
 
         transport = ASGITransport(app=app)
 
-        session_id = "processing-test-session"
+        session_id = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
         actor = SessionActor(session_id)
         actor._running_event.set()
         actor._is_processing = True
@@ -115,9 +118,12 @@ class TestHistoryEndpoints:
         """Test that get history returns 404 for unknown session."""
         from web_app import app
 
+        # Use valid UUID v4 that doesn't exist
+        nonexistent_id = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.get("/history/nonexistent-session")
+            response = await client.get(f"/history/{nonexistent_id}")
 
         assert response.status_code == 404
 
@@ -126,9 +132,12 @@ class TestHistoryEndpoints:
         """Test that delete history returns success."""
         from web_app import app
 
+        # Use valid UUID v4 format
+        session_id = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.delete("/history/any-session")
+            response = await client.delete(f"/history/{session_id}")
 
         assert response.status_code == 200
         data = response.json()
