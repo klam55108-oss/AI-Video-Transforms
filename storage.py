@@ -3,11 +3,17 @@ File-based storage manager for sessions and transcripts.
 
 This module provides persistent storage for chat history and transcript metadata
 using JSON files, suitable for local development use.
+
+Thread Safety:
+    Uses atomic writes (write to temp file, then rename) to prevent data
+    corruption from concurrent access. File renames are atomic on POSIX systems.
 """
 
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +35,32 @@ class StorageManager:
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
         self.transcripts_dir.mkdir(parents=True, exist_ok=True)
 
+    def _atomic_write(self, file_path: Path, data: dict[str, Any]) -> None:
+        """
+        Atomically write JSON data to a file.
+
+        Uses write-to-temp-then-rename pattern for thread safety.
+        File renames are atomic on POSIX systems, preventing partial writes.
+
+        Args:
+            file_path: Target file path
+            data: Dictionary to serialize as JSON
+        """
+        # Create temp file in same directory to ensure same filesystem for rename
+        fd, temp_path = tempfile.mkstemp(
+            suffix=".tmp", prefix=file_path.stem, dir=file_path.parent
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, default=str)
+            # Atomic rename
+            os.replace(temp_path, file_path)
+        except Exception:
+            # Clean up temp file on failure
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            raise
+
     def _load_metadata(self) -> dict[str, Any]:
         """Load global metadata from file."""
         if self.metadata_file.exists():
@@ -36,8 +68,8 @@ class StorageManager:
         return {"transcripts": {}}
 
     def _save_metadata(self, data: dict[str, Any]) -> None:
-        """Save global metadata to file."""
-        self.metadata_file.write_text(json.dumps(data, indent=2, default=str))
+        """Save global metadata to file atomically."""
+        self._atomic_write(self.metadata_file, data)
 
     # --- Session Methods ---
 
@@ -80,7 +112,7 @@ class StorageManager:
         if not session_data["title"] and role == "user":
             session_data["title"] = content[:50] + ("..." if len(content) > 50 else "")
 
-        session_file.write_text(json.dumps(session_data, indent=2))
+        self._atomic_write(session_file, session_data)
         return message
 
     def get_session(self, session_id: str) -> dict[str, Any] | None:

@@ -2,11 +2,11 @@ import asyncio
 import logging
 import os
 import re
-import shutil
 import time
 import uuid
 from pathlib import Path
-from typing import Dict, Optional
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator, Dict, Optional
 
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
 from fastapi.exceptions import RequestValidationError
@@ -67,25 +67,17 @@ UPLOAD_DIR = Path("uploads")
 ALLOWED_EXTENSIONS = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v"}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
 
-app = FastAPI(title="Agent Video to Data")
-
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# Templates
-templates = Jinja2Templates(directory="templates")
-
-
 # --------------------------------------------------------------------------
 # Exception Handling
 # --------------------------------------------------------------------------
 
 
-@app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
-    request: Request, exc: RequestValidationError
+    request: Request, exc: Exception
 ) -> JSONResponse:
     """Return 422 with structured validation error details."""
+    if not isinstance(exc, RequestValidationError):
+        raise exc
     errors = []
     for error in exc.errors():
         field = ".".join(str(loc) for loc in error["loc"])
@@ -368,26 +360,67 @@ async def cleanup_expired_sessions() -> None:
     while True:
         await asyncio.sleep(CLEANUP_INTERVAL_SECONDS)
 
+        # Collect and remove expired sessions while holding the lock
+        # to prevent race conditions with session creation
+        actors_to_stop: list[SessionActor] = []
         async with sessions_lock:
             expired_ids = [
                 sid
                 for sid, actor in active_sessions.items()
                 if actor.is_expired() or not actor.is_running
             ]
+            for sid in expired_ids:
+                logger.info(f"Cleaning up expired session: {sid}")
+                actors_to_stop.append(active_sessions.pop(sid))
 
-        for sid in expired_ids:
-            logger.info(f"Cleaning up expired session: {sid}")
-            async with sessions_lock:
-                if sid in active_sessions:
-                    actor = active_sessions.pop(sid)
-            if actor:
-                await actor.stop()
+        # Stop actors outside the lock to avoid blocking other operations
+        for actor in actors_to_stop:
+            await actor.stop()
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Start background cleanup task."""
-    asyncio.create_task(cleanup_expired_sessions())
+# Background task reference for cleanup
+_cleanup_task: Optional[asyncio.Task[None]] = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Manage application lifecycle with startup and shutdown events."""
+    global _cleanup_task
+    # Startup: begin background cleanup task
+    _cleanup_task = asyncio.create_task(cleanup_expired_sessions())
+    logger.info("Started session cleanup background task")
+
+    yield
+
+    # Shutdown: cancel cleanup and stop all sessions
+    if _cleanup_task:
+        _cleanup_task.cancel()
+        try:
+            await _cleanup_task
+        except asyncio.CancelledError:
+            pass
+
+    # Gracefully stop all active sessions
+    async with sessions_lock:
+        actors = list(active_sessions.values())
+        active_sessions.clear()
+
+    for actor in actors:
+        await actor.stop()
+    logger.info("Shutdown complete: all sessions closed")
+
+
+# Initialize FastAPI app with lifespan context manager
+app = FastAPI(title="Agent Video to Data", lifespan=lifespan)
+
+# Register exception handlers
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Templates
+templates = Jinja2Templates(directory="templates")
 
 
 class ChatRequest(BaseModel):
@@ -619,6 +652,10 @@ async def delete_transcript(transcript_id: str):
 @app.post("/upload", response_model=UploadResponse)
 async def upload_video(file: UploadFile = File(...), session_id: str = Form(...)):
     """Upload a video file for transcription."""
+    # Validate session_id is a valid UUID v4
+    if not UUID_PATTERN.match(session_id):
+        return UploadResponse(success=False, error="Invalid session ID format")
+
     # Validate extension
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -627,25 +664,42 @@ async def upload_video(file: UploadFile = File(...), session_id: str = Form(...)
             error=f"Invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
         )
 
+    # Sanitize filename - extract only the base name to prevent path traversal
+    original_filename = Path(file.filename or "upload").name
+    if not original_filename or original_filename.startswith("."):
+        original_filename = "upload" + ext
+
     # Create session upload directory
     session_upload_dir = UPLOAD_DIR / session_id
     session_upload_dir.mkdir(parents=True, exist_ok=True)
 
-    # Generate unique filename
+    # Generate unique filename with sanitized original name
     file_id = str(uuid.uuid4())[:8]
-    safe_filename = f"{file_id}_{file.filename}"
+    safe_filename = f"{file_id}_{original_filename}"
     file_path = session_upload_dir / safe_filename
 
-    # Stream file to disk
+    # Stream file to disk with size validation
     try:
+        total_size = 0
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            while chunk := await file.read(8192):
+                total_size += len(chunk)
+                if total_size > MAX_FILE_SIZE:
+                    buffer.close()
+                    file_path.unlink(missing_ok=True)
+                    return UploadResponse(
+                        success=False,
+                        error=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024 * 1024)}MB",
+                    )
+                buffer.write(chunk)
 
         return UploadResponse(
             success=True, file_id=file_id, file_path=str(file_path.resolve())
         )
     except Exception as e:
         logger.error(f"Upload failed: {e}")
+        # Clean up partial file on error
+        file_path.unlink(missing_ok=True)
         return UploadResponse(success=False, error="Upload failed")
 
 

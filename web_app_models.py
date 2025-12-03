@@ -71,6 +71,7 @@ class TranscriptMetadata(BaseModel):
 
     id: str
     filename: str
+    file_path: str
     original_source: str
     source_type: str  # "youtube" | "upload" | "local"
     created_at: datetime

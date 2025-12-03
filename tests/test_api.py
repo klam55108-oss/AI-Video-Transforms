@@ -214,6 +214,24 @@ class TestUploadEndpoint:
     """Test /upload endpoint."""
 
     @pytest.mark.asyncio
+    async def test_upload_rejects_invalid_session_id(self):
+        """Test that upload rejects invalid session_id format."""
+        from web_app import app
+
+        transport = ASGITransport(app=app)
+
+        files = {"file": ("test.mp4", io.BytesIO(b"fake content"), "video/mp4")}
+        data = {"session_id": "invalid-session-id"}
+
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post("/upload", files=files, data=data)
+
+        assert response.status_code == 200
+        result = response.json()
+        assert result["success"] is False
+        assert "Invalid session ID format" in result["error"]
+
+    @pytest.mark.asyncio
     async def test_upload_rejects_invalid_extension(self):
         """Test that upload rejects files with invalid extensions."""
         from web_app import app
@@ -221,7 +239,8 @@ class TestUploadEndpoint:
         transport = ASGITransport(app=app)
 
         files = {"file": ("test.txt", io.BytesIO(b"fake content"), "text/plain")}
-        data = {"session_id": "test-session"}
+        # Use valid UUID v4 format
+        data = {"session_id": "12345678-1234-4123-8123-123456789abc"}
 
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.post("/upload", files=files, data=data)
@@ -236,6 +255,9 @@ class TestUploadEndpoint:
         """Test that upload accepts valid video extensions."""
         from web_app import app
 
+        # Use valid UUID v4 format
+        session_id = "12345678-1234-4123-8123-123456789abc"
+
         # Patch UPLOAD_DIR to use temp directory
         with patch("web_app.UPLOAD_DIR", temp_upload_dir):
             transport = ASGITransport(app=app)
@@ -243,7 +265,7 @@ class TestUploadEndpoint:
             files = {
                 "file": ("test.mp4", io.BytesIO(b"fake video content"), "video/mp4")
             }
-            data = {"session_id": "test-session"}
+            data = {"session_id": session_id}
 
             async with AsyncClient(
                 transport=transport, base_url="http://test"
@@ -261,6 +283,9 @@ class TestUploadEndpoint:
         """Test that upload accepts all allowed video extensions."""
         from web_app import app, ALLOWED_EXTENSIONS
 
+        # Use valid UUID v4 format (one for all tests)
+        session_id = "12345678-1234-4123-8123-123456789abc"
+
         with patch("web_app.UPLOAD_DIR", temp_upload_dir):
             transport = ASGITransport(app=app)
 
@@ -270,7 +295,7 @@ class TestUploadEndpoint:
                 for ext in ALLOWED_EXTENSIONS:
                     filename = f"test{ext}"
                     files = {"file": (filename, io.BytesIO(b"content"), "video/mp4")}
-                    data = {"session_id": f"session-{ext}"}
+                    data = {"session_id": session_id}
 
                     response = await client.post("/upload", files=files, data=data)
                     result = response.json()
@@ -284,7 +309,8 @@ class TestUploadEndpoint:
         """Test that upload creates a directory for the session."""
         from web_app import app
 
-        session_id = "new-session-dir-test"
+        # Use valid UUID v4 format
+        session_id = "abcdef12-3456-4789-abcd-ef1234567890"
 
         with patch("web_app.UPLOAD_DIR", temp_upload_dir):
             transport = ASGITransport(app=app)
