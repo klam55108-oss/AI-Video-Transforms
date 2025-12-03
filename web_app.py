@@ -316,6 +316,9 @@ class SessionActor:
                 allowed_tools=[
                     "mcp__video-tools__transcribe_video",
                     "mcp__video-tools__write_file",
+                    "mcp__video-tools__save_transcript",
+                    "mcp__video-tools__get_transcript",
+                    "mcp__video-tools__list_transcripts",
                 ],
                 max_turns=50,
             )
