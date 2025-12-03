@@ -166,9 +166,12 @@ class TestTranscriptsEndpoints:
         """Test that download returns 404 for unknown transcript."""
         from web_app import app
 
+        # Use valid 8-hex-char ID that doesn't exist
+        nonexistent_id = "abcd1234"
+
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.get("/transcripts/unknown-id/download")
+            response = await client.get(f"/transcripts/{nonexistent_id}/download")
 
         assert response.status_code == 404
 
@@ -210,9 +213,12 @@ class TestTranscriptsEndpoints:
         """Test that delete transcript returns success."""
         from web_app import app
 
+        # Use valid 8-hex-char ID format
+        transcript_id = "ef567890"
+
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.delete("/transcripts/any-id")
+            response = await client.delete(f"/transcripts/{transcript_id}")
 
         assert response.status_code == 200
         data = response.json()

@@ -34,6 +34,9 @@ UUID_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Short ID pattern (8 hex characters, used for transcript_id and file_id)
+SHORT_ID_PATTERN = re.compile(r"^[0-9a-f]{8}$", re.IGNORECASE)
+
 
 def validate_uuid(value: str, field_name: str = "ID") -> None:
     """
@@ -49,6 +52,23 @@ def validate_uuid(value: str, field_name: str = "ID") -> None:
     if not UUID_PATTERN.match(value):
         raise HTTPException(
             status_code=400, detail=f"Invalid {field_name} format (must be UUID v4)"
+        )
+
+
+def validate_short_id(value: str, field_name: str = "ID") -> None:
+    """
+    Validate that a string is a valid short ID (8 hex characters).
+
+    Args:
+        value: The string to validate
+        field_name: Name of the field for error messages
+
+    Raises:
+        HTTPException: If the value is not a valid short ID
+    """
+    if not SHORT_ID_PATTERN.match(value):
+        raise HTTPException(
+            status_code=400, detail=f"Invalid {field_name} format"
         )
 
 from claude_agent_sdk import (  # noqa: E402
@@ -492,7 +512,15 @@ class InitRequest(BaseModel):
 
 
 async def get_or_create_session(session_id: str) -> SessionActor:
-    """Retrieves an existing session or spawns a new actor."""
+    """
+    Retrieves an existing session or spawns a new actor.
+
+    Uses double-checked locking pattern to minimize lock contention:
+    1. First check with lock to see if session exists
+    2. If not, create and start actor outside lock (slow operation)
+    3. Re-acquire lock to add to dict, handling race if another created it
+    """
+    # First check: see if session already exists
     async with sessions_lock:
         if session_id in active_sessions:
             actor = active_sessions[session_id]
@@ -502,17 +530,33 @@ async def get_or_create_session(session_id: str) -> SessionActor:
                 del active_sessions[session_id]
                 logger.warning(f"Cleaned up dead session: {session_id}")
 
-        logger.info(f"Initializing new session actor: {session_id}")
+    # Create and start new actor outside the lock (slow operation)
+    logger.info(f"Initializing new session actor: {session_id}")
 
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            raise HTTPException(
-                status_code=503, detail="Service unavailable: API not configured"
-            )
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise HTTPException(
+            status_code=503, detail="Service unavailable: API not configured"
+        )
 
-        actor = SessionActor(session_id)
-        await actor.start()
-        active_sessions[session_id] = actor
-        return actor
+    new_actor = SessionActor(session_id)
+    await new_actor.start()
+
+    # Second check: add to dict, handling race condition
+    async with sessions_lock:
+        if session_id in active_sessions:
+            # Another request created the session while we were starting
+            # Stop our actor and use theirs
+            existing = active_sessions[session_id]
+            if existing.is_running:
+                await new_actor.stop()
+                logger.info(f"Session {session_id[:8]} created by another request, reusing")
+                return existing
+            else:
+                # Existing one died, use ours
+                del active_sessions[session_id]
+
+        active_sessions[session_id] = new_actor
+        return new_actor
 
 
 # --------------------------------------------------------------------------
@@ -652,6 +696,8 @@ async def list_transcripts():
 @app.get("/transcripts/{transcript_id}/download")
 async def download_transcript(transcript_id: str):
     """Download a transcript file."""
+    validate_short_id(transcript_id, "transcript ID")
+
     metadata = storage.get_transcript(transcript_id)
     if not metadata:
         raise HTTPException(status_code=404, detail="Transcript not found")
@@ -668,6 +714,8 @@ async def download_transcript(transcript_id: str):
 @app.delete("/transcripts/{transcript_id}")
 async def delete_transcript(transcript_id: str):
     """Delete a transcript file."""
+    validate_short_id(transcript_id, "transcript ID")
+
     success = storage.delete_transcript(transcript_id)
     return {"success": success}
 
