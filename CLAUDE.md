@@ -2,149 +2,130 @@
 
 ## Project Overview
 
-A Python video-to-data processing toolkit built with the Claude Agent SDK. The project provides MCP-based tools for transcribing video content using OpenAI's Whisper model, with support for both local video files and YouTube URLs.
+A Python video transcription toolkit with two interfaces: CLI and Web UI. Built with the Claude Agent SDK and OpenAI Whisper, providing MCP-based tools for transcribing local videos and YouTube URLs.
 
 ## Tech Stack
 
 - **Language**: Python 3.11+
-- **Package Manager**: uv (universal virtualenv)
-- **AI Framework**: Claude Agent SDK (claude-agent-sdk)
+- **Package Manager**: uv
+- **AI Framework**: Claude Agent SDK
+- **Web Framework**: FastAPI, Uvicorn, Jinja2
+- **Frontend**: Tailwind CSS (CDN), Vanilla JS
 - **Transcription**: OpenAI Whisper API
-- **Video Processing**: MoviePy for audio extraction
-- **Audio Processing**: Pydub for audio segmentation
-- **YouTube Support**: yt-dlp for video downloading
-- **Type Checking**: mypy with strict mode
-- **Linting/Formatting**: ruff
+- **Video/Audio**: MoviePy, Pydub, yt-dlp
+- **Quality**: mypy (strict), ruff
 
 ## Project Structure
 
 ```
 agent-video-to-data/
-├── agent_video/           # Main package
-│   ├── __init__.py        # Package exports: video_tools_server, transcribe_video
-│   ├── agent.py           # Interactive multi-turn agent entry point
-│   ├── server.py          # MCP server configuration
-│   ├── transcribe_tool.py # Core transcription tool implementation
-│   └── prompts/           # Versioned prompt management system
-│       ├── __init__.py    # Prompt registry exports
-│       ├── registry.py    # PromptVersion dataclass and registry
-│       └── video_transcription.py  # Agent system prompt
-├── .claude/               # Claude Code configuration
-│   ├── settings.json      # Permissions and tool allowlists
-│   └── CLAUDE.md          # Claude Code project memory (legacy location)
-├── CLAUDE.md              # Project memory (primary location)
-├── pyproject.toml         # Project configuration and dependencies
-├── uv.lock                # Locked dependency versions
-└── README.md              # User-facing documentation
+├── agent_video/              # Core transcription package
+│   ├── agent.py              # CLI entry point
+│   ├── server.py             # MCP server configuration
+│   ├── transcribe_tool.py    # Whisper transcription tool
+│   ├── file_tool.py          # Safe file writing tool
+│   └── prompts/              # Versioned prompt templates
+├── web_app.py                # FastAPI server (SessionActor pattern)
+├── web_app_models.py         # Pydantic request/response models
+├── storage.py                # File-based session/transcript persistence
+├── templates/index.html      # Chat UI (Tailwind + Phosphor Icons)
+├── static/                   # Frontend assets (JS, CSS)
+├── tests/                    # Pytest test suite
+├── data/                     # Runtime: sessions, transcripts (gitignored)
+├── uploads/                  # Runtime: user uploads (gitignored)
+└── specs/                    # Implementation specifications
 ```
 
-## Common Commands
+## Commands
 
 ```bash
-# Install dependencies
-uv sync
+# CLI agent
+uv run python agent_video/agent.py
 
-# Run the interactive transcription agent
-uv run python ./agent_video/agent.py
+# Web server (http://127.0.0.1:8000)
+uv run python web_app.py
 
-# Add a new dependency
-uv add <package>
-
-# Run tests
-uv run pytest
-
-# Type checking (strict mode)
+# Quality checks
 uv run mypy .
-
-# Lint code
 uv run ruff check .
-
-# Format code
 uv run ruff format .
-
-# Run linter with auto-fix
-uv run ruff check . --fix
+uv run pytest
 ```
 
 ## Environment Variables
 
-Required environment variables (create `.env` file from `.env.example`):
-
-- `ANTHROPIC_API_KEY`: Required for Claude Agent SDK
-- `OPENAI_API_KEY`: Required for Whisper transcription
+Required in `.env`:
+- `ANTHROPIC_API_KEY` — Claude Agent SDK
+- `OPENAI_API_KEY` — Whisper transcription
 
 ## Architecture Patterns
 
 ### MCP Server Pattern
-- Tools are created using the `@tool` decorator from `claude_agent_sdk`
-- MCP servers are created via `create_sdk_mcp_server()` with named tools
-- The server is consumed in `ClaudeAgentOptions.mcp_servers` dict
-- Tools are allowlisted in `ClaudeAgentOptions.allowed_tools` using format: `mcp__<server-name>__<tool-name>`
+- Tools use `@tool` decorator from `claude_agent_sdk`
+- Server created via `create_sdk_mcp_server()` with tool list
+- Tools allowlisted as `mcp__<server-name>__<tool-name>`
+- Tool functions: `async def fn(args: dict[str, Any]) -> dict[str, Any]`
+
+### SessionActor Pattern (web_app.py)
+The web UI isolates each user session in a dedicated asyncio task to avoid SDK context/cancel scope issues:
+
+```python
+class SessionActor:
+    input_queue: asyncio.Queue   # HTTP handler → agent
+    response_queue: asyncio.Queue # agent → HTTP handler
+
+    async def _worker_loop(self):
+        async with ClaudeSDKClient(options) as client:
+            # Single task owns the client context
+            while self.is_running:
+                msg = await self.input_queue.get()
+                await client.query(msg)
+                # ... collect response ...
+                await self.response_queue.put(response)
+```
+
+This queue-based actor model prevents race conditions when multiple HTTP requests interact with the same session.
 
 ### Prompt Management
-- Prompts are versioned using `PromptVersion` dataclass in `agent_video/prompts/registry.py`
-- Register prompts via `register_prompt(name, version, content, description)`
-- Retrieve prompts via `get_prompt(name)` or `get_prompt_content(name)`
-- System prompts follow XML structure with `<role>`, `<context>`, `<workflow>`, `<constraints>` tags
-
-### Async Patterns
-- Tools must be `async def` functions accepting `args: dict[str, Any]`
-- Agent client uses async context manager: `async with ClaudeSDKClient(options)`
-- Response streaming via `async for message in client.receive_response()`
+- Versioned via `PromptVersion` dataclass in `prompts/registry.py`
+- XML structure: `<role>`, `<context>`, `<workflow>`, `<constraints>`
+- Access via `get_prompt(name)` or `get_prompt_content(name)`
 
 ## Code Style
 
-- Use type hints for all function signatures including return types
-- Follow PEP 8 conventions
-- Use descriptive variable names (avoid single-letter names except for indices)
-- Keep functions focused and single-purpose (max ~50 lines)
-- Write docstrings for all public functions and classes using Google style
-- Use `from __future__ import annotations` for forward references
-- Prefer `pathlib.Path` over `os.path` for new code
-
-## Type Annotations
-
-- Use `str | None` instead of `Optional[str]`
-- Use `list[str]` instead of `List[str]` (Python 3.9+ style)
-- Add `# type: ignore[import-untyped]` for untyped third-party libs (moviepy, pydub)
-- Tool functions return `dict[str, Any]` with MCP response format
-
-## Testing Guidelines
-
-- Test files go in `tests/` directory mirroring `agent_video/` structure
-- Use pytest fixtures for common setup (mock API clients, temp files)
-- Mock external API calls (OpenAI, YouTube downloads) in unit tests
-- Integration tests can use real APIs with appropriate rate limiting
+- Type hints on all signatures (return types included)
+- `str | None` over `Optional[str]`
+- `list[str]` over `List[str]`
+- `# type: ignore[import-untyped]` for moviepy, pydub
+- Google-style docstrings
+- Max ~50 lines per function
+- `pathlib.Path` over `os.path`
 
 ## Error Handling
 
-- Return structured error responses from tools: `{"success": False, "error": "message"}`
-- Never raise exceptions that would crash the agent loop
-- Provide actionable error messages with troubleshooting steps
-- Validate required environment variables early in execution
-
-## Git Workflow
-
-- Branch naming: `feature/<name>`, `fix/<name>`, `refactor/<name>`
-- Run `uv run ruff check .` and `uv run mypy .` before committing
-- Keep commits focused on single logical changes
-- Write descriptive commit messages with context
+- MCP tools return `{"content": [{"type": "text", "text": "..."}]}`
+- Errors return `{"success": False, "error": "message"}`
+- Never raise exceptions that crash the agent loop
+- FastAPI endpoints use `HTTPException` with status codes
 
 ## Key Dependencies
 
 | Package | Purpose |
 |---------|---------|
-| `claude-agent-sdk` | MCP server and tool creation |
-| `anthropic` | Claude API client |
-| `openai` | Whisper transcription API |
-| `moviepy` | Extract audio from video files |
-| `pydub` | Split audio into segments |
-| `yt-dlp` | Download YouTube video audio |
-| `python-dotenv` | Load environment variables |
+| `claude-agent-sdk` | MCP server, tool creation |
+| `fastapi` | Web API framework |
+| `uvicorn` | ASGI server |
+| `jinja2` | HTML templating |
+| `openai` | Whisper API |
+| `moviepy` | Audio extraction |
+| `pydub` | Audio segmentation |
+| `yt-dlp` | YouTube downloads |
 
-## Important Implementation Details
+## Implementation Notes
 
-- Audio is split into 5-minute segments to stay under OpenAI's 25MB limit
-- If segment exceeds 23MB, audio is downsampled to 16kHz mono
-- YouTube downloads use Android/iOS player clients for better compatibility
-- Temporary files are cleaned up automatically via `tempfile.TemporaryDirectory`
+- Audio segments: 5 minutes max, auto-downsamples if >23MB
+- YouTube: uses mobile client spoofing via yt-dlp
+- Temp files: auto-cleanup via `tempfile.TemporaryDirectory`
+- Sessions: file-based persistence via `StorageManager` in `data/sessions/`
+- Frontend: `sessionStorage` for session ID (tab isolation)
+- Security: UUID v4 validation, Pydantic validators, DOMPurify XSS protection

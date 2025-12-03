@@ -1,106 +1,106 @@
 # Agent Video to Data
 
-An interactive AI-powered video transcription agent built with the Claude Agent SDK and OpenAI Whisper. Transcribe local video files or YouTube URLs through a conversational interface, then analyze the results with follow-up queries.
+AI-powered video transcription toolkit with CLI and Web interfaces. Built with Claude Agent SDK and OpenAI Whisper.
+
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## Features
 
-- **Multi-source support** — Transcribe local video files (mp4, mkv, avi, mov, webm) or YouTube URLs
-- **Automatic language detection** — Whisper auto-detects the spoken language, or specify one manually
-- **Long video handling** — Automatically segments audio into 5-minute chunks for reliable processing
-- **Conversational interface** — Multi-turn agent that guides you through transcription and analysis
-- **Built-in analysis** — Summarize transcriptions, extract key points, or view full text
+| Feature | Description |
+|---------|-------------|
+| **Multi-source** | Local files (mp4, mkv, avi, mov, webm) and YouTube URLs |
+| **Auto-segmentation** | Long videos split into 5-minute chunks automatically |
+| **Language detection** | Whisper auto-detects or accepts ISO 639-1 codes |
+| **Dual interface** | CLI for terminal, Web UI for browser |
+| **Session history** | Persist and restore chat sessions |
+| **Secure file handling** | Path validation, size limits, XSS protection |
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.11+
-- [uv](https://docs.astral.sh/uv/) package manager
-- OpenAI API key (for Whisper transcription)
-- Anthropic API key (for Claude agent)
-
-### Installation
-
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/agent-video-to-data.git
+# Clone and install
+git clone https://github.com/costiash/agent-video-to-data.git
 cd agent-video-to-data
-
-# Install dependencies
 uv sync
-```
 
-### Configuration
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys
 
-Create a `.env` file in the project root:
-
-```bash
-OPENAI_API_KEY=your-openai-api-key
-ANTHROPIC_API_KEY=your-anthropic-api-key
-```
-
-### Usage
-
-```bash
+# Run CLI
 uv run python agent_video/agent.py
+
+# Or run Web UI
+uv run python web_app.py
+# Open http://127.0.0.1:8000
 ```
 
-The agent will:
+## Configuration
 
-1. Greet you and ask for a video source (file path or YouTube URL)
-2. Optionally ask about the video's language
-3. Transcribe the video using Whisper
-4. Offer follow-up options: summarize, extract key points, or show full text
-5. Continue the conversation for additional requests
+Create `.env` with:
+
+```bash
+ANTHROPIC_API_KEY=your-anthropic-key    # Required - Claude Agent SDK
+OPENAI_API_KEY=your-openai-key          # Required - Whisper transcription
+```
 
 ## Project Structure
 
-```text
+```
 agent-video-to-data/
-├── agent_video/
-│   ├── agent.py              # Interactive agent entry point
-│   ├── server.py             # MCP server configuration
-│   ├── transcribe_tool.py    # Core transcription logic
-│   └── prompts/
-│       ├── registry.py       # Prompt version management
-│       └── video_transcription.py
-├── .claude/                  # Claude Code configuration
-├── main.py                   # Placeholder entry point
-├── pyproject.toml            # Project dependencies
-└── uv.lock                   # Dependency lock file
+├── agent_video/           # Core transcription package
+│   ├── agent.py           # CLI entry point
+│   ├── server.py          # MCP server config
+│   ├── transcribe_tool.py # Whisper transcription
+│   └── file_tool.py       # Safe file operations
+├── web_app.py             # FastAPI server (SessionActor pattern)
+├── storage.py             # Session/transcript persistence
+├── templates/index.html   # Chat UI (Tailwind + Phosphor Icons)
+├── static/
+│   ├── script.js          # Frontend logic
+│   └── style.css          # Custom styles
+├── tests/                 # Pytest test suite
+├── data/                  # Runtime session storage
+└── uploads/               # User file uploads
 ```
 
-## Architecture
+## Web API
 
-The project uses three main components:
+### Chat Endpoints
 
-- **agent.py** — Runs the interactive conversation loop using the Claude Agent SDK. Validates environment variables, manages the session, and formats output.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/chat/init` | Initialize session, get greeting |
+| `POST` | `/chat` | Send message, receive response |
+| `DELETE` | `/chat/{id}` | Close and cleanup session |
+| `GET` | `/status/{id}` | Poll session status (ready/processing) |
 
-- **server.py** — Creates an MCP (Model Context Protocol) server that exposes the transcription tool to Claude. This allows the agent to call the tool during conversation.
+### History & Transcripts
 
-- **transcribe_tool.py** — The core transcription engine. Handles:
-  - YouTube downloads via yt-dlp
-  - Audio extraction via MoviePy
-  - Audio segmentation via Pydub
-  - Transcription via OpenAI Whisper API
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/history` | List all chat sessions |
+| `GET` | `/history/{id}` | Get full session messages |
+| `DELETE` | `/history/{id}` | Delete session history |
+| `GET` | `/transcripts` | List saved transcripts |
+| `GET` | `/transcripts/{id}/download` | Download transcript file |
+| `DELETE` | `/transcripts/{id}` | Delete transcript |
+| `POST` | `/upload` | Upload video file (500MB max) |
 
-## Transcription Tool
+## MCP Tools
 
-The `transcribe_video` tool accepts these parameters:
+The agent exposes two tools via the Model Context Protocol:
 
-| Parameter      | Required | Description                            |
-|----------------|----------|----------------------------------------|
-| `video_source` | Yes      | Local file path or YouTube URL         |
-| `output_file`  | No       | Path to save transcription as `.txt`   |
-| `language`     | No       | ISO 639-1 code (e.g., `en`, `es`, `ru`)|
+**`transcribe_video`** — Transcribe video/audio to text
+- `video_source` (required): Local path or YouTube URL
+- `output_file` (optional): Save transcript to file
+- `language` (optional): ISO 639-1 code (e.g., `en`, `es`, `ja`)
 
-**Example inputs:**
-
-```text
-/path/to/video.mp4
-https://www.youtube.com/watch?v=dQw4w9WgXcQ
-https://youtu.be/dQw4w9WgXcQ
-```
+**`write_file`** — Write content to file safely
+- `file_path` (required): Destination path
+- `content` (required): Text to write
+- `overwrite` (optional): Allow overwrite (default: false)
 
 ## Development
 
@@ -108,51 +108,54 @@ https://youtu.be/dQw4w9WgXcQ
 # Install dependencies
 uv sync
 
-# Run type checking
+# Run tests (57 tests)
+uv run pytest
+
+# Type checking
 uv run mypy .
 
-# Run linter
+# Lint and format
 uv run ruff check .
-
-# Format code
 uv run ruff format .
-
-# Run tests
-uv run pytest
 ```
+
+### Test Coverage
+
+| Test File | Coverage |
+|-----------|----------|
+| `test_api.py` | API endpoints, validation, error handling |
+| `test_storage.py` | Session/transcript persistence |
+| `test_concurrency.py` | Async operations, race conditions |
+| `test_async.py` | Event loops, queue handling |
+
+## Security
+
+- **UUID v4 validation** on all session/transcript IDs
+- **Pydantic validators** for request payload sanitization
+- **DOMPurify** XSS protection on frontend markdown rendering
+- **Path traversal prevention** in file operations
+- **500MB file size limit** on uploads
+- **Safe error messages** (no internal details leaked)
 
 ## Tech Stack
 
-| Category         | Tools                          |
-|------------------|--------------------------------|
-| AI Framework     | Claude Agent SDK, Anthropic API|
-| Transcription    | OpenAI Whisper                 |
-| Video Processing | MoviePy, yt-dlp                |
-| Audio Processing | Pydub                          |
-| Type Checking    | mypy                           |
-| Linting          | ruff                           |
+| Layer | Technology |
+|-------|------------|
+| AI | Claude Agent SDK, OpenAI Whisper |
+| Backend | FastAPI, Uvicorn, Pydantic |
+| Frontend | Tailwind CSS, Vanilla JS, Phosphor Icons |
+| Media | MoviePy, Pydub, yt-dlp |
+| Quality | mypy, ruff, pytest |
 
 ## Troubleshooting
 
-**"OPENAI_API_KEY not set"**
-Ensure your `.env` file exists and contains a valid OpenAI API key.
-
-**"ANTHROPIC_API_KEY not set"**
-Ensure your `.env` file exists and contains a valid Anthropic API key.
-
-**YouTube download fails with 403**
-The tool uses yt-dlp with mobile client spoofing, but YouTube occasionally blocks requests. Try again or use a different video.
-
-**Transcription fails for long videos**
-The tool automatically segments audio into 5-minute chunks. If a single segment exceeds 25MB, it reduces quality automatically. For very long videos (2+ hours), expect longer processing times.
+| Issue | Solution |
+|-------|----------|
+| `ANTHROPIC_API_KEY not set` | Check `.env` file exists and is readable |
+| YouTube 403 errors | Rate limited; wait or try different video |
+| Long transcription time | Normal for 2+ hour videos; auto-segments |
+| Port 8000 in use | Kill existing process: `fuser -k 8000/tcp` |
 
 ## License
 
 MIT
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Run `uv run ruff check .` and `uv run mypy .` before committing
-4. Submit a pull request

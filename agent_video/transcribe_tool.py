@@ -7,6 +7,7 @@ to text using OpenAI's Whisper model.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 import tempfile
@@ -308,7 +309,9 @@ async def transcribe_video(args: dict[str, Any]) -> dict[str, Any]:
     output_file = args.get("output_file")
     language = args.get("language")
 
-    result = _perform_transcription(
+    # Run the blocking transcription in a thread pool
+    result = await asyncio.to_thread(
+        _perform_transcription,
         video_source=video_source,
         output_file=output_file,
         language=language,
