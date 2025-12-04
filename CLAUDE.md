@@ -28,12 +28,15 @@ agent-video-to-data/
 ├── web_app.py                # FastAPI server (SessionActor pattern)
 ├── web_app_models.py         # Pydantic request/response models
 ├── storage.py                # File-based session/transcript persistence
+├── cost_tracking.py          # Session cost tracking with deduplication
+├── permissions.py            # File operation permission handler
+├── structured_outputs.py     # Agent response Pydantic schemas
+├── validators.py             # UUID and input validation patterns
 ├── templates/index.html      # Chat UI (Tailwind + Phosphor Icons)
 ├── static/                   # Frontend assets (JS, CSS)
-├── tests/                    # Pytest test suite
+├── tests/                    # Pytest test suite (84 tests)
 ├── data/                     # Runtime: sessions, transcripts (gitignored)
-├── uploads/                  # Runtime: user uploads (gitignored)
-└── specs/                    # Implementation specifications
+└── uploads/                  # Runtime: user uploads (gitignored)
 ```
 
 ## Commands
@@ -101,6 +104,16 @@ This queue-based actor model prevents race conditions when multiple HTTP request
 - Max ~50 lines per function
 - `pathlib.Path` over `os.path`
 
+### Note on `sys.path` Usage
+
+Files in `agent_video/` use `sys.path.insert(0, parent)` to import root-level modules (`storage`, `permissions`). While not ideal, this is necessary because:
+
+1. **Dual execution contexts** — `agent_video/agent.py` runs both as a standalone CLI and as an imported module
+2. **MCP tool loading** — The Claude SDK loads tools dynamically; the project root may not be in `PYTHONPATH`
+3. **No installable package** — The project isn't pip-installed, so relative imports from root aren't available
+
+Alternative approaches (namespace packages, `setup.py` editable installs) add complexity without benefit for this use case.
+
 ## Error Handling
 
 - MCP tools return `{"content": [{"type": "text", "text": "..."}]}`
@@ -128,4 +141,5 @@ This queue-based actor model prevents race conditions when multiple HTTP request
 - Temp files: auto-cleanup via `tempfile.TemporaryDirectory`
 - Sessions: file-based persistence via `StorageManager` in `data/sessions/`
 - Frontend: `sessionStorage` for session ID (tab isolation)
-- Security: UUID v4 validation, Pydantic validators, DOMPurify XSS protection
+- Security: UUID v4 validation, Pydantic validators, DOMPurify XSS, blocked system paths
+- Cost tracking: SDK's `total_cost_usd` from `ResultMessage`, deduplicated by message ID

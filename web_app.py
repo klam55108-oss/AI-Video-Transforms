@@ -1,9 +1,9 @@
 import asyncio
 import logging
 import os
-import re
 import time
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -28,14 +28,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# UUID v4 validation pattern
-UUID_PATTERN = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
-    re.IGNORECASE,
-)
-
-# Short ID pattern (8 hex characters, used for transcript_id and file_id)
-SHORT_ID_PATTERN = re.compile(r"^[0-9a-f]{8}$", re.IGNORECASE)
+# Import validation utilities (after logging setup)
+from validators import UUID_PATTERN, SHORT_ID_PATTERN  # noqa: E402
 
 
 def validate_uuid(value: str, field_name: str = "ID") -> None:
@@ -67,19 +61,25 @@ def validate_short_id(value: str, field_name: str = "ID") -> None:
         HTTPException: If the value is not a valid short ID
     """
     if not SHORT_ID_PATTERN.match(value):
-        raise HTTPException(
-            status_code=400, detail=f"Invalid {field_name} format"
-        )
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name} format")
+
 
 from claude_agent_sdk import (  # noqa: E402
     AssistantMessage,
     ClaudeAgentOptions,
     ClaudeSDKClient,
+    ResultMessage,
     TextBlock,
 )
 from agent_video import video_tools_server  # noqa: E402
 from agent_video.prompts import SYSTEM_PROMPT  # noqa: E402
 from storage import storage  # noqa: E402
+from cost_tracking import SessionCost  # noqa: E402
+from permissions import create_permission_handler, get_default_permission_config  # noqa: E402
+from structured_outputs import (  # noqa: E402
+    AgentResponse as StructuredAgentResponse,
+    get_output_schema,
+)
 from web_app_models import (  # noqa: E402
     StatusResponse,
     AgentStatus,
@@ -89,6 +89,10 @@ from web_app_models import (  # noqa: E402
     TranscriptListResponse,
     TranscriptMetadata,
     UploadResponse,
+    ChatResponse,
+    UsageStats,
+    SessionCostResponse,
+    GlobalCostResponse,
 )
 
 # Configuration constants
@@ -103,6 +107,31 @@ GRACEFUL_SHUTDOWN_TIMEOUT: float = 2.0  # Seconds to wait before force-cancel
 UPLOAD_DIR = Path("uploads")
 ALLOWED_EXTENSIONS = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v"}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
+
+
+# --------------------------------------------------------------------------
+# Message Response Data Class
+# --------------------------------------------------------------------------
+
+
+@dataclass
+class MessageUsage:
+    """Per-message token usage and cost data."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_creation_tokens: int = 0
+    cache_read_tokens: int = 0
+    cost_usd: float = 0.0
+
+
+@dataclass
+class MessageResponse:
+    """Response data from a single agent interaction."""
+
+    text: str
+    usage: MessageUsage
+
 
 # --------------------------------------------------------------------------
 # Exception Handling
@@ -178,14 +207,15 @@ class SessionActor:
         self.input_queue: asyncio.Queue[str | None] = asyncio.Queue(
             maxsize=QUEUE_MAX_SIZE
         )
-        self.response_queue: asyncio.Queue[str | Exception] = asyncio.Queue(
+        self.response_queue: asyncio.Queue[MessageResponse | Exception] = asyncio.Queue(
             maxsize=QUEUE_MAX_SIZE
         )
-        self.greeting_queue: asyncio.Queue[str] = asyncio.Queue(maxsize=1)
+        self.greeting_queue: asyncio.Queue[MessageResponse] = asyncio.Queue(maxsize=1)
         self.active_task: asyncio.Task[None] | None = None
         self._running_event = asyncio.Event()
         self.last_activity: float = time.time()
         self._is_processing: bool = False
+        self.session_cost: SessionCost = SessionCost(session_id=session_id)
 
     @property
     def is_running(self) -> bool:
@@ -236,24 +266,27 @@ class SessionActor:
             finally:
                 self.active_task = None
 
-    async def get_greeting(self) -> str:
-        """Waits for and returns the initial greeting message."""
+    async def get_greeting(self) -> MessageResponse:
+        """Waits for and returns the initial greeting message with usage data."""
         if not self._running_event.is_set():
             raise RuntimeError("Session is closed")
 
         self.touch()
 
         try:
-            greeting = await asyncio.wait_for(
+            response = await asyncio.wait_for(
                 self.greeting_queue.get(), timeout=GREETING_TIMEOUT_SECONDS
             )
-            return greeting
+            return response
         except asyncio.TimeoutError:
             logger.warning(f"Session {self.session_id}: Greeting timed out")
-            return "Hello! I'm ready to help you transcribe videos. (Note: Initialization was slow)"
+            return MessageResponse(
+                text="Hello! I'm ready to help you transcribe videos. (Note: Initialization was slow)",
+                usage=MessageUsage(),
+            )
 
-    async def process_message(self, message: str) -> str:
-        """Sends a message to the agent and awaits the full text response."""
+    async def process_message(self, message: str) -> MessageResponse:
+        """Sends a message to the agent and awaits the response with usage data."""
         if not self._running_event.is_set() or not self.active_task:
             raise RuntimeError("Session is closed")
 
@@ -265,7 +298,7 @@ class SessionActor:
 
             get_response = asyncio.create_task(self.response_queue.get())
 
-            done, pending = await asyncio.wait(
+            done, _ = await asyncio.wait(
                 [get_response, self.active_task],
                 timeout=RESPONSE_TIMEOUT_SECONDS,
                 return_when=asyncio.FIRST_COMPLETED,
@@ -305,12 +338,37 @@ class SessionActor:
             self._is_processing = False
             self.touch()
 
+    def get_cumulative_usage(self) -> MessageUsage:
+        """
+        Get cumulative session usage data.
+
+        Returns the total cost and token counts accumulated across
+        all messages in this session. Since the SDK only provides
+        total_cost_usd (not per-message tokens), token counts remain 0.
+
+        Returns:
+            MessageUsage with cumulative session cost
+        """
+        return MessageUsage(
+            input_tokens=self.session_cost.total_input_tokens,
+            output_tokens=self.session_cost.total_output_tokens,
+            cache_creation_tokens=self.session_cost.total_cache_creation_tokens,
+            cache_read_tokens=self.session_cost.total_cache_read_tokens,
+            cost_usd=self.session_cost.reported_cost_usd,
+        )
+
     async def _worker_loop(self) -> None:
         """The main loop that holds the ClaudeSDKClient context."""
         logger.info(f"Session {self.session_id}: Worker started")
 
         try:
+            # Create permission handler
+            permission_handler = create_permission_handler(
+                get_default_permission_config()
+            )
+
             options = ClaudeAgentOptions(
+                model="claude-opus-4-5",
                 system_prompt=SYSTEM_PROMPT,
                 mcp_servers={"video-tools": video_tools_server},
                 allowed_tools=[
@@ -320,6 +378,11 @@ class SessionActor:
                     "mcp__video-tools__get_transcript",
                     "mcp__video-tools__list_transcripts",
                 ],
+                can_use_tool=permission_handler,
+                output_format={
+                    "type": "json_schema",
+                    "schema": get_output_schema(),
+                },
                 max_turns=50,
             )
 
@@ -334,16 +397,48 @@ class SessionActor:
 
                     greeting_text = []
                     async for message in client.receive_response():
-                        if isinstance(message, AssistantMessage):
-                            for block in message.content:
-                                if isinstance(block, TextBlock):
-                                    greeting_text.append(block.text)
+                        # Capture cost from ResultMessage (SDK's authoritative source)
+                        if isinstance(message, ResultMessage):
+                            if message.total_cost_usd is not None:
+                                self.session_cost.set_reported_cost(
+                                    message.total_cost_usd
+                                )
 
-                    await self.greeting_queue.put("\n".join(greeting_text))
+                        if isinstance(message, AssistantMessage):
+                            # Handle structured output if present
+                            if (
+                                hasattr(message, "structured_output")
+                                and message.structured_output
+                            ):
+                                try:
+                                    parsed = StructuredAgentResponse.model_validate(
+                                        message.structured_output
+                                    )
+                                    greeting_text.append(parsed.message)
+                                except Exception:
+                                    # Fallback to text extraction
+                                    for block in message.content:
+                                        if isinstance(block, TextBlock):
+                                            greeting_text.append(block.text)
+                            else:
+                                for block in message.content:
+                                    if isinstance(block, TextBlock):
+                                        greeting_text.append(block.text)
+
+                    # Return cumulative session usage (aggregated across all messages)
+                    await self.greeting_queue.put(
+                        MessageResponse(
+                            text="\n".join(greeting_text),
+                            usage=self.get_cumulative_usage(),
+                        )
+                    )
                 except Exception as e:
                     logger.error(f"Session {self.session_id}: Greeting failed: {e}")
                     await self.greeting_queue.put(
-                        "Hello! I encountered an issue during startup but I'm ready to help."
+                        MessageResponse(
+                            text="Hello! I encountered an issue during startup but I'm ready to help.",
+                            usage=MessageUsage(),
+                        )
                     )
 
                 logger.info(f"Session {self.session_id}: Ready for input")
@@ -365,12 +460,41 @@ class SessionActor:
 
                         full_text = []
                         async for message in client.receive_response():
-                            if isinstance(message, AssistantMessage):
-                                for block in message.content:
-                                    if isinstance(block, TextBlock):
-                                        full_text.append(block.text)
+                            # Capture cost from ResultMessage (SDK's authoritative source)
+                            if isinstance(message, ResultMessage):
+                                if message.total_cost_usd is not None:
+                                    self.session_cost.set_reported_cost(
+                                        message.total_cost_usd
+                                    )
 
-                        await self.response_queue.put("\n".join(full_text))
+                            if isinstance(message, AssistantMessage):
+                                # Handle structured output if present
+                                if (
+                                    hasattr(message, "structured_output")
+                                    and message.structured_output
+                                ):
+                                    try:
+                                        parsed = StructuredAgentResponse.model_validate(
+                                            message.structured_output
+                                        )
+                                        full_text.append(parsed.message)
+                                    except Exception:
+                                        # Fallback to text extraction
+                                        for block in message.content:
+                                            if isinstance(block, TextBlock):
+                                                full_text.append(block.text)
+                                else:
+                                    for block in message.content:
+                                        if isinstance(block, TextBlock):
+                                            full_text.append(block.text)
+
+                        # Return cumulative session usage (aggregated across all messages)
+                        await self.response_queue.put(
+                            MessageResponse(
+                                text="\n".join(full_text),
+                                usage=self.get_cumulative_usage(),
+                            )
+                        )
 
                     except Exception as e:
                         logger.error(
@@ -386,6 +510,20 @@ class SessionActor:
                 f"Session {self.session_id}: Worker crashed: {e}", exc_info=True
             )
         finally:
+            # Save cost data before shutdown
+            try:
+                cost_data = self.session_cost.to_dict()
+                storage.save_session_cost(self.session_id, cost_data)
+                storage.update_global_cost(cost_data)
+                logger.info(
+                    f"Session {self.session_id}: Saved cost data - "
+                    f"${cost_data['total_cost_usd']:.4f}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Session {self.session_id}: Failed to save cost data: {e}"
+                )
+
             self._running_event.clear()
             logger.info(f"Session {self.session_id}: Worker shutdown")
 
@@ -491,13 +629,6 @@ class ChatRequest(BaseModel):
         return stripped
 
 
-class ChatResponse(BaseModel):
-    """Response model for chat messages."""
-
-    response: str
-    session_id: str
-
-
 class InitRequest(BaseModel):
     """Request model for session initialization."""
 
@@ -552,7 +683,9 @@ async def get_or_create_session(session_id: str) -> SessionActor:
             existing = active_sessions[session_id]
             if existing.is_running:
                 await new_actor.stop()
-                logger.info(f"Session {session_id[:8]} created by another request, reusing")
+                logger.info(
+                    f"Session {session_id[:8]} created by another request, reusing"
+                )
                 return existing
             else:
                 # Existing one died, use ours
@@ -577,12 +710,22 @@ async def chat_init(request: InitRequest):
     """Initialize a chat session and return the greeting message."""
     try:
         actor = await get_or_create_session(request.session_id)
-        greeting = await actor.get_greeting()
+        response = await actor.get_greeting()
 
         # Save greeting to storage
-        storage.save_message(request.session_id, "agent", greeting)
+        storage.save_message(request.session_id, "agent", response.text)
 
-        return ChatResponse(response=greeting, session_id=request.session_id)
+        return ChatResponse(
+            response=response.text,
+            session_id=request.session_id,
+            usage=UsageStats(
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+                cache_creation_tokens=response.usage.cache_creation_tokens,
+                cache_read_tokens=response.usage.cache_read_tokens,
+                total_cost_usd=response.usage.cost_usd,
+            ),
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -599,12 +742,22 @@ async def chat_endpoint(request: ChatRequest):
         storage.save_message(request.session_id, "user", request.message)
 
         # Send message to actor and await response
-        response_text = await actor.process_message(request.message)
+        response = await actor.process_message(request.message)
 
         # Save agent response to storage
-        storage.save_message(request.session_id, "agent", response_text)
+        storage.save_message(request.session_id, "agent", response.text)
 
-        return ChatResponse(response=response_text, session_id=request.session_id)
+        return ChatResponse(
+            response=response.text,
+            session_id=request.session_id,
+            usage=UsageStats(
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+                cache_creation_tokens=response.usage.cache_creation_tokens,
+                cache_read_tokens=response.usage.cache_read_tokens,
+                total_cost_usd=response.usage.cost_usd,
+            ),
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -723,6 +876,41 @@ async def delete_transcript(transcript_id: str):
     return {"success": success}
 
 
+@app.get("/cost/{session_id}", response_model=SessionCostResponse)
+async def get_session_cost(session_id: str):
+    """Get cost tracking data for a specific session."""
+    validate_uuid(session_id, "session ID")
+
+    cost_data = storage.get_session_cost(session_id)
+    if not cost_data:
+        raise HTTPException(status_code=404, detail="Cost data not found for session")
+
+    usage = UsageStats(
+        input_tokens=cost_data.get("total_input_tokens", 0),
+        output_tokens=cost_data.get("total_output_tokens", 0),
+        cache_creation_tokens=cost_data.get("total_cache_creation_tokens", 0),
+        cache_read_tokens=cost_data.get("total_cache_read_tokens", 0),
+        total_cost_usd=cost_data.get("total_cost_usd", 0.0),
+    )
+
+    return SessionCostResponse(session_id=session_id, usage=usage)
+
+
+@app.get("/cost", response_model=GlobalCostResponse)
+async def get_global_cost():
+    """Get aggregated cost statistics across all sessions."""
+    cost_data = storage.get_global_cost()
+
+    return GlobalCostResponse(
+        total_input_tokens=cost_data.get("total_input_tokens", 0),
+        total_output_tokens=cost_data.get("total_output_tokens", 0),
+        total_cache_creation_tokens=cost_data.get("total_cache_creation_tokens", 0),
+        total_cache_read_tokens=cost_data.get("total_cache_read_tokens", 0),
+        total_cost_usd=cost_data.get("total_cost_usd", 0.0),
+        session_count=cost_data.get("session_count", 0),
+    )
+
+
 @app.post("/upload", response_model=UploadResponse)
 async def upload_video(file: UploadFile = File(...), session_id: str = Form(...)):
     """Upload a video file for transcription."""
@@ -776,9 +964,7 @@ async def upload_video(file: UploadFile = File(...), session_id: str = Form(...)
             # If file_path is not under cwd (e.g., in tests), return path from UPLOAD_DIR
             path_to_return = str(UPLOAD_DIR / session_id / safe_filename)
 
-        return UploadResponse(
-            success=True, file_id=file_id, file_path=path_to_return
-        )
+        return UploadResponse(success=True, file_id=file_id, file_path=path_to_return)
     except Exception as e:
         logger.error(f"Upload failed: {e}")
         # Clean up partial file on error

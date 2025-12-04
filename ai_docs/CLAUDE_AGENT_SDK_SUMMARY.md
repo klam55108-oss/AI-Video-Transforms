@@ -1,8 +1,10 @@
 # Claude Agent SDK for Python - Complete Reference Guide
 
-> **Version:** Based on official documentation as of November 2025
-> **SDK Package:** `claude-agent-sdk`
+> **Version:** Based on official documentation as of December 2025
+> **SDK Package:** `claude-agent-sdk` (migrated from `claude-code-sdk`)
 > **Official Docs:** https://docs.anthropic.com/en/docs/agent-sdk
+> **Python GitHub:** https://github.com/anthropics/claude-agent-sdk-python
+> **TypeScript GitHub:** https://github.com/anthropics/claude-agent-sdk-typescript
 
 ---
 
@@ -18,10 +20,12 @@
 8. [Monitoring & Cost Tracking](#8-monitoring--cost-tracking)
 9. [Structured Outputs](#9-structured-outputs)
 10. [System Prompts & Configuration](#10-system-prompts--configuration)
-11. [Production Hosting](#11-production-hosting)
-12. [Best Practices & Patterns](#12-best-practices--patterns)
-13. [Quick Reference Tables](#13-quick-reference-tables)
-14. [Complete Examples](#14-complete-examples)
+11. [Plugins & Skills](#11-plugins--skills)
+12. [Production Hosting](#12-production-hosting)
+13. [Best Practices & Patterns](#13-best-practices--patterns)
+14. [Quick Reference Tables](#14-quick-reference-tables)
+15. [Complete Examples](#15-complete-examples)
+16. [Migration Guide](#16-migration-guide)
 
 ---
 
@@ -94,7 +98,13 @@ os.environ["CLAUDE_CODE_USE_BEDROCK"] = "1"
 # Option 3: Google Vertex AI
 os.environ["CLAUDE_CODE_USE_VERTEX"] = "1"
 # + Configure Google Cloud credentials
+
+# Option 4: Microsoft Foundry (NEW)
+os.environ["CLAUDE_CODE_USE_FOUNDRY"] = "1"
+# + Configure Azure credentials
 ```
+
+> **Note:** Unless previously approved, third-party developers should NOT use Claude.ai rate limits for their products. Use API key authentication instead.
 
 ### Minimal Example
 
@@ -126,7 +136,18 @@ asyncio.run(main())
 | Interrupts | ❌ | ✅ |
 | Hooks | ❌ | ✅ |
 | Custom Tools | ❌ | ✅ |
+| Continue Chat | ❌ New session each time | ✅ Maintains conversation |
 | Use Case | One-off tasks | Interactive apps |
+
+### Streaming Input Mode (Recommended)
+
+Streaming input mode is the **preferred** way to use the Claude Agent SDK. It provides full access to the agent's capabilities including:
+- Image uploads
+- Queued messages with ability to interrupt
+- Full tool integration
+- Hooks support
+- Real-time feedback
+- Context persistence
 
 ### Using query() - One-Shot Tasks
 
@@ -1019,13 +1040,15 @@ async for message in query(
 
 ### System Prompt Options
 
+> **IMPORTANT:** The SDK uses an **empty system prompt by default** for maximum flexibility. This is a breaking change from older versions. To use Claude Code's system prompt with tools and guidelines, you must explicitly specify it.
+
 ```python
 from claude_agent_sdk import ClaudeAgentOptions
 
-# Option 1: Empty (SDK default)
-options = ClaudeAgentOptions()  # No system prompt
+# Option 1: Empty (SDK default - NEW BEHAVIOR!)
+options = ClaudeAgentOptions()  # No system prompt - just uses Claude's base capabilities
 
-# Option 2: Claude Code preset
+# Option 2: Claude Code preset (recommended for coding tasks)
 options = ClaudeAgentOptions(
     system_prompt={
         "type": "preset",
@@ -1054,6 +1077,8 @@ Guidelines:
 
 ### Loading CLAUDE.md Files
 
+> **CRITICAL:** The `claude_code` preset does NOT automatically load CLAUDE.md files. You MUST set `setting_sources` to load project instructions!
+
 ```python
 # IMPORTANT: Must specify setting_sources to load CLAUDE.md
 options = ClaudeAgentOptions(
@@ -1067,6 +1092,8 @@ options = ClaudeAgentOptions(
 
 ### Setting Sources
 
+> **Breaking Change in v0.1.0:** By default, `setting_sources` is `None` and NO filesystem settings are loaded. You must explicitly configure this to load settings.
+
 | Source | Location | Description |
 |--------|----------|-------------|
 | `"user"` | `~/.claude/settings.json` | Global user settings |
@@ -1074,28 +1101,146 @@ options = ClaudeAgentOptions(
 | `"local"` | `.claude/settings.local.json` | Local (gitignored) settings |
 
 ```python
-# Load all settings
+# Default behavior (v0.1.0+): NO settings loaded!
+options = ClaudeAgentOptions()  # setting_sources=None
+
+# Load all settings (legacy behavior from v0.0.x)
 options = ClaudeAgentOptions(
     setting_sources=["user", "project", "local"]
 )
 
-# Load only project settings (good for CI)
+# Load only project settings (good for CI, ensures consistent behavior)
 options = ClaudeAgentOptions(
     setting_sources=["project"]
 )
+
+# SDK-only applications (define everything programmatically)
+options = ClaudeAgentOptions(
+    # setting_sources=None is the default, no need to specify
+    agents={...},
+    mcp_servers={...},
+    allowed_tools=["Read", "Grep", "Glob"]
+)
 ```
+
+### Settings Precedence
+
+When multiple sources are loaded, settings merge with this precedence (highest to lowest):
+1. Local settings (`.claude/settings.local.json`)
+2. Project settings (`.claude/settings.json`)
+3. User settings (`~/.claude/settings.json`)
+
+Programmatic options (like `agents`, `allowed_tools`) always override filesystem settings.
 
 ---
 
-## 11. Production Hosting
+## 11. Plugins & Skills
+
+### Plugins
+
+Plugins extend Claude Code with custom commands, agents, skills, hooks, and MCP servers. Load them programmatically via the `plugins` option:
+
+```python
+from claude_agent_sdk import query, ClaudeAgentOptions
+import asyncio
+
+async def use_plugins():
+    options = ClaudeAgentOptions(
+        plugins=[
+            {"type": "local", "path": "./my-plugin"},
+            {"type": "local", "path": "/absolute/path/to/another-plugin"}
+        ]
+    )
+
+    async for message in query(
+        prompt="/my-plugin:greet",  # Use plugin command with namespace
+        options=options
+    ):
+        print(message)
+
+asyncio.run(use_plugins())
+```
+
+#### Plugin Structure
+
+```
+my-plugin/
+├── .claude-plugin/
+│   └── plugin.json          # Required: plugin manifest
+├── commands/                 # Custom slash commands
+│   └── custom-cmd.md
+├── agents/                   # Custom agents
+│   └── specialist.md
+├── skills/                   # Agent Skills
+│   └── my-skill/
+│       └── SKILL.md
+├── hooks/                    # Event handlers
+│   └── hooks.json
+└── .mcp.json                # MCP server definitions
+```
+
+### Agent Skills
+
+Skills are specialized capabilities that Claude autonomously invokes when relevant. They are defined as `SKILL.md` files:
+
+```python
+from claude_agent_sdk import query, ClaudeAgentOptions
+import asyncio
+
+async def use_skills():
+    options = ClaudeAgentOptions(
+        cwd="/path/to/project",  # Project with .claude/skills/
+        setting_sources=["user", "project"],  # REQUIRED to load Skills!
+        allowed_tools=["Skill", "Read", "Write", "Bash"]  # Enable Skill tool
+    )
+
+    async for message in query(
+        prompt="Help me process this PDF document",
+        options=options
+    ):
+        print(message)
+
+asyncio.run(use_skills())
+```
+
+#### Skill Locations
+
+| Location | Scope | Loaded When |
+|----------|-------|-------------|
+| `.claude/skills/` | Project-level (shared via git) | `setting_sources` includes `"project"` |
+| `~/.claude/skills/` | User-level (all projects) | `setting_sources` includes `"user"` |
+
+#### SKILL.md Structure
+
+```markdown
+---
+name: pdf-processor
+description: Use this skill when processing PDF files for text extraction
+allowed-tools: Read, Bash  # Only works in CLI, not SDK
+---
+
+You are a PDF processing specialist.
+
+When processing PDFs:
+1. Extract text using appropriate tools
+2. Structure the output clearly
+3. Handle errors gracefully
+```
+
+> **Note:** The `allowed-tools` frontmatter only works in CLI, not SDK. Control tool access via `allowed_tools` in your query options.
+
+---
+
+## 12. Production Hosting
 
 ### Deployment Patterns
 
 | Pattern | Description | Use Cases |
 |---------|-------------|-----------|
-| **Ephemeral** | New container per task | Bug fixes, one-off processing |
-| **Long-Running** | Persistent containers | Chatbots, email agents |
-| **Hybrid** | Ephemeral + state hydration | Research agents, project managers |
+| **Ephemeral** | New container per task | Bug fixes, one-off processing, invoice processing |
+| **Long-Running** | Persistent containers | Chatbots, email agents, site builders |
+| **Hybrid** | Ephemeral + state hydration | Research agents, project managers, customer support |
+| **Single Container** | Multiple agents in one container | Simulations, collaborating agents |
 
 ### System Requirements
 
@@ -1108,14 +1253,39 @@ options = ClaudeAgentOptions(
 | Disk | ~5 GiB |
 | Network | Outbound HTTPS to `api.anthropic.com` |
 
+### Programmatic Sandbox Configuration
+
+Configure sandbox behavior directly in your code:
+
+```python
+from claude_agent_sdk import query, ClaudeAgentOptions
+
+options = ClaudeAgentOptions(
+    sandbox={
+        "enabled": True,
+        "autoAllowBashIfSandboxed": True,
+        "excludedCommands": ["docker"],
+        "network": {
+            "allowLocalBinding": True,
+            "allowUnixSockets": ["/var/run/docker.sock"]
+        }
+    }
+)
+
+async for message in query(prompt="Build and deploy my application", options=options):
+    print(message)
+```
+
+> **Note:** The `sandbox` option configures command execution sandboxing. Filesystem and network access restrictions are configured separately via permission rules.
+
 ### Sandbox Providers
 
-- Cloudflare Sandboxes
-- Modal Sandboxes
-- Daytona
-- E2B
-- Fly Machines
-- Vercel Sandbox
+- [Cloudflare Sandboxes](https://github.com/cloudflare/sandbox-sdk)
+- [Modal Sandboxes](https://modal.com/docs/guide/sandbox)
+- [Daytona](https://www.daytona.io/)
+- [E2B](https://e2b.dev/)
+- [Fly Machines](https://fly.io/docs/machines/)
+- [Vercel Sandbox](https://vercel.com/docs/functions/sandbox)
 
 ### Container Deployment Example
 
@@ -1144,7 +1314,7 @@ CMD ["python", "main.py"]
 
 ---
 
-## 12. Best Practices & Patterns
+## 13. Best Practices & Patterns
 
 ### Multi-Agent Design
 
@@ -1190,7 +1360,7 @@ return {"content": [{"type": "text", "text": "..."}]}
 
 ---
 
-## 13. Quick Reference Tables
+## 14. Quick Reference Tables
 
 ### ClaudeAgentOptions Fields
 
@@ -1198,18 +1368,29 @@ return {"content": [{"type": "text", "text": "..."}]}
 |-------|------|---------|-------------|
 | `allowed_tools` | `list[str]` | `[]` | Allowed tool names |
 | `disallowed_tools` | `list[str]` | `[]` | Blocked tool names |
-| `system_prompt` | `str \| dict` | `None` | System prompt config |
-| `mcp_servers` | `dict` | `{}` | MCP server configs |
+| `system_prompt` | `str \| dict` | `None` | System prompt config (empty by default!) |
+| `mcp_servers` | `dict \| str \| Path` | `{}` | MCP server configs or path to config file |
 | `permission_mode` | `str` | `None` | `default`, `acceptEdits`, `bypassPermissions` |
 | `max_turns` | `int` | `None` | Max conversation turns |
 | `model` | `str` | `None` | Model to use |
-| `cwd` | `str` | `None` | Working directory |
+| `cwd` | `str \| Path` | `None` | Working directory |
 | `resume` | `str` | `None` | Session ID to resume |
 | `fork_session` | `bool` | `False` | Fork when resuming |
-| `agents` | `dict` | `None` | Subagent definitions |
+| `agents` | `dict[str, AgentDefinition]` | `None` | Subagent definitions |
 | `output_format` | `dict` | `None` | Structured output schema |
 | `can_use_tool` | `Callable` | `None` | Permission callback |
-| `setting_sources` | `list` | `None` | Settings to load |
+| `setting_sources` | `list[SettingSource]` | `None` | Settings to load (**no settings loaded by default!**) |
+| `plugins` | `list[SdkPluginConfig]` | `[]` | Load custom plugins from local paths |
+| `sandbox` | `SandboxSettings` | `None` | Configure sandbox behavior programmatically |
+| `hooks` | `dict[HookEvent, list[HookMatcher]]` | `None` | Hook configurations |
+| `env` | `dict[str, str]` | `{}` | Environment variables |
+| `add_dirs` | `list[str \| Path]` | `[]` | Additional directories Claude can access |
+| `include_partial_messages` | `bool` | `False` | Include partial message streaming events |
+| `stderr` | `Callable[[str], None]` | `None` | Callback for stderr output from CLI |
+| `continue_conversation` | `bool` | `False` | Continue the most recent conversation |
+| `user` | `str` | `None` | User identifier |
+
+> **CRITICAL BREAKING CHANGE:** As of v0.1.0, `setting_sources` defaults to `None` (no settings loaded). You must explicitly set `setting_sources=["project"]` to load CLAUDE.md files and project settings!
 
 ### Built-in Tools
 
@@ -1223,6 +1404,18 @@ return {"content": [{"type": "text", "text": "..."}]}
 | `Bash` | Execute shell commands |
 | `WebSearch` | Search the web |
 | `WebFetch` | Fetch URL content |
+| `Skill` | Invoke Agent Skills (requires setting_sources) |
+| `Task` | Launch subagents |
+| `TodoWrite` | Manage todo lists |
+| `NotebookEdit` | Edit Jupyter notebooks |
+
+### SettingSource Values
+
+| Value | Location | Description |
+|-------|----------|-------------|
+| `"user"` | `~/.claude/settings.json` | Global user settings |
+| `"project"` | `.claude/settings.json` | Shared project settings (version controlled) |
+| `"local"` | `.claude/settings.local.json` | Local project settings (gitignored) |
 
 ### Message Types
 
@@ -1237,7 +1430,7 @@ return {"content": [{"type": "text", "text": "..."}]}
 
 ---
 
-## 14. Complete Examples
+## 15. Complete Examples
 
 ### Example 1: Code Review Agent with Custom Tools
 
@@ -1466,13 +1659,81 @@ asyncio.run(main())
 
 ---
 
+## 16. Migration Guide
+
+### From `claude-code-sdk` to `claude-agent-sdk`
+
+The Claude Code SDK has been renamed to the Claude Agent SDK. Here's how to migrate:
+
+#### Step 1: Update Package
+
+```bash
+pip uninstall claude-code-sdk
+pip install claude-agent-sdk
+```
+
+#### Step 2: Update Imports
+
+```python
+# BEFORE (v0.0.x)
+from claude_code_sdk import query, ClaudeCodeOptions
+
+# AFTER (v0.1.0+)
+from claude_agent_sdk import query, ClaudeAgentOptions
+```
+
+#### Step 3: Handle Breaking Changes
+
+**1. System prompt is now empty by default:**
+```python
+# BEFORE: Used Claude Code's system prompt by default
+options = ClaudeCodeOptions()
+
+# AFTER: Must explicitly request Claude Code preset
+options = ClaudeAgentOptions(
+    system_prompt={"type": "preset", "preset": "claude_code"}
+)
+```
+
+**2. Settings are no longer loaded automatically:**
+```python
+# BEFORE: Loaded all filesystem settings automatically
+options = ClaudeCodeOptions()
+
+# AFTER: Must explicitly configure setting_sources
+options = ClaudeAgentOptions(
+    setting_sources=["user", "project", "local"]  # To get old behavior
+)
+```
+
+**3. Type renamed:**
+```python
+# BEFORE
+ClaudeCodeOptions(...)
+
+# AFTER
+ClaudeAgentOptions(...)
+```
+
+### Why These Changes?
+
+These breaking changes provide:
+- **Better isolation** - SDK applications have predictable behavior independent of local configs
+- **CI/CD consistency** - No dependency on filesystem settings
+- **Multi-tenant safety** - Prevents settings leakage between users
+- **Explicit control** - You define exactly what the agent can do
+
+---
+
 ## Official Resources
 
 - **Documentation**: https://docs.anthropic.com/en/docs/agent-sdk
 - **Python SDK GitHub**: https://github.com/anthropics/claude-agent-sdk-python
 - **TypeScript SDK GitHub**: https://github.com/anthropics/claude-agent-sdk-typescript
 - **Bug Reports**: https://github.com/anthropics/claude-agent-sdk-python/issues
+- **CLI Reference**: https://code.claude.com/docs/en/cli-reference
+- **Common Workflows**: https://code.claude.com/docs/en/common-workflows
 
 ---
 
-*Last updated: November 2025*
+*Last updated: December 2025*

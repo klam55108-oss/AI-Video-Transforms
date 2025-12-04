@@ -93,3 +93,41 @@ class UploadResponse(BaseModel):
     file_id: str | None = None
     file_path: str | None = None
     error: str | None = None
+
+
+class UsageStats(BaseModel):
+    """Token usage statistics from Claude API."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_creation_tokens: int = 0
+    cache_read_tokens: int = 0
+    total_cost_usd: float = 0.0
+
+
+class SessionCostResponse(BaseModel):
+    """Cost data for a specific session."""
+
+    session_id: str
+    usage: UsageStats
+    last_updated: datetime | None = None
+
+
+class GlobalCostResponse(BaseModel):
+    """Global cost statistics across all sessions."""
+
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_cache_creation_tokens: int = 0
+    total_cache_read_tokens: int = 0
+    total_cost_usd: float = 0.0
+    session_count: int = 0
+    last_updated: datetime | None = None
+
+
+class ChatResponse(BaseModel):
+    """Response model for chat messages."""
+
+    response: str
+    session_id: str
+    usage: UsageStats | None = None  # Optional usage statistics

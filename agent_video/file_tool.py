@@ -9,10 +9,15 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
 from claude_agent_sdk import tool
+
+# Add parent directory to path for permissions import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from permissions import BLOCKED_SYSTEM_PATHS  # noqa: E402
 
 
 def _validate_path(file_path: str) -> tuple[bool, str]:
@@ -32,20 +37,8 @@ def _validate_path(file_path: str) -> tuple[bool, str]:
         return False, f"Invalid path format: {e}"
 
     # Prevent writing to sensitive system directories
-    sensitive_prefixes = [
-        "/etc",
-        "/usr",
-        "/bin",
-        "/sbin",
-        "/var",
-        "/boot",
-        "/sys",
-        "/proc",
-        "/dev",
-    ]
-
     path_str = str(path)
-    for prefix in sensitive_prefixes:
+    for prefix in BLOCKED_SYSTEM_PATHS:
         if path_str.startswith(prefix):
             return False, f"Cannot write to system directory: {prefix}"
 

@@ -45,6 +45,7 @@ from .registry import (
 # Import specific prompts - this also registers them via side effects
 from .video_transcription import (
     SYSTEM_PROMPT,
+    SYSTEM_PROMPT_STRUCTURED,
     VIDEO_TRANSCRIPTION_PROMPT,
 )
 
@@ -61,4 +62,5 @@ __all__ = [
     # Specific prompts
     "VIDEO_TRANSCRIPTION_PROMPT",
     "SYSTEM_PROMPT",
+    "SYSTEM_PROMPT_STRUCTURED",  # Version 2.0.0 with structured output support
 ]

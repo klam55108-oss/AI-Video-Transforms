@@ -4,17 +4,17 @@ AI-powered video transcription toolkit with CLI and Web interfaces. Built with C
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-84%2F84%20passing-brightgreen.svg)](#testing)
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| **Multi-source** | Local files (mp4, mkv, avi, mov, webm) and YouTube URLs |
-| **Auto-segmentation** | Long videos split into 5-minute chunks automatically |
-| **Language detection** | Whisper auto-detects or accepts ISO 639-1 codes |
-| **Dual interface** | CLI for terminal, Web UI for browser |
-| **Session history** | Persist and restore chat sessions |
-| **Secure file handling** | Path validation, size limits, XSS protection |
+- **Multi-source transcription** — Local files (mp4, mkv, avi, mov, webm) and YouTube URLs
+- **Auto-segmentation** — Long videos split into 5-minute chunks automatically
+- **Language detection** — Whisper auto-detects or accepts ISO 639-1 codes
+- **Dual interface** — CLI for terminal, Web UI for browser
+- **Session management** — Persistent chat history with cost tracking
+- **Real-time cost display** — Cumulative API usage shown per message
+- **Secure by design** — Path validation, permission controls, XSS protection
 
 ## Quick Start
 
@@ -26,14 +26,14 @@ uv sync
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your API keys
+# Add your API keys to .env
 
-# Run CLI
-uv run python agent_video/agent.py
-
-# Or run Web UI
+# Run Web UI (recommended)
 uv run python web_app.py
 # Open http://127.0.0.1:8000
+
+# Or run CLI
+uv run python agent_video/agent.py
 ```
 
 ## Configuration
@@ -45,24 +45,26 @@ ANTHROPIC_API_KEY=your-anthropic-key    # Required - Claude Agent SDK
 OPENAI_API_KEY=your-openai-key          # Required - Whisper transcription
 ```
 
-## Project Structure
+## Architecture
 
 ```
 agent-video-to-data/
-├── agent_video/           # Core transcription package
-│   ├── agent.py           # CLI entry point
-│   ├── server.py          # MCP server config
-│   ├── transcribe_tool.py # Whisper transcription
-│   └── file_tool.py       # Safe file operations
-├── web_app.py             # FastAPI server (SessionActor pattern)
-├── storage.py             # Session/transcript persistence
-├── templates/index.html   # Chat UI (Tailwind + Phosphor Icons)
-├── static/
-│   ├── script.js          # Frontend logic
-│   └── style.css          # Custom styles
-├── tests/                 # Pytest test suite
-├── data/                  # Runtime session storage
-└── uploads/               # User file uploads
+├── agent_video/              # Core transcription package
+│   ├── agent.py              # CLI entry point
+│   ├── server.py             # MCP server configuration
+│   ├── transcribe_tool.py    # Whisper transcription tool
+│   ├── file_tool.py          # Secure file operations
+│   └── prompts/              # Versioned prompt templates
+├── web_app.py                # FastAPI server (SessionActor pattern)
+├── web_app_models.py         # Pydantic request/response schemas
+├── storage.py                # Session & transcript persistence
+├── cost_tracking.py          # API usage tracking with deduplication
+├── permissions.py            # File operation permission handler
+├── structured_outputs.py     # Agent response schemas
+├── validators.py             # UUID & input validation
+├── templates/index.html      # Chat UI
+├── static/                   # Frontend assets (JS, CSS)
+└── tests/                    # Comprehensive test suite
 ```
 
 ## Web API
@@ -71,47 +73,79 @@ agent-video-to-data/
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/chat/init` | Initialize session, get greeting |
-| `POST` | `/chat` | Send message, receive response |
+| `POST` | `/chat/init` | Initialize session, get agent greeting |
+| `POST` | `/chat` | Send message, receive response with usage stats |
 | `DELETE` | `/chat/{id}` | Close and cleanup session |
-| `GET` | `/status/{id}` | Poll session status (ready/processing) |
+| `GET` | `/status/{id}` | Poll session status |
 
-### History & Transcripts
+### Data Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/history` | List all chat sessions |
-| `GET` | `/history/{id}` | Get full session messages |
-| `DELETE` | `/history/{id}` | Delete session history |
+| `GET` | `/history/{id}` | Get session messages |
+| `DELETE` | `/history/{id}` | Delete session |
 | `GET` | `/transcripts` | List saved transcripts |
-| `GET` | `/transcripts/{id}/download` | Download transcript file |
+| `GET` | `/transcripts/{id}/download` | Download transcript |
 | `DELETE` | `/transcripts/{id}` | Delete transcript |
-| `POST` | `/upload` | Upload video file (500MB max) |
+| `POST` | `/upload` | Upload video (500MB max) |
+| `GET` | `/cost` | Get global API usage stats |
+| `GET` | `/cost/{id}` | Get session cost breakdown |
 
 ## MCP Tools
 
-The agent exposes two tools via the Model Context Protocol:
+The agent exposes two tools via Model Context Protocol:
 
 **`transcribe_video`** — Transcribe video/audio to text
-- `video_source` (required): Local path or YouTube URL
-- `output_file` (optional): Save transcript to file
-- `language` (optional): ISO 639-1 code (e.g., `en`, `es`, `ja`)
+- `video_source`: Local path or YouTube URL
+- `output_file`: Optional save path
+- `language`: Optional ISO 639-1 code
 
-**`write_file`** — Write content to file safely
-- `file_path` (required): Destination path
-- `content` (required): Text to write
-- `overwrite` (optional): Allow overwrite (default: false)
+**`write_file`** — Write content securely
+- `file_path`: Destination path
+- `content`: Text content
+- `overwrite`: Allow overwrite (default: false)
 
-## Development
+## Testing
 
 ```bash
-# Install dependencies
-uv sync
-
-# Run tests (57 tests)
+# Run full test suite (84 tests)
 uv run pytest
 
-# Type checking
+# With verbose output
+uv run pytest -v
+
+# Run specific test file
+uv run pytest tests/test_api.py
+```
+
+### Test Coverage
+
+| Module | Tests |
+|--------|-------|
+| `test_api.py` | API endpoints, validation, error handling |
+| `test_storage.py` | Session/transcript persistence |
+| `test_concurrency.py` | Race conditions, TTL cleanup |
+| `test_async.py` | Event loops, timeouts, queue handling |
+| `test_cost.py` | Usage tracking, deduplication |
+| `test_permissions.py` | File access controls |
+| `test_structured.py` | Response schema validation |
+
+## Security
+
+| Layer | Protection |
+|-------|------------|
+| **Input validation** | UUID v4 format, Pydantic validators |
+| **File operations** | Blocked system paths, path traversal prevention |
+| **Frontend** | DOMPurify XSS sanitization |
+| **Uploads** | 500MB limit, extension allowlist |
+| **Error handling** | Safe messages, no internal details leaked |
+| **Permissions** | Configurable tool access controls |
+
+## Code Quality
+
+```bash
+# Type checking (strict mode)
 uv run mypy .
 
 # Lint and format
@@ -119,42 +153,27 @@ uv run ruff check .
 uv run ruff format .
 ```
 
-### Test Coverage
-
-| Test File | Coverage |
-|-----------|----------|
-| `test_api.py` | API endpoints, validation, error handling |
-| `test_storage.py` | Session/transcript persistence |
-| `test_concurrency.py` | Async operations, race conditions |
-| `test_async.py` | Event loops, queue handling |
-
-## Security
-
-- **UUID v4 validation** on all session/transcript IDs
-- **Pydantic validators** for request payload sanitization
-- **DOMPurify** XSS protection on frontend markdown rendering
-- **Path traversal prevention** in file operations
-- **500MB file size limit** on uploads
-- **Safe error messages** (no internal details leaked)
+All code passes mypy strict mode and ruff linting with zero warnings.
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| AI | Claude Agent SDK, OpenAI Whisper |
+| Component | Technology |
+|-----------|------------|
+| AI Framework | Claude Agent SDK |
+| Transcription | OpenAI Whisper API |
 | Backend | FastAPI, Uvicorn, Pydantic |
 | Frontend | Tailwind CSS, Vanilla JS, Phosphor Icons |
-| Media | MoviePy, Pydub, yt-dlp |
-| Quality | mypy, ruff, pytest |
+| Media Processing | MoviePy, Pydub, yt-dlp |
+| Quality Tools | mypy, ruff, pytest |
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| `ANTHROPIC_API_KEY not set` | Check `.env` file exists and is readable |
-| YouTube 403 errors | Rate limited; wait or try different video |
-| Long transcription time | Normal for 2+ hour videos; auto-segments |
-| Port 8000 in use | Kill existing process: `fuser -k 8000/tcp` |
+| API key errors | Verify `.env` exists and contains valid keys |
+| YouTube 403 | Rate limited; wait a few minutes |
+| Long transcription | Normal for 2+ hour videos (auto-segments) |
+| Port 8000 in use | `lsof -ti:8000 \| xargs kill -9` |
 
 ## License
 

@@ -32,11 +32,15 @@ Optional Dependencies:
 from .file_tool import write_file
 from .server import video_tools_server
 from .transcribe_tool import transcribe_video
+from .transcript_storage_tools import save_transcript, get_transcript, list_transcripts
 
 __all__ = [
     "transcribe_video",
     "video_tools_server",
     "write_file",
+    "save_transcript",
+    "get_transcript",
+    "list_transcripts",
 ]
 
 __version__ = "1.1.0"

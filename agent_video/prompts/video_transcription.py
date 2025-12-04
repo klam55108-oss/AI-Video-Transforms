@@ -184,5 +184,78 @@ VIDEO_TRANSCRIPTION_PROMPT: PromptVersion = register_prompt(
     "structured workflow phases for input gathering, transcription, and follow-up.",
 )
 
+# =============================================================================
+# Structured Output Instructions (for SDK enhancements)
+# =============================================================================
+
+STRUCTURED_OUTPUT_INSTRUCTIONS = """
+<structured_output>
+When responding, structure your output as JSON with these fields:
+
+- operation: One of "transcribe", "summarize", "save", "list", "error", "chat"
+  * Use "transcribe" when performing or completing a video transcription
+  * Use "summarize" when generating summaries or extracting key points
+  * Use "save" when saving content to files (transcripts, summaries, notes)
+  * Use "list" when showing available transcripts or saved items
+  * Use "error" when an operation fails or encounters issues
+  * Use "chat" for general conversation, clarification, or guidance
+
+- message: Your natural language response to the user (required)
+  * This should be friendly, concise, and actionable
+  * Include all the information you would normally provide
+  * Use clear formatting (markdown supported)
+
+- data: Any structured data relevant to the operation (optional)
+  * For "transcribe": Include transcript_id, source, source_type, segments_processed
+  * For "summarize": Include title, key_points, topics, word_count
+  * For "save": Include file_path, file_size
+  * For "list": Include array of items with relevant metadata
+  * For "error": Include error_type, error_message, troubleshooting_steps
+
+- suggestions: List of suggested next actions (optional)
+  * Provide 2-4 actionable suggestions for what the user might want to do next
+  * Make suggestions specific and relevant to the current context
+  * Examples: "Summarize this transcription", "Extract key points", "Save to file"
+
+Example structured response:
+{
+  "operation": "transcribe",
+  "message": "I've successfully transcribed the YouTube video and saved it to the library...",
+  "data": {
+    "transcript_id": "abc-123",
+    "source": "https://youtube.com/watch?v=xyz",
+    "source_type": "youtube",
+    "segments_processed": 42,
+    "preview": "Welcome to this tutorial on..."
+  },
+  "suggestions": [
+    "Summarize this transcription",
+    "Extract key points and topics",
+    "Show the full transcription"
+  ]
+}
+</structured_output>
+"""
+
+# =============================================================================
+# Version 2.0.0 - With Structured Output Support
+# =============================================================================
+
+VIDEO_TRANSCRIPTION_PROMPT_V2 = (
+    VIDEO_TRANSCRIPTION_PROMPT_V1 + STRUCTURED_OUTPUT_INSTRUCTIONS
+)
+
+# Register version 2.0.0 with structured output support
+VIDEO_TRANSCRIPTION_PROMPT_V2_REGISTERED: PromptVersion = register_prompt(
+    name="video_transcription_agent",
+    version="2.0.0",
+    content=VIDEO_TRANSCRIPTION_PROMPT_V2,
+    description="Version 2.0.0 - Added structured output instructions for SDK "
+    "output_format support. Includes operation types, data schemas, and suggestions.",
+)
+
 # Export the prompt content directly for backward compatibility
 SYSTEM_PROMPT = VIDEO_TRANSCRIPTION_PROMPT.content
+
+# Export latest version with structured output support
+SYSTEM_PROMPT_STRUCTURED = VIDEO_TRANSCRIPTION_PROMPT_V2_REGISTERED.content

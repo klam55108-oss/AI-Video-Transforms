@@ -189,12 +189,12 @@ class TestTimeoutBehavior:
 
         # Patch timeout to be very short
         with patch("web_app.GREETING_TIMEOUT_SECONDS", 0.01):
-            greeting = await actor.get_greeting()
+            response = await actor.get_greeting()
 
-        # Should return fallback message
+        # Should return fallback message (response is now MessageResponse)
         assert (
-            "ready to help" in greeting.lower()
-            or "initialization was slow" in greeting.lower()
+            "ready to help" in response.text.lower()
+            or "initialization was slow" in response.text.lower()
         )
 
     @pytest.mark.asyncio
