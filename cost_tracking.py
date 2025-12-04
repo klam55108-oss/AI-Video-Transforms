@@ -39,13 +39,17 @@ class SessionCost:
     multiple times when streaming messages. Cost is tracked using the SDK's
     authoritative total_cost_usd rather than manual calculation.
 
+    Note on precision: Cost is stored as float since the SDK provides float.
+    For typical session costs ($0.01-$100), float precision is adequate.
+    If sub-cent precision becomes critical, consider Decimal or integer cents.
+
     Attributes:
         session_id: UUID of the session
         total_input_tokens: Cumulative input tokens
         total_output_tokens: Cumulative output tokens
         total_cache_creation_tokens: Cumulative cache creation tokens
         total_cache_read_tokens: Cumulative cache read tokens
-        reported_cost_usd: SDK-reported authoritative cost (model-aware)
+        reported_cost_usd: SDK-reported cumulative cost (updates with each ResultMessage)
         processed_ids: Set of message IDs already processed (deduplication)
     """
 
@@ -54,7 +58,7 @@ class SessionCost:
     total_output_tokens: int = 0
     total_cache_creation_tokens: int = 0
     total_cache_read_tokens: int = 0
-    reported_cost_usd: float = 0.0  # SDK's authoritative cost
+    reported_cost_usd: float = 0.0  # SDK's cumulative cost, updated per ResultMessage
     processed_ids: set[str] = field(default_factory=set)
 
     def add_usage(self, usage: UsageData) -> bool:
@@ -82,13 +86,15 @@ class SessionCost:
 
     def set_reported_cost(self, cost: float) -> None:
         """
-        Set the SDK-reported authoritative cost.
+        Set the SDK-reported cumulative session cost.
 
-        The SDK provides total_cost_usd which is model-aware and calculated
-        by the API. This is more accurate than manual calculation.
+        The SDK provides total_cost_usd on ResultMessage which represents the
+        CUMULATIVE cost for the entire session (not per-message). Each call
+        to this method overwrites the previous value with the latest cumulative
+        total from the SDK, which is model-aware and API-calculated.
 
         Args:
-            cost: The total_cost_usd from SDK ResultMessage
+            cost: The cumulative total_cost_usd from SDK ResultMessage
         """
         self.reported_cost_usd = cost
 

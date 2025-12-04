@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,6 +31,8 @@ class StorageManager:
         self.sessions_dir = self.base_dir / "sessions"
         self.transcripts_dir = self.base_dir / "transcripts"
         self.metadata_file = self.base_dir / "metadata.json"
+        # Lock for metadata operations to prevent TOCTOU race conditions
+        self._metadata_lock = threading.Lock()
         self._ensure_dirs()
 
     def _ensure_dirs(self) -> None:
@@ -191,11 +194,18 @@ class StorageManager:
             file_path: Path to the transcript file
             original_source: YouTube URL or uploaded filename
             source_type: "youtube", "upload", or "local"
-            session_id: Optional link to originating session
+            session_id: Optional link to originating session (must be valid UUID if provided)
 
         Returns:
             The transcript metadata entry
+
+        Raises:
+            ValueError: If session_id is provided but not a valid UUID
         """
+        # Validate session_id format if provided
+        if session_id is not None and not _is_valid_uuid(session_id):
+            raise ValueError(f"Invalid session_id format: {session_id}")
+
         metadata = self._load_metadata()
 
         transcript_id = str(uuid.uuid4())[:8]
@@ -284,39 +294,44 @@ class StorageManager:
         Update global cost statistics with session cost data.
 
         This aggregates costs across all sessions for overall tracking.
-        Thread-safe via atomic writes.
+        Thread-safe via lock + atomic writes to prevent TOCTOU race conditions.
 
         Args:
             session_cost: Session cost data with token counts and total_cost_usd
         """
-        metadata = self._load_metadata()
+        with self._metadata_lock:
+            metadata = self._load_metadata()
 
-        # Initialize global_cost if missing (legacy data)
-        if "global_cost" not in metadata:
-            metadata["global_cost"] = {
-                "total_input_tokens": 0,
-                "total_output_tokens": 0,
-                "total_cache_creation_tokens": 0,
-                "total_cache_read_tokens": 0,
-                "total_cost_usd": 0.0,
-                "session_count": 0,
-            }
+            # Initialize global_cost if missing (legacy data)
+            if "global_cost" not in metadata:
+                metadata["global_cost"] = {
+                    "total_input_tokens": 0,
+                    "total_output_tokens": 0,
+                    "total_cache_creation_tokens": 0,
+                    "total_cache_read_tokens": 0,
+                    "total_cost_usd": 0.0,
+                    "session_count": 0,
+                }
 
-        global_cost = metadata["global_cost"]
+            global_cost = metadata["global_cost"]
 
-        # Increment totals
-        global_cost["total_input_tokens"] += session_cost.get("total_input_tokens", 0)
-        global_cost["total_output_tokens"] += session_cost.get("total_output_tokens", 0)
-        global_cost["total_cache_creation_tokens"] += session_cost.get(
-            "total_cache_creation_tokens", 0
-        )
-        global_cost["total_cache_read_tokens"] += session_cost.get(
-            "total_cache_read_tokens", 0
-        )
-        global_cost["total_cost_usd"] += session_cost.get("total_cost_usd", 0.0)
-        global_cost["session_count"] += 1
+            # Increment totals
+            global_cost["total_input_tokens"] += session_cost.get(
+                "total_input_tokens", 0
+            )
+            global_cost["total_output_tokens"] += session_cost.get(
+                "total_output_tokens", 0
+            )
+            global_cost["total_cache_creation_tokens"] += session_cost.get(
+                "total_cache_creation_tokens", 0
+            )
+            global_cost["total_cache_read_tokens"] += session_cost.get(
+                "total_cache_read_tokens", 0
+            )
+            global_cost["total_cost_usd"] += session_cost.get("total_cost_usd", 0.0)
+            global_cost["session_count"] += 1
 
-        self._save_metadata(metadata)
+            self._save_metadata(metadata)
 
     def get_global_cost(self) -> dict[str, Any]:
         """

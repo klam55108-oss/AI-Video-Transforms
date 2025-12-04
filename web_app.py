@@ -222,6 +222,11 @@ class SessionActor:
         """Thread-safe check if session is running."""
         return self._running_event.is_set()
 
+    @property
+    def is_processing(self) -> bool:
+        """Check if session is currently processing a message."""
+        return self._is_processing
+
     def touch(self) -> None:
         """Update last activity timestamp."""
         self.last_activity = time.time()
@@ -357,6 +362,30 @@ class SessionActor:
             cost_usd=self.session_cost.reported_cost_usd,
         )
 
+    def _extract_message_text(self, message: AssistantMessage) -> list[str]:
+        """
+        Extract text content from an AssistantMessage.
+
+        Handles both structured output (Pydantic model) and fallback to
+        raw TextBlock content extraction.
+
+        Args:
+            message: The AssistantMessage from SDK
+
+        Returns:
+            List of text strings extracted from the message
+        """
+        # Try structured output first
+        if hasattr(message, "structured_output") and message.structured_output:
+            try:
+                parsed = StructuredAgentResponse.model_validate(message.structured_output)
+                return [parsed.message]
+            except Exception:
+                pass  # Fall through to text extraction
+
+        # Fallback to TextBlock content
+        return [block.text for block in message.content if isinstance(block, TextBlock)]
+
     async def _worker_loop(self) -> None:
         """The main loop that holds the ClaudeSDKClient context."""
         logger.info(f"Session {self.session_id}: Worker started")
@@ -405,25 +434,7 @@ class SessionActor:
                                 )
 
                         if isinstance(message, AssistantMessage):
-                            # Handle structured output if present
-                            if (
-                                hasattr(message, "structured_output")
-                                and message.structured_output
-                            ):
-                                try:
-                                    parsed = StructuredAgentResponse.model_validate(
-                                        message.structured_output
-                                    )
-                                    greeting_text.append(parsed.message)
-                                except Exception:
-                                    # Fallback to text extraction
-                                    for block in message.content:
-                                        if isinstance(block, TextBlock):
-                                            greeting_text.append(block.text)
-                            else:
-                                for block in message.content:
-                                    if isinstance(block, TextBlock):
-                                        greeting_text.append(block.text)
+                            greeting_text.extend(self._extract_message_text(message))
 
                     # Return cumulative session usage (aggregated across all messages)
                     await self.greeting_queue.put(
@@ -468,25 +479,7 @@ class SessionActor:
                                     )
 
                             if isinstance(message, AssistantMessage):
-                                # Handle structured output if present
-                                if (
-                                    hasattr(message, "structured_output")
-                                    and message.structured_output
-                                ):
-                                    try:
-                                        parsed = StructuredAgentResponse.model_validate(
-                                            message.structured_output
-                                        )
-                                        full_text.append(parsed.message)
-                                    except Exception:
-                                        # Fallback to text extraction
-                                        for block in message.content:
-                                            if isinstance(block, TextBlock):
-                                                full_text.append(block.text)
-                                else:
-                                    for block in message.content:
-                                        if isinstance(block, TextBlock):
-                                            full_text.append(block.text)
+                                full_text.extend(self._extract_message_text(message))
 
                         # Return cumulative session usage (aggregated across all messages)
                         await self.response_queue.put(
@@ -804,7 +797,7 @@ async def get_status(session_id: str):
             message="Session worker stopped",
         )
 
-    if actor._is_processing:
+    if actor.is_processing:
         return StatusResponse(status=AgentStatus.PROCESSING, session_id=session_id)
 
     return StatusResponse(status=AgentStatus.READY, session_id=session_id)

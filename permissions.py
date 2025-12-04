@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from claude_agent_sdk.types import (
@@ -81,13 +82,20 @@ def create_permission_handler(
         """
         # Check file write operations for blocked paths
         if tool_name in ("mcp__video-tools__write_file", "Write", "Edit"):
-            file_path = input_data.get("file_path", "")
+            raw_path = input_data.get("file_path", "")
+
+            # Normalize path to prevent bypass via traversal (e.g., /etc/../etc/passwd)
+            # or symlinks pointing to blocked directories
+            try:
+                normalized_path = str(Path(raw_path).resolve())
+            except (OSError, ValueError):
+                normalized_path = raw_path
 
             for blocked in config.global_blocked_paths:
-                if file_path.startswith(blocked):
+                if normalized_path.startswith(blocked):
                     if config.log_decisions:
                         logger.warning(
-                            f"DENIED: {tool_name} to {file_path} (blocked path: {blocked})"
+                            f"DENIED: {tool_name} to {normalized_path} (blocked path: {blocked})"
                         )
                     return PermissionResultDeny(
                         message=f"Cannot write to system directory: {blocked}",

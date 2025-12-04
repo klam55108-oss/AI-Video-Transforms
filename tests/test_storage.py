@@ -179,12 +179,12 @@ class TestTranscriptRegistration:
         transcript_file = temp_storage_dir / "test_transcript.txt"
         transcript_file.write_text(sample_transcript_content)
 
-        # Register it
+        # Register it (use valid UUID format for session_id)
         entry = manager.register_transcript(
             file_path=str(transcript_file),
             original_source="https://youtube.com/watch?v=test",
             source_type="youtube",
-            session_id="test-session",
+            session_id="12345678-1234-4123-8123-123456789abc",
         )
 
         assert entry["id"] is not None

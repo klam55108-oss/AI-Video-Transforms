@@ -16,7 +16,8 @@ UUID_PATTERN = re.compile(
 )
 
 # Short ID pattern (8 hex characters, used for transcript_id and file_id)
-SHORT_ID_PATTERN = re.compile(r"^[0-9a-f]{8}$", re.IGNORECASE)
+# Lowercase only - IDs are generated via str(uuid.uuid4())[:8] which produces lowercase
+SHORT_ID_PATTERN = re.compile(r"^[0-9a-f]{8}$")
 
 
 def is_valid_uuid(value: str) -> bool:

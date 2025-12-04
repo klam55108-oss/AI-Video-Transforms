@@ -493,7 +493,7 @@ function addMessage(text, sender, usage = null) {
             usageEl.className = 'inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 rounded-full';
             usageEl.innerHTML = `
                 <i class="ph-fill ph-coins text-amber-500 text-xs"></i>
-                <span class="text-xs font-semibold text-amber-700" title="Cumulative session cost">${stats.cost}</span>
+                <span class="text-xs font-semibold text-amber-700" title="Total API cost for this session (all messages)">${stats.cost}</span>
             `;
             footer.appendChild(usageEl);
         }
