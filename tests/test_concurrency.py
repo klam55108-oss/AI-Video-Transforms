@@ -24,7 +24,11 @@ class TestConcurrentSessionCreation:
         concurrently, only one worker should be created.
         """
         # Import inside test to allow patching
-        from web_app import get_or_create_session, active_sessions, sessions_lock
+        from app.core.session import (
+            get_or_create_session,
+            active_sessions,
+            sessions_lock,
+        )
 
         # Clear any existing sessions
         async with sessions_lock:
@@ -41,7 +45,9 @@ class TestConcurrentSessionCreation:
 
         # Patch environment and SDK client
         with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
-            with patch("web_app.ClaudeSDKClient", return_value=mock_client_instance):
+            with patch(
+                "app.core.session.ClaudeSDKClient", return_value=mock_client_instance
+            ):
                 session_id = "test-concurrent-session-id-1234"
 
                 # Launch multiple concurrent requests for the same session
@@ -76,7 +82,7 @@ class TestSessionTTLCleanup:
     async def test_session_is_expired_after_ttl(self):
         """Test that is_expired() returns True after TTL has passed."""
         import time
-        from web_app import SessionActor
+        from app.core.session import SessionActor
 
         actor = SessionActor("test-ttl-session")
 
@@ -95,7 +101,7 @@ class TestSessionTTLCleanup:
     @pytest.mark.asyncio
     async def test_touch_updates_last_activity(self):
         """Test that touch() updates the last_activity timestamp."""
-        from web_app import SessionActor
+        from app.core.session import SessionActor
 
         actor = SessionActor("test-touch-session")
         old_activity = actor.last_activity
@@ -110,7 +116,7 @@ class TestSessionTTLCleanup:
     async def test_cleanup_removes_expired_sessions(self):
         """Test that cleanup_expired_sessions removes expired sessions."""
         import time
-        from web_app import (
+        from app.core.session import (
             SessionActor,
             active_sessions,
             sessions_lock,
@@ -130,7 +136,7 @@ class TestSessionTTLCleanup:
             active_sessions["expired-session"] = actor
 
         # Create cleanup task with short interval for testing
-        with patch.object(__import__("web_app"), "CLEANUP_INTERVAL_SECONDS", 0.01):
+        with patch("app.core.session.CLEANUP_INTERVAL_SECONDS", 0.01):
             # Run one cleanup iteration
             cleanup_task = asyncio.create_task(cleanup_expired_sessions())
             await asyncio.sleep(0.05)  # Wait for cleanup to run
@@ -151,7 +157,7 @@ class TestWorkerCancellation:
     @pytest.mark.asyncio
     async def test_stop_clears_running_event(self):
         """Test that stop() clears the running event."""
-        from web_app import SessionActor
+        from app.core.session import SessionActor
 
         actor = SessionActor("test-stop-event")
         actor._running_event.set()
@@ -163,7 +169,7 @@ class TestWorkerCancellation:
     @pytest.mark.asyncio
     async def test_stop_is_idempotent(self):
         """Test that calling stop() multiple times is safe."""
-        from web_app import SessionActor
+        from app.core.session import SessionActor
 
         actor = SessionActor("test-stop-idempotent")
 
@@ -177,7 +183,7 @@ class TestWorkerCancellation:
     @pytest.mark.asyncio
     async def test_stop_cancels_active_task(self):
         """Test that stop() cancels the active task if running."""
-        from web_app import SessionActor
+        from app.core.session import SessionActor
 
         actor = SessionActor("test-stop-cancel")
 
@@ -204,7 +210,7 @@ class TestRaceConditions:
     @pytest.mark.asyncio
     async def test_concurrent_session_access_is_safe(self):
         """Test that multiple concurrent accesses to active_sessions are safe."""
-        from web_app import SessionActor, active_sessions, sessions_lock
+        from app.core.session import SessionActor, active_sessions, sessions_lock
 
         # Clear existing sessions
         async with sessions_lock:
@@ -236,7 +242,7 @@ class TestRaceConditions:
     @pytest.mark.asyncio
     async def test_lock_prevents_dict_modification_during_iteration(self):
         """Test that the lock prevents modification during iteration."""
-        from web_app import SessionActor, active_sessions, sessions_lock
+        from app.core.session import SessionActor, active_sessions, sessions_lock
 
         # Clear and populate with test sessions
         async with sessions_lock:

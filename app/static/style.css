@@ -41,6 +41,7 @@
 .prose pre {
     background-color: #1e293b !important; /* slate-800 */
     border-radius: 0.5rem;
+    margin: 0 !important; /* Reset margin for wrapper */
 }
 
 /* Textarea minimum height and focus cleanup */
@@ -82,4 +83,74 @@
 #history-list::-webkit-scrollbar-thumb:hover,
 #transcripts-list::-webkit-scrollbar-thumb:hover {
     background: rgba(148, 163, 184, 0.5);
+}
+
+/* Toast Notifications */
+.toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none; /* Allow clicking through container */
+}
+
+.toast {
+    pointer-events: auto;
+    min-width: 300px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: white;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    animation: slideIn 0.3s ease-out forwards;
+    border-left: 4px solid #3b82f6; /* Default blue */
+}
+
+.toast.error { border-left-color: #ef4444; }
+.toast.success { border-left-color: #10b981; }
+.toast.warning { border-left-color: #f59e0b; }
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+/* Code Block Copy Button */
+.code-block-wrapper {
+    position: relative;
+    margin: 1.25em 0;
+}
+
+.code-copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 4px 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    color: #cbd5e1;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    opacity: 0; /* Hidden by default */
+}
+
+.code-block-wrapper:hover .code-copy-btn {
+    opacity: 1;
+}
+
+.code-copy-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
 }

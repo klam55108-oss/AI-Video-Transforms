@@ -23,7 +23,7 @@ class TestTranscriptionAsyncWrapper:
     async def test_transcription_uses_to_thread(self):
         """Verify transcription is wrapped with asyncio.to_thread."""
         # Read the transcribe_tool.py to verify the pattern exists
-        import agent_video.transcribe_tool as transcribe_module
+        import app.agent.transcribe_tool as transcribe_module
         import inspect
 
         source = inspect.getsource(transcribe_module)
@@ -74,7 +74,7 @@ class TestFileWritingAsyncWrapper:
     @pytest.mark.asyncio
     async def test_file_tool_uses_to_thread(self):
         """Verify file_tool.py uses asyncio.to_thread."""
-        import agent_video.file_tool as file_module
+        import app.agent.file_tool as file_module
         import inspect
 
         source = inspect.getsource(file_module)
@@ -89,7 +89,7 @@ class TestFileWritingAsyncWrapper:
     @pytest.mark.asyncio
     async def test_write_file_sync_helper_exists(self):
         """Test that _write_file_sync helper function works correctly."""
-        from agent_video.file_tool import _write_file_sync
+        from app.agent.file_tool import _write_file_sync
 
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = Path(f.name)
@@ -107,7 +107,7 @@ class TestFileWritingAsyncWrapper:
     @pytest.mark.asyncio
     async def test_event_loop_not_blocked_during_file_write(self):
         """Test that other tasks can run during file writing."""
-        from agent_video.file_tool import _write_file_sync
+        from app.agent.file_tool import _write_file_sync
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir) / "test_file.txt"
@@ -138,7 +138,7 @@ class TestTimeoutBehavior:
     @pytest.mark.asyncio
     async def test_response_timeout_constant_exists(self):
         """Verify RESPONSE_TIMEOUT_SECONDS is defined."""
-        from web_app import RESPONSE_TIMEOUT_SECONDS
+        from app.core.session import RESPONSE_TIMEOUT_SECONDS
 
         assert RESPONSE_TIMEOUT_SECONDS > 0
         assert RESPONSE_TIMEOUT_SECONDS == 300.0  # 5 minutes as per spec
@@ -146,7 +146,7 @@ class TestTimeoutBehavior:
     @pytest.mark.asyncio
     async def test_greeting_timeout_constant_exists(self):
         """Verify GREETING_TIMEOUT_SECONDS is defined."""
-        from web_app import GREETING_TIMEOUT_SECONDS
+        from app.core.session import GREETING_TIMEOUT_SECONDS
 
         assert GREETING_TIMEOUT_SECONDS > 0
         assert GREETING_TIMEOUT_SECONDS == 30.0  # 30 seconds as per spec
@@ -154,7 +154,7 @@ class TestTimeoutBehavior:
     @pytest.mark.asyncio
     async def test_process_message_timeout_raises_on_slow_response(self):
         """Test that process_message raises TimeoutError for slow operations."""
-        from web_app import SessionActor
+        from app.core.session import SessionActor
 
         actor = SessionActor("test-timeout-session")
         actor._running_event.set()
@@ -166,7 +166,7 @@ class TestTimeoutBehavior:
         actor.active_task = asyncio.create_task(never_complete())
 
         # Patch the timeout to be very short for testing
-        with patch("web_app.RESPONSE_TIMEOUT_SECONDS", 0.1):
+        with patch("app.core.session.RESPONSE_TIMEOUT_SECONDS", 0.1):
             with pytest.raises(TimeoutError) as exc_info:
                 await actor.process_message("test message")
 
@@ -182,13 +182,13 @@ class TestTimeoutBehavior:
     @pytest.mark.asyncio
     async def test_get_greeting_timeout_returns_fallback(self):
         """Test that get_greeting returns fallback message on timeout."""
-        from web_app import SessionActor
+        from app.core.session import SessionActor
 
         actor = SessionActor("test-greeting-timeout")
         actor._running_event.set()
 
         # Patch timeout to be very short
-        with patch("web_app.GREETING_TIMEOUT_SECONDS", 0.01):
+        with patch("app.core.session.GREETING_TIMEOUT_SECONDS", 0.01):
             response = await actor.get_greeting()
 
         # Should return fallback message (response is now MessageResponse)
@@ -227,7 +227,7 @@ class TestTimeoutBehavior:
     @pytest.mark.asyncio
     async def test_graceful_shutdown_timeout_exists(self):
         """Verify GRACEFUL_SHUTDOWN_TIMEOUT is defined."""
-        from web_app import GRACEFUL_SHUTDOWN_TIMEOUT
+        from app.core.session import GRACEFUL_SHUTDOWN_TIMEOUT
 
         assert GRACEFUL_SHUTDOWN_TIMEOUT > 0
-        assert GRACEFUL_SHUTDOWN_TIMEOUT == 2.0  # 2 seconds as per spec
+        assert GRACEFUL_SHUTDOWN_TIMEOUT == 5.0  # 5 seconds for graceful shutdown

@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from validators import is_valid_uuid as _is_valid_uuid
+from app.core.validators import is_valid_uuid as _is_valid_uuid
 
 
 class StorageManager:

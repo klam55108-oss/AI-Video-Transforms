@@ -44,7 +44,7 @@ def temp_upload_dir() -> Generator[Path, None, None]:
 async def async_client() -> AsyncGenerator[AsyncClient, None]:
     """Create an async HTTP client for testing FastAPI endpoints."""
     # Import here to avoid circular imports and allow patching
-    from web_app import app
+    from app.main import app
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

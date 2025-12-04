@@ -13,7 +13,7 @@ class TestUsageData:
 
     def test_usage_data_creation(self):
         """Test creating UsageData with all fields."""
-        from cost_tracking import UsageData
+        from app.core.cost_tracking import UsageData
 
         usage = UsageData(
             message_id="msg_123",
@@ -31,7 +31,7 @@ class TestUsageData:
 
     def test_usage_data_defaults(self):
         """Test that UsageData uses default values for optional fields."""
-        from cost_tracking import UsageData
+        from app.core.cost_tracking import UsageData
 
         usage = UsageData(message_id="msg_456")
 
@@ -47,7 +47,7 @@ class TestSessionCost:
 
     def test_add_usage_success(self):
         """Test adding usage data to a session."""
-        from cost_tracking import SessionCost, UsageData
+        from app.core.cost_tracking import SessionCost, UsageData
 
         session_cost = SessionCost(session_id="test-session")
         usage = UsageData(
@@ -65,7 +65,7 @@ class TestSessionCost:
 
     def test_add_usage_deduplication(self):
         """Test that duplicate message IDs are not counted twice."""
-        from cost_tracking import SessionCost, UsageData
+        from app.core.cost_tracking import SessionCost, UsageData
 
         session_cost = SessionCost(session_id="test-session")
         usage1 = UsageData(
@@ -90,7 +90,7 @@ class TestSessionCost:
 
     def test_set_reported_cost(self):
         """Test setting SDK-reported authoritative cost."""
-        from cost_tracking import SessionCost, UsageData
+        from app.core.cost_tracking import SessionCost, UsageData
 
         session_cost = SessionCost(session_id="test-session")
 
@@ -123,8 +123,8 @@ class TestCostStorage:
 
     def test_save_session_cost(self, tmp_path):
         """Test saving session cost data to storage."""
-        from cost_tracking import SessionCost, UsageData
-        from storage import StorageManager
+        from app.core.cost_tracking import SessionCost, UsageData
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=tmp_path)
         # Use valid UUID v4
@@ -151,8 +151,8 @@ class TestCostStorage:
 
     def test_get_session_cost(self, tmp_path):
         """Test retrieving session cost data from storage."""
-        from cost_tracking import SessionCost, UsageData
-        from storage import StorageManager
+        from app.core.cost_tracking import SessionCost, UsageData
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=tmp_path)
         # Use valid UUID v4
@@ -183,8 +183,8 @@ class TestCostStorage:
         """Test aggregating costs across multiple sessions."""
         import uuid
 
-        from cost_tracking import SessionCost, UsageData
-        from storage import StorageManager
+        from app.core.cost_tracking import SessionCost, UsageData
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=tmp_path)
 

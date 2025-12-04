@@ -65,7 +65,8 @@ htmlcov/
 # Archive directory for deprecated/old files
 archive/
 
-# Alternative AI documentation (if any)
+# Alternative AI configuration and documentation
+.gemini/
 GEMINI.md
 
 # Runtime storage directories (sessions, transcripts)

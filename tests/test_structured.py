@@ -15,7 +15,7 @@ class TestAgentResponse:
 
     def test_valid_response(self):
         """Test creating a valid AgentResponse."""
-        from structured_outputs import AgentResponse
+        from app.models.structured import AgentResponse
 
         response = AgentResponse(
             operation="transcribe",
@@ -31,7 +31,7 @@ class TestAgentResponse:
 
     def test_operation_literals(self):
         """Test that operation field only accepts valid literals."""
-        from structured_outputs import AgentResponse
+        from app.models.structured import AgentResponse
 
         # Valid operations
         valid_operations = ["transcribe", "summarize", "save", "list", "error", "chat"]
@@ -46,7 +46,7 @@ class TestAgentResponse:
 
     def test_schema_generation(self):
         """Test that JSON schema can be generated from AgentResponse."""
-        from structured_outputs import get_output_schema
+        from app.models.structured import get_output_schema
 
         schema = get_output_schema()
 
@@ -63,7 +63,7 @@ class TestTranscriptionResult:
 
     def test_success_response(self):
         """Test creating a successful transcription result."""
-        from structured_outputs import TranscriptionResult
+        from app.models.structured import TranscriptionResult
 
         result = TranscriptionResult(
             success=True,
@@ -83,7 +83,7 @@ class TestTranscriptionResult:
 
     def test_error_response(self):
         """Test creating an error transcription result."""
-        from structured_outputs import TranscriptionResult
+        from app.models.structured import TranscriptionResult
 
         result = TranscriptionResult(
             success=False,
@@ -99,7 +99,7 @@ class TestTranscriptionResult:
 
     def test_source_type_validation(self):
         """Test that source_type only accepts valid literals."""
-        from structured_outputs import TranscriptionResult
+        from app.models.structured import TranscriptionResult
 
         # Valid source types
         valid_types = ["youtube", "local", "upload"]
@@ -128,7 +128,7 @@ class TestTranscriptSummary:
 
     def test_valid_summary(self):
         """Test creating a valid TranscriptSummary."""
-        from structured_outputs import TranscriptSummary
+        from app.models.structured import TranscriptSummary
 
         summary = TranscriptSummary(
             title="Video Title",
@@ -145,7 +145,7 @@ class TestTranscriptSummary:
 
     def test_empty_lists_allowed(self):
         """Test that empty lists are valid for key_points and topics."""
-        from structured_outputs import TranscriptSummary
+        from app.models.structured import TranscriptSummary
 
         summary = TranscriptSummary(
             title="Title",
@@ -164,7 +164,7 @@ class TestStructuredOutputIntegration:
 
     def test_agent_response_with_transcription_data(self):
         """Test AgentResponse containing TranscriptionResult data."""
-        from structured_outputs import AgentResponse, TranscriptionResult
+        from app.models.structured import AgentResponse, TranscriptionResult
 
         # Create a transcription result
         transcription = TranscriptionResult(
@@ -186,7 +186,7 @@ class TestStructuredOutputIntegration:
 
     def test_agent_response_with_summary_data(self):
         """Test AgentResponse containing TranscriptSummary data."""
-        from structured_outputs import AgentResponse, TranscriptSummary
+        from app.models.structured import AgentResponse, TranscriptSummary
 
         # Create a summary
         summary = TranscriptSummary(
