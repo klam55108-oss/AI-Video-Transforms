@@ -13,23 +13,14 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import tempfile
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-# UUID v4 validation pattern for defense in depth
-_UUID_PATTERN = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
-    re.IGNORECASE,
-)
-
-
-def _is_valid_uuid(value: str) -> bool:
-    """Check if a string is a valid UUID v4 format."""
-    return bool(_UUID_PATTERN.match(value))
+from validators import is_valid_uuid as _is_valid_uuid
 
 
 class StorageManager:
@@ -40,6 +31,8 @@ class StorageManager:
         self.sessions_dir = self.base_dir / "sessions"
         self.transcripts_dir = self.base_dir / "transcripts"
         self.metadata_file = self.base_dir / "metadata.json"
+        # Lock for metadata operations to prevent TOCTOU race conditions
+        self._metadata_lock = threading.Lock()
         self._ensure_dirs()
 
     def _ensure_dirs(self) -> None:
@@ -77,7 +70,17 @@ class StorageManager:
         """Load global metadata from file."""
         if self.metadata_file.exists():
             return json.loads(self.metadata_file.read_text())
-        return {"transcripts": {}}
+        return {
+            "transcripts": {},
+            "global_cost": {
+                "total_input_tokens": 0,
+                "total_output_tokens": 0,
+                "total_cache_creation_tokens": 0,
+                "total_cache_read_tokens": 0,
+                "total_cost_usd": 0.0,
+                "session_count": 0,
+            },
+        }
 
     def _save_metadata(self, data: dict[str, Any]) -> None:
         """Save global metadata to file atomically."""
@@ -191,11 +194,18 @@ class StorageManager:
             file_path: Path to the transcript file
             original_source: YouTube URL or uploaded filename
             source_type: "youtube", "upload", or "local"
-            session_id: Optional link to originating session
+            session_id: Optional link to originating session (must be valid UUID if provided)
 
         Returns:
             The transcript metadata entry
+
+        Raises:
+            ValueError: If session_id is provided but not a valid UUID
         """
+        # Validate session_id format if provided
+        if session_id is not None and not _is_valid_uuid(session_id):
+            raise ValueError(f"Invalid session_id format: {session_id}")
+
         metadata = self._load_metadata()
 
         transcript_id = str(uuid.uuid4())[:8]
@@ -241,6 +251,107 @@ class StorageManager:
                 file_path.unlink()
             return True
         return False
+
+    # --- Cost Tracking Methods ---
+
+    def save_session_cost(self, session_id: str, cost_data: dict[str, Any]) -> None:
+        """
+        Save cost tracking data for a session.
+
+        Args:
+            session_id: UUID of the session
+            cost_data: Dictionary with cost tracking fields
+
+        Raises:
+            ValueError: If session_id is not a valid UUID v4
+        """
+        if not _is_valid_uuid(session_id):
+            raise ValueError(f"Invalid session_id format: {session_id}")
+
+        cost_file = self.sessions_dir / f"{session_id}_cost.json"
+        self._atomic_write(cost_file, cost_data)
+
+    def get_session_cost(self, session_id: str) -> dict[str, Any] | None:
+        """
+        Retrieve cost tracking data for a session.
+
+        Args:
+            session_id: UUID of the session
+
+        Returns:
+            Cost data dictionary or None if not found
+        """
+        if not _is_valid_uuid(session_id):
+            return None
+
+        cost_file = self.sessions_dir / f"{session_id}_cost.json"
+        if cost_file.exists():
+            return json.loads(cost_file.read_text())
+        return None
+
+    def update_global_cost(self, session_cost: dict[str, Any]) -> None:
+        """
+        Update global cost statistics with session cost data.
+
+        This aggregates costs across all sessions for overall tracking.
+        Thread-safe via lock + atomic writes to prevent TOCTOU race conditions.
+
+        Args:
+            session_cost: Session cost data with token counts and total_cost_usd
+        """
+        with self._metadata_lock:
+            metadata = self._load_metadata()
+
+            # Initialize global_cost if missing (legacy data)
+            if "global_cost" not in metadata:
+                metadata["global_cost"] = {
+                    "total_input_tokens": 0,
+                    "total_output_tokens": 0,
+                    "total_cache_creation_tokens": 0,
+                    "total_cache_read_tokens": 0,
+                    "total_cost_usd": 0.0,
+                    "session_count": 0,
+                }
+
+            global_cost = metadata["global_cost"]
+
+            # Increment totals
+            global_cost["total_input_tokens"] += session_cost.get(
+                "total_input_tokens", 0
+            )
+            global_cost["total_output_tokens"] += session_cost.get(
+                "total_output_tokens", 0
+            )
+            global_cost["total_cache_creation_tokens"] += session_cost.get(
+                "total_cache_creation_tokens", 0
+            )
+            global_cost["total_cache_read_tokens"] += session_cost.get(
+                "total_cache_read_tokens", 0
+            )
+            global_cost["total_cost_usd"] += session_cost.get("total_cost_usd", 0.0)
+            global_cost["session_count"] += 1
+
+            self._save_metadata(metadata)
+
+    def get_global_cost(self) -> dict[str, Any]:
+        """
+        Get aggregated cost statistics across all sessions.
+
+        Returns:
+            Dictionary with global cost totals
+        """
+        metadata = self._load_metadata()
+        return metadata.get(
+            "global_cost",
+            {
+                "total_input_tokens": 0,
+                "total_output_tokens": 0,
+                "total_cache_creation_tokens": 0,
+                "total_cache_read_tokens": 0,
+                "total_cost_usd": 0.0,
+                "session_count": 0,
+            },
+        )
 
 
 # Global storage instance

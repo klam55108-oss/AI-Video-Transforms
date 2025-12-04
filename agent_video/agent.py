@@ -85,11 +85,15 @@ async def run_transcription_agent() -> None:
     print()
 
     options = ClaudeAgentOptions(
+        model="claude-opus-4-5",
         system_prompt=SYSTEM_PROMPT,
         mcp_servers={"video-tools": video_tools_server},
         allowed_tools=[
             "mcp__video-tools__transcribe_video",
             "mcp__video-tools__write_file",
+            "mcp__video-tools__save_transcript",
+            "mcp__video-tools__get_transcript",
+            "mcp__video-tools__list_transcripts",
         ],
         max_turns=50,  # Allow for extended multi-turn conversation
     )

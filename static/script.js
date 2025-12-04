@@ -408,8 +408,30 @@ function scrollToBottom() {
     });
 }
 
+// Format usage stats for display
+function formatUsageStats(usage) {
+    if (!usage) return null;
+
+    const totalTokens = (usage.input_tokens || 0) + (usage.output_tokens || 0);
+    const cost = usage.total_cost_usd || 0;
+
+    // Format cost with appropriate precision
+    const costStr = cost < 0.01
+        ? `$${cost.toFixed(4)}`
+        : `$${cost.toFixed(2)}`;
+
+    return {
+        input: usage.input_tokens || 0,
+        output: usage.output_tokens || 0,
+        total: totalTokens,
+        cost: costStr,
+        cacheCreation: usage.cache_creation_tokens || 0,
+        cacheRead: usage.cache_read_tokens || 0
+    };
+}
+
 // Add Message to UI
-function addMessage(text, sender) {
+function addMessage(text, sender, usage = null) {
     const isUser = sender === 'user';
 
     // Outer Container
@@ -453,13 +475,32 @@ function addMessage(text, sender) {
         bubble.innerHTML = DOMPurify.sanitize(marked.parse(text), PURIFY_CONFIG);
     }
 
+    // Footer container for timestamp and usage
+    const footer = document.createElement('div');
+    footer.className = `flex items-center gap-3 mt-1 ${isUser ? 'flex-row-reverse mr-1' : 'ml-1'}`;
+
     // Timestamp
     const timestamp = document.createElement('span');
-    timestamp.className = `text-[10px] text-slate-400 font-medium mt-1 block ${isUser ? 'text-right mr-1' : 'ml-1'}`;
+    timestamp.className = 'text-[10px] text-slate-400 font-medium';
     timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    footer.appendChild(timestamp);
+
+    // Usage Stats (only for agent messages) - show cumulative session cost
+    if (!isUser && usage) {
+        const stats = formatUsageStats(usage);
+        if (stats) {
+            const usageEl = document.createElement('span');
+            usageEl.className = 'inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 rounded-full';
+            usageEl.innerHTML = `
+                <i class="ph-fill ph-coins text-amber-500 text-xs"></i>
+                <span class="text-xs font-semibold text-amber-700" title="Total API cost for this session (all messages)">${stats.cost}</span>
+            `;
+            footer.appendChild(usageEl);
+        }
+    }
 
     contentWrapper.appendChild(bubble);
-    contentWrapper.appendChild(timestamp);
+    contentWrapper.appendChild(footer);
 
     container.appendChild(avatar);
     container.appendChild(contentWrapper);
@@ -573,7 +614,7 @@ async function sendMessage(message, showInUI = true) {
 
             const data = await response.json();
             removeLoading(loadingId);
-            addMessage(data.response, 'agent');
+            addMessage(data.response, 'agent', data.usage);
 
             // Refresh transcripts list in case a new one was created
             if (transcriptsList && !transcriptsList.classList.contains('hidden')) {
@@ -660,7 +701,7 @@ async function initSession() {
 
         const data = await response.json();
         removeLoading(loadingId);
-        addMessage(data.response, 'agent');
+        addMessage(data.response, 'agent', data.usage);
 
     } catch (e) {
         console.error("Init failed", e);
