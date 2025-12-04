@@ -18,35 +18,32 @@ A Python video transcription toolkit with two interfaces: CLI and Web UI. Built 
 ## Project Structure
 
 ```
-agent-video-to-data/
-├── agent_video/              # Core transcription package
-│   ├── agent.py              # CLI entry point
-│   ├── server.py             # MCP server configuration
-│   ├── transcribe_tool.py    # Whisper transcription tool
-│   ├── file_tool.py          # Safe file writing tool
-│   └── prompts/              # Versioned prompt templates
-├── web_app.py                # FastAPI server (SessionActor pattern)
-├── web_app_models.py         # Pydantic request/response models
-├── storage.py                # File-based session/transcript persistence
-├── cost_tracking.py          # Session cost tracking with deduplication
-├── permissions.py            # File operation permission handler
-├── structured_outputs.py     # Agent response Pydantic schemas
-├── validators.py             # UUID and input validation patterns
-├── templates/index.html      # Chat UI (Tailwind + Phosphor Icons)
-├── static/                   # Frontend assets (JS, CSS)
-├── tests/                    # Pytest test suite (84 tests)
-├── data/                     # Runtime: sessions, transcripts (gitignored)
-└── uploads/                  # Runtime: user uploads (gitignored)
+app/
+├── agent/                # Agent core
+│   ├── agent.py          # CLI entry point
+│   ├── server.py         # MCP server (5 tools)
+│   └── prompts/          # Versioned system prompts
+├── core/                 # Shared modules
+│   ├── session.py        # SessionActor pattern
+│   ├── storage.py        # File-based persistence
+│   ├── cost_tracking.py  # Usage aggregation
+│   └── permissions.py    # Tool access control
+├── models/               # Pydantic schemas
+│   ├── api.py            # Web API models
+│   └── structured.py     # Agent output schemas
+├── static/               # JS, CSS
+├── templates/            # Jinja2 HTML
+└── main.py               # FastAPI web app
 ```
 
 ## Commands
 
 ```bash
 # CLI agent
-uv run python agent_video/agent.py
+uv run python -m app.agent.agent
 
 # Web server (http://127.0.0.1:8000)
-uv run python web_app.py
+uv run python -m app.main
 
 # Quality checks
 uv run mypy .
@@ -69,7 +66,7 @@ Required in `.env`:
 - Tools allowlisted as `mcp__<server-name>__<tool-name>`
 - Tool functions: `async def fn(args: dict[str, Any]) -> dict[str, Any]`
 
-### SessionActor Pattern (web_app.py)
+### SessionActor Pattern (app/core/session.py)
 The web UI isolates each user session in a dedicated asyncio task to avoid SDK context/cancel scope issues:
 
 ```python
@@ -90,7 +87,7 @@ class SessionActor:
 This queue-based actor model prevents race conditions when multiple HTTP requests interact with the same session.
 
 ### Prompt Management
-- Versioned via `PromptVersion` dataclass in `prompts/registry.py`
+- Versioned via `PromptVersion` dataclass in `app/agent/prompts/registry.py`
 - XML structure: `<role>`, `<context>`, `<workflow>`, `<constraints>`
 - Access via `get_prompt(name)` or `get_prompt_content(name)`
 
@@ -103,16 +100,6 @@ This queue-based actor model prevents race conditions when multiple HTTP request
 - Google-style docstrings
 - Max ~50 lines per function
 - `pathlib.Path` over `os.path`
-
-### Note on `sys.path` Usage
-
-Files in `agent_video/` use `sys.path.insert(0, parent)` to import root-level modules (`storage`, `permissions`). While not ideal, this is necessary because:
-
-1. **Dual execution contexts** — `agent_video/agent.py` runs both as a standalone CLI and as an imported module
-2. **MCP tool loading** — The Claude SDK loads tools dynamically; the project root may not be in `PYTHONPATH`
-3. **No installable package** — The project isn't pip-installed, so relative imports from root aren't available
-
-Alternative approaches (namespace packages, `setup.py` editable installs) add complexity without benefit for this use case.
 
 ## Error Handling
 

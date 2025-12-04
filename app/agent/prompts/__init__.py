@@ -6,21 +6,21 @@ prompts used throughout the application.
 
 Usage:
     # Get a prompt by name (returns latest version)
-    from agent_video.prompts import get_prompt
+    from app.agent.prompts import get_prompt
     prompt = get_prompt("video_transcription_agent")
 
     # Get specific version
     prompt = get_prompt("video_transcription_agent", version="1.0.0")
 
     # Get just the content string
-    from agent_video.prompts import get_prompt_content
+    from app.agent.prompts import get_prompt_content
     content = get_prompt_content("video_transcription_agent")
 
     # Import specific prompts directly
-    from agent_video.prompts import VIDEO_TRANSCRIPTION_PROMPT, SYSTEM_PROMPT
+    from app.agent.prompts import VIDEO_TRANSCRIPTION_PROMPT, SYSTEM_PROMPT
 
     # Register a new prompt
-    from agent_video.prompts import register_prompt
+    from app.agent.prompts import register_prompt
     register_prompt(
         name="my_prompt",
         version="1.0.0",

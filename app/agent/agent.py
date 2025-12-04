@@ -13,62 +13,39 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-from pathlib import Path
-
-# Add project root to path for development imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
 
-# Load environment variables before importing SDK
+from app.agent.prompts import SYSTEM_PROMPT  # noqa: E402
+
+# Load environment variables
 load_dotenv()
-
-# Import system prompt from versioned prompts module
-from agent_video.prompts import SYSTEM_PROMPT  # noqa: E402
-
-
-def check_environment() -> bool:
-    """Verify required environment variables are set."""
-    print("=" * 60)
-    print("Environment Check")
-    print("=" * 60)
-
-    openai_key = os.environ.get("OPENAI_API_KEY")
-    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
-
-    openai_status = "SET" if openai_key else "MISSING"
-    anthropic_status = "SET" if anthropic_key else "MISSING"
-
-    print(f"OPENAI_API_KEY:    {openai_status}")
-    print(f"ANTHROPIC_API_KEY: {anthropic_status}")
-    print()
-
-    if not anthropic_key:
-        print("ERROR: ANTHROPIC_API_KEY is required to run the agent.")
-        print("Please add your Anthropic API key to the .env file.")
-        print("Get your key at: https://console.anthropic.com/settings/keys")
-        return False
-
-    if not openai_key:
-        print("WARNING: OPENAI_API_KEY is not set.")
-        print("The transcribe_video tool will not work without it.")
-        print()
-
-    return True
 
 
 def print_separator(char: str = "-", title: str | None = None) -> None:
-    """Print a visual separator line."""
+    """Print a separator line."""
+    width = 60
     if title:
-        padding = (56 - len(title)) // 2
-        print(f"{char * padding} {title} {char * padding}")
+        line = char * 5 + f" {title} " + char * (width - 7 - len(title))
+        print(line[:width])
     else:
-        print(char * 60)
+        print(char * width)
 
 
-async def run_transcription_agent() -> None:
-    """Run the interactive multi-turn transcription agent."""
-    # Import SDK components after dotenv is loaded
+def check_environment() -> bool:
+    """Check if required environment variables are set."""
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        print_separator("!")
+        print("ERROR: ANTHROPIC_API_KEY not found.")
+        print("Please set this variable in your .env file.")
+        print_separator("!")
+        return False
+    return True
+
+
+async def run_agent() -> None:
+    """Run the interactive agent loop."""
+    # Import locally to avoid circular imports if imported as module
     from claude_agent_sdk import (
         AssistantMessage,
         ClaudeAgentOptions,
@@ -76,7 +53,7 @@ async def run_transcription_agent() -> None:
         TextBlock,
     )
 
-    from agent_video import video_tools_server
+    from app.agent import video_tools_server
 
     print_separator("=", "Video Transcription Agent")
     print()
@@ -170,7 +147,7 @@ def main() -> None:
     if not check_environment():
         sys.exit(1)
 
-    asyncio.run(run_transcription_agent())
+    asyncio.run(run_agent())
 
 
 if __name__ == "__main__":

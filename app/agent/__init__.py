@@ -7,7 +7,7 @@ with the Claude Agent SDK.
 
 Usage with Claude Agent SDK:
     from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
-    from agent_video import video_tools_server
+    from app.agent import video_tools_server
 
     options = ClaudeAgentOptions(
         mcp_servers={"video-tools": video_tools_server},

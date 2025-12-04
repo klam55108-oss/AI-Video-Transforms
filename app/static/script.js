@@ -32,6 +32,14 @@ const transcriptsToggle = document.getElementById('transcripts-toggle');
 const transcriptsList = document.getElementById('transcripts-list');
 const transcriptsCaret = document.getElementById('transcripts-caret');
 
+// Toast Container
+let toastContainer = document.querySelector('.toast-container');
+if (!toastContainer) {
+    toastContainer = document.createElement('div');
+    toastContainer.className = 'toast-container';
+    document.body.appendChild(toastContainer);
+}
+
 // ============================================
 // State
 // ============================================
@@ -90,6 +98,73 @@ function formatFileSize(bytes) {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function copyToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+    } else {
+        // Fallback for non-secure context (e.g. http://localhost vs http://127.0.0.1)
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            return Promise.resolve();
+        } catch (err) {
+            return Promise.reject(err);
+        } finally {
+            document.body.removeChild(textArea);
+        }
+    }
+}
+
+// ============================================
+// Toast Notifications
+// ============================================
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    const iconMap = {
+        'info': 'ph-info',
+        'success': 'ph-check-circle',
+        'error': 'ph-warning-circle',
+        'warning': 'ph-warning'
+    };
+    
+    const iconClass = iconMap[type] || 'ph-info';
+
+    toast.innerHTML = `
+        <div class="flex items-center gap-3">
+            <i class="ph-fill ${iconClass} text-lg opacity-80"></i>
+            <span class="text-sm font-medium text-slate-700">${message}</span>
+        </div>
+        <button class="ml-4 text-slate-400 hover:text-slate-600">
+            <i class="ph-bold ph-x"></i>
+        </button>
+    `;
+
+    // Close button
+    toast.querySelector('button').onclick = () => {
+        toast.style.animation = 'fadeOut 0.2s forwards';
+        setTimeout(() => toast.remove(), 200);
+    };
+
+    toastContainer.appendChild(toast);
+
+    // Auto dismiss
+    setTimeout(() => {
+        if (toast.isConnected) {
+            toast.style.animation = 'fadeOut 0.2s forwards';
+            setTimeout(() => toast.remove(), 200);
+        }
+    }, 4000);
 }
 
 // ============================================
@@ -227,6 +302,7 @@ async function deleteHistoryItem(historySessionId) {
         loadHistory(); // Refresh list
     } catch (e) {
         console.error('Delete failed:', e);
+        showToast('Failed to delete history item', 'error');
     }
 }
 
@@ -297,9 +373,10 @@ async function deleteTranscript(id) {
     try {
         await fetch(`/transcripts/${id}`, { method: 'DELETE' });
         loadTranscripts(); // Refresh list
+        showToast('Transcript deleted', 'success');
     } catch (e) {
         console.error('Delete failed:', e);
-        alert('Failed to delete transcript');
+        showToast('Failed to delete transcript', 'error');
     }
 }
 
@@ -319,7 +396,7 @@ function initFileUpload() {
     if (attachBtn) {
         attachBtn.addEventListener('click', () => {
             if (isProcessing) {
-                alert('Please wait for the current operation to complete');
+                showToast('Please wait for the current operation to complete', 'warning');
                 return;
             }
             fileInput.click();
@@ -337,7 +414,7 @@ async function handleFileSelect(e) {
     // Validate file size (500MB limit)
     const MAX_SIZE = 500 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
-        addMessage(`**Error:** File too large. Maximum size is 500MB.`, 'agent');
+        showToast('File too large. Maximum size is 500MB.', 'error');
         fileInput.value = '';
         return;
     }
@@ -360,6 +437,7 @@ async function handleFileSelect(e) {
         removeLoading(loadingId);
 
         if (data.success) {
+            showToast('File uploaded successfully', 'success');
             // Automatically request transcription
             addMessage(`File uploaded successfully. Starting transcription...`, 'agent');
 
@@ -367,10 +445,12 @@ async function handleFileSelect(e) {
             const message = `Please transcribe this uploaded video file: ${data.file_path}`;
             await sendMessage(message, false); // Don't show in UI, it's automated
         } else {
+            showToast(data.error || 'Upload failed', 'error');
             addMessage(`**Upload Error:** ${data.error || 'Unknown error'}`, 'agent');
         }
     } catch (e) {
         removeLoading(loadingId);
+        showToast('Upload failed', 'error');
         addMessage(`**Upload Error:** ${e.message}`, 'agent');
     }
 
@@ -430,6 +510,46 @@ function formatUsageStats(usage) {
     };
 }
 
+// Enhance markdown with code copy buttons
+function enhanceMarkdown(html) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    
+    // Process all code blocks
+    const preTags = doc.querySelectorAll('pre');
+    preTags.forEach(pre => {
+        // Create wrapper
+        const wrapper = document.createElement('div');
+        wrapper.className = 'code-block-wrapper';
+        
+        // Wrap pre
+        pre.parentNode.insertBefore(wrapper, pre);
+        wrapper.appendChild(pre);
+        
+        // Add copy button
+        const btn = document.createElement('button');
+        btn.className = 'code-copy-btn';
+        btn.innerHTML = '<i class="ph-bold ph-copy"></i> Copy';
+        btn.onclick = async (e) => {
+            const code = pre.querySelector('code')?.innerText || pre.innerText;
+            try {
+                await copyToClipboard(code);
+                btn.innerHTML = '<i class="ph-bold ph-check"></i> Copied!';
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="ph-bold ph-copy"></i> Copy';
+                }, 2000);
+            } catch (err) {
+                console.error('Copy failed', err);
+                showToast('Failed to copy to clipboard', 'error');
+            }
+        };
+        
+        wrapper.appendChild(btn);
+    });
+    
+    return doc.body.innerHTML;
+}
+
 // Add Message to UI
 function addMessage(text, sender, usage = null) {
     const isUser = sender === 'user';
@@ -466,13 +586,46 @@ function addMessage(text, sender, usage = null) {
     const bubble = document.createElement('div');
 
     if (isUser) {
-        // User Styling: Blue background, Top Highlight, Shadow MD
+        // User Styling
         bubble.className = "bg-blue-600 text-white rounded-xl rounded-tr-none p-4 shadow-md shadow-highlight-strong text-sm leading-relaxed";
         bubble.textContent = text;
     } else {
-        // Agent Styling: White Card, Ring, Prose
+        // Agent Styling
         bubble.className = "message-agent relative bg-white rounded-xl rounded-tl-none p-5 shadow-sm ring-1 ring-slate-900/5 text-sm text-slate-700 prose prose-slate max-w-none";
-        bubble.innerHTML = DOMPurify.sanitize(marked.parse(text), PURIFY_CONFIG);
+        
+        // Sanitize first
+        const safeHtml = DOMPurify.sanitize(marked.parse(text), PURIFY_CONFIG);
+        // Then enhance with copy buttons
+        bubble.innerHTML = enhanceMarkdown(safeHtml);
+        
+        // Bind click events for new elements (since innerHTML breaks event listeners)
+        // We need to re-attach the event listeners because innerHTML string injection doesn't preserve function references
+        // A better approach is to not use on* attributes in string but attach after.
+        // Let's fix the enhanceMarkdown logic to handle this or just delegate.
+        
+        // Actually, since I used innerHTML in enhanceMarkdown to serialize back, the onclicks are gone if they were properties.
+        // If they were attributes string (onclick="..."), they stay but scope is window.
+        // My implementation in enhanceMarkdown assigns btn.onclick = function... which is lost on serialization.
+        
+        // FIX: Re-attach listeners after injection
+        const copyBtns = bubble.querySelectorAll('.code-copy-btn');
+        copyBtns.forEach(btn => {
+            btn.onclick = async () => {
+                // Find sibling pre/code
+                const pre = btn.parentElement.querySelector('pre');
+                const code = pre.querySelector('code')?.innerText || pre.innerText;
+                try {
+                    await copyToClipboard(code);
+                    btn.innerHTML = '<i class="ph-bold ph-check"></i> Copied!';
+                    setTimeout(() => {
+                        btn.innerHTML = '<i class="ph-bold ph-copy"></i> Copy';
+                    }, 2000);
+                } catch (err) {
+                    console.error('Copy failed', err);
+                    showToast('Failed to copy to clipboard', 'error');
+                }
+            };
+        });
     }
 
     // Footer container for timestamp and usage
@@ -485,7 +638,7 @@ function addMessage(text, sender, usage = null) {
     timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     footer.appendChild(timestamp);
 
-    // Usage Stats (only for agent messages) - show cumulative session cost
+    // Usage Stats
     if (!isUser && usage) {
         const stats = formatUsageStats(usage);
         if (stats) {
@@ -505,12 +658,8 @@ function addMessage(text, sender, usage = null) {
     container.appendChild(avatar);
     container.appendChild(contentWrapper);
 
-    // Append to chat area
-    // The container is inside the main chatMessages div now, but let's stick to the inner wrapper if it exists.
-    // In the HTML we have <div class="max-w-3xl mx-auto space-y-8">.
     let listContainer = chatMessages.querySelector('div.space-y-8');
     if (!listContainer) {
-        // Create if missing (e.g. if we cleared HTML)
         listContainer = document.createElement('div');
         listContainer.className = "max-w-3xl mx-auto space-y-8";
         chatMessages.appendChild(listContainer);
@@ -564,7 +713,7 @@ function removeLoading(id) {
 
 async function sendMessage(message, showInUI = true) {
     if (isProcessing) {
-        console.warn('Already processing a message');
+        showToast('Already processing a message', 'warning');
         return false;
     }
 
@@ -594,6 +743,7 @@ async function sendMessage(message, showInUI = true) {
 
             if (response.status === 504) {
                 removeLoading(loadingId);
+                showToast('Operation timed out', 'error');
                 addMessage('**Timeout:** The operation took too long. Please try again with a shorter video.', 'agent');
                 isProcessing = false;
                 return false;
@@ -602,7 +752,9 @@ async function sendMessage(message, showInUI = true) {
             if (response.status === 422) {
                 const errorData = await response.json();
                 removeLoading(loadingId);
-                addMessage(`**Validation Error:** ${errorData.detail || 'Invalid input'}`, 'agent');
+                const errorMsg = errorData.detail || 'Invalid input';
+                showToast(errorMsg, 'error');
+                addMessage(`**Validation Error:** ${errorMsg}`, 'agent');
                 isProcessing = false;
                 return false;
             }
@@ -639,6 +791,7 @@ async function sendMessage(message, showInUI = true) {
 
     // All retries failed
     removeLoading(loadingId);
+    showToast('Failed to send message', 'error');
     addMessage(`**Error:** ${lastError?.message || 'Unknown error'}. Please try again.`, 'agent');
     isProcessing = false;
     return false;

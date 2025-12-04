@@ -4,17 +4,17 @@ AI-powered video transcription toolkit with CLI and Web interfaces. Built with C
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-84%2F84%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-88%20passing-brightgreen.svg)](#testing)
+[![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#code-quality)
 
 ## Features
 
-- **Multi-source transcription** — Local files (mp4, mkv, avi, mov, webm) and YouTube URLs
-- **Auto-segmentation** — Long videos split into 5-minute chunks automatically
-- **Language detection** — Whisper auto-detects or accepts ISO 639-1 codes
-- **Dual interface** — CLI for terminal, Web UI for browser
-- **Session management** — Persistent chat history with cost tracking
-- **Real-time cost display** — Cumulative API usage shown per message
-- **Secure by design** — Path validation, permission controls, XSS protection
+- **Multi-source transcription** - Local videos (mp4, mkv, avi, mov, webm, m4v) and YouTube URLs
+- **Smart segmentation** - Auto-splits long videos into 5-minute chunks
+- **Transcript library** - Save, retrieve, and manage transcriptions by ID
+- **Dual interface** - CLI for terminal, Web UI for browser
+- **Real-time cost tracking** - Per-session and cumulative API usage display
+- **Secure by design** - Path validation, permission controls, XSS protection
 
 ## Quick Start
 
@@ -28,12 +28,11 @@ uv sync
 cp .env.example .env
 # Add your API keys to .env
 
-# Run Web UI (recommended)
-uv run python web_app.py
-# Open http://127.0.0.1:8000
+# Run Web UI
+uv run python -m app.main          # http://127.0.0.1:8000
 
 # Or run CLI
-uv run python agent_video/agent.py
+uv run python -m app.agent.agent
 ```
 
 ## Configuration
@@ -41,139 +40,104 @@ uv run python agent_video/agent.py
 Create `.env` with:
 
 ```bash
-ANTHROPIC_API_KEY=your-anthropic-key    # Required - Claude Agent SDK
-OPENAI_API_KEY=your-openai-key          # Required - Whisper transcription
+ANTHROPIC_API_KEY=your-key    # Claude Agent SDK
+OPENAI_API_KEY=your-key       # Whisper transcription
 ```
 
-## Architecture
+## Project Structure
 
 ```
-agent-video-to-data/
-├── agent_video/              # Core transcription package
-│   ├── agent.py              # CLI entry point
-│   ├── server.py             # MCP server configuration
-│   ├── transcribe_tool.py    # Whisper transcription tool
-│   ├── file_tool.py          # Secure file operations
-│   └── prompts/              # Versioned prompt templates
-├── web_app.py                # FastAPI server (SessionActor pattern)
-├── web_app_models.py         # Pydantic request/response schemas
-├── storage.py                # Session & transcript persistence
-├── cost_tracking.py          # API usage tracking with deduplication
-├── permissions.py            # File operation permission handler
-├── structured_outputs.py     # Agent response schemas
-├── validators.py             # UUID & input validation
-├── templates/index.html      # Chat UI
-├── static/                   # Frontend assets (JS, CSS)
-└── tests/                    # Comprehensive test suite
+app/
+├── agent/           # Agent core
+│   ├── agent.py     # CLI entry point
+│   ├── server.py    # MCP server (5 tools)
+│   └── prompts/     # Versioned system prompts
+├── core/            # Shared modules
+│   ├── session.py   # SessionActor pattern
+│   ├── storage.py   # File-based persistence
+│   └── permissions.py
+├── models/          # Pydantic schemas
+└── main.py          # FastAPI web app
 ```
-
-## Web API
-
-### Chat Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/chat/init` | Initialize session, get agent greeting |
-| `POST` | `/chat` | Send message, receive response with usage stats |
-| `DELETE` | `/chat/{id}` | Close and cleanup session |
-| `GET` | `/status/{id}` | Poll session status |
-
-### Data Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/history` | List all chat sessions |
-| `GET` | `/history/{id}` | Get session messages |
-| `DELETE` | `/history/{id}` | Delete session |
-| `GET` | `/transcripts` | List saved transcripts |
-| `GET` | `/transcripts/{id}/download` | Download transcript |
-| `DELETE` | `/transcripts/{id}` | Delete transcript |
-| `POST` | `/upload` | Upload video (500MB max) |
-| `GET` | `/cost` | Get global API usage stats |
-| `GET` | `/cost/{id}` | Get session cost breakdown |
 
 ## MCP Tools
 
-The agent exposes two tools via Model Context Protocol:
+| Tool | Description |
+|------|-------------|
+| `transcribe_video` | Transcribe local video or YouTube URL |
+| `write_file` | Save content to file with security controls |
+| `save_transcript` | Persist transcription to library, returns ID |
+| `get_transcript` | Retrieve full transcript by ID (lazy loading) |
+| `list_transcripts` | Show available transcripts with metadata |
 
-**`transcribe_video`** — Transcribe video/audio to text
-- `video_source`: Local path or YouTube URL
-- `output_file`: Optional save path
-- `language`: Optional ISO 639-1 code
+## Web API
 
-**`write_file`** — Write content securely
-- `file_path`: Destination path
-- `content`: Text content
-- `overwrite`: Allow overwrite (default: false)
+### Chat
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/chat/init` | Initialize session |
+| POST | `/chat` | Send message |
+| DELETE | `/chat/{id}` | Close session |
+| GET | `/status/{id}` | Poll status |
+
+### Data
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/history` | List sessions |
+| GET/DELETE | `/history/{id}` | Get/delete session |
+| GET | `/transcripts` | List transcripts |
+| GET | `/transcripts/{id}/download` | Download file |
+| DELETE | `/transcripts/{id}` | Delete transcript |
+| POST | `/upload` | Upload video (500MB max) |
+| GET | `/cost`, `/cost/{id}` | Usage statistics |
 
 ## Testing
 
 ```bash
-# Run full test suite (84 tests)
-uv run pytest
-
-# With verbose output
-uv run pytest -v
-
-# Run specific test file
-uv run pytest tests/test_api.py
+uv run pytest           # 88 tests
+uv run pytest -v        # Verbose output
 ```
 
-### Test Coverage
-
-| Module | Tests |
-|--------|-------|
-| `test_api.py` | API endpoints, validation, error handling |
-| `test_storage.py` | Session/transcript persistence |
-| `test_concurrency.py` | Race conditions, TTL cleanup |
-| `test_async.py` | Event loops, timeouts, queue handling |
-| `test_cost.py` | Usage tracking, deduplication |
-| `test_permissions.py` | File access controls |
-| `test_structured.py` | Response schema validation |
+| Test Module | Coverage |
+|-------------|----------|
+| `test_api.py` | 20 tests - endpoints, validation |
+| `test_storage.py` | 18 tests - persistence, atomicity |
+| `test_concurrency.py` | 9 tests - race conditions, TTL |
+| `test_async.py` | 11 tests - timeouts, queues |
+| `test_cost.py` | 8 tests - usage tracking |
+| `test_permissions.py` | 8 tests - access controls |
+| `test_structured.py` | 10 tests - schema validation |
+| `test_api_integration.py` | 4 tests - integration flows |
 
 ## Security
 
 | Layer | Protection |
 |-------|------------|
-| **Input validation** | UUID v4 format, Pydantic validators |
-| **File operations** | Blocked system paths, path traversal prevention |
-| **Frontend** | DOMPurify XSS sanitization |
-| **Uploads** | 500MB limit, extension allowlist |
-| **Error handling** | Safe messages, no internal details leaked |
-| **Permissions** | Configurable tool access controls |
+| Input | UUID v4 validation, Pydantic schemas |
+| Files | Blocked system paths (`/etc`, `/usr`, `/bin`), traversal prevention |
+| Frontend | DOMPurify XSS sanitization, CSP headers |
+| Uploads | 500MB limit, extension allowlist |
+| Sessions | TTL expiration (1 hour), isolated storage |
 
 ## Code Quality
 
 ```bash
-# Type checking (strict mode)
-uv run mypy .
-
-# Lint and format
-uv run ruff check .
-uv run ruff format .
+uv run mypy .           # Strict type checking
+uv run ruff check .     # Linting
+uv run ruff format .    # Formatting
 ```
 
-All code passes mypy strict mode and ruff linting with zero warnings.
+All code passes mypy strict mode and ruff with zero warnings.
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|------------|
-| AI Framework | Claude Agent SDK |
-| Transcription | OpenAI Whisper API |
+| Layer | Technologies |
+|-------|--------------|
+| AI | Claude Agent SDK, OpenAI Whisper |
 | Backend | FastAPI, Uvicorn, Pydantic |
-| Frontend | Tailwind CSS, Vanilla JS, Phosphor Icons |
-| Media Processing | MoviePy, Pydub, yt-dlp |
-| Quality Tools | mypy, ruff, pytest |
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| API key errors | Verify `.env` exists and contains valid keys |
-| YouTube 403 | Rate limited; wait a few minutes |
-| Long transcription | Normal for 2+ hour videos (auto-segments) |
-| Port 8000 in use | `lsof -ti:8000 \| xargs kill -9` |
+| Frontend | Tailwind CSS, Vanilla JS |
+| Media | MoviePy, Pydub, yt-dlp |
+| Quality | mypy, ruff, pytest |
 
 ## License
 

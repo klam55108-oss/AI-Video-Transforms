@@ -29,7 +29,7 @@ from claude_agent_sdk import tool
 
 # Add parent directory to path for storage import
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from storage import storage  # noqa: E402
+from app.core.storage import storage  # noqa: E402
 
 
 def _sanitize_filename(name: str) -> str:

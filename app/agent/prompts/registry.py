@@ -6,7 +6,7 @@ used throughout the application. It enables tracking prompt changes,
 retrieving specific versions, and maintaining prompt history.
 
 Usage:
-    from agent_video.prompts import get_prompt, register_prompt, PromptVersion
+    from app.agent.prompts import get_prompt, register_prompt, PromptVersion
 
     # Register a new prompt version
     register_prompt(

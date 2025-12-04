@@ -24,7 +24,7 @@ class TestMessagePersistence:
 
     def test_messages_persist_to_disk(self, temp_storage_dir: Path):
         """Test that saved messages are written to disk."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
         session_id = TEST_SESSION_1
@@ -45,7 +45,7 @@ class TestMessagePersistence:
 
     def test_messages_survive_new_manager_instance(self, temp_storage_dir: Path):
         """Test that messages can be read by a new StorageManager instance."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         session_id = TEST_SESSION_1
 
@@ -66,7 +66,7 @@ class TestMessagePersistence:
 
     def test_session_title_set_from_first_user_message(self, temp_storage_dir: Path):
         """Test that session title is set from first user message."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
         session_id = TEST_SESSION_1
@@ -85,7 +85,7 @@ class TestMessagePersistence:
 
     def test_long_title_is_truncated(self, temp_storage_dir: Path):
         """Test that long titles are truncated to 50 chars."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
         session_id = TEST_SESSION_1
@@ -104,7 +104,7 @@ class TestSessionListSorting:
 
     def test_sessions_sorted_by_updated_at_descending(self, temp_storage_dir: Path):
         """Test that list_sessions returns sessions sorted newest first."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
 
@@ -125,7 +125,7 @@ class TestSessionListSorting:
 
     def test_update_changes_sort_order(self, temp_storage_dir: Path):
         """Test that updating a session changes its position in the list."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
 
@@ -150,7 +150,7 @@ class TestSessionListSorting:
         """Test that list_sessions respects the limit parameter."""
         import uuid as uuid_module
 
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
 
@@ -171,7 +171,7 @@ class TestTranscriptRegistration:
         self, temp_storage_dir: Path, sample_transcript_content: str
     ):
         """Test that register_transcript creates a metadata entry."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
 
@@ -196,7 +196,7 @@ class TestTranscriptRegistration:
         self, temp_storage_dir: Path, sample_transcript_content: str
     ):
         """Test that list_transcripts returns all registered transcripts."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
 
@@ -217,7 +217,7 @@ class TestTranscriptRegistration:
         self, temp_storage_dir: Path, sample_transcript_content: str
     ):
         """Test that get_transcript returns the correct metadata."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
 
@@ -238,7 +238,7 @@ class TestTranscriptRegistration:
 
     def test_get_nonexistent_transcript_returns_none(self, temp_storage_dir: Path):
         """Test that get_transcript returns None for unknown ID."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
         result = manager.get_transcript("nonexistent-id")
@@ -250,7 +250,7 @@ class TestDeleteOperations:
 
     def test_delete_session_removes_file(self, temp_storage_dir: Path):
         """Test that delete_session removes the session file."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
         session_id = TEST_SESSION_1
@@ -268,7 +268,7 @@ class TestDeleteOperations:
 
     def test_delete_nonexistent_session_returns_false(self, temp_storage_dir: Path):
         """Test that deleting nonexistent session returns False."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
         success = manager.delete_session("nonexistent-session")
@@ -278,7 +278,7 @@ class TestDeleteOperations:
         self, temp_storage_dir: Path, sample_transcript_content: str
     ):
         """Test that delete_transcript removes both metadata and file."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
 
@@ -306,7 +306,7 @@ class TestDeleteOperations:
         self, temp_storage_dir: Path, sample_transcript_content: str
     ):
         """Test that delete_transcript works even if file is already gone."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
 
@@ -331,7 +331,7 @@ class TestDeleteOperations:
 
     def test_delete_nonexistent_transcript_returns_false(self, temp_storage_dir: Path):
         """Test that deleting nonexistent transcript returns False."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         manager = StorageManager(base_dir=temp_storage_dir)
         success = manager.delete_transcript("nonexistent-id")
@@ -343,7 +343,7 @@ class TestStorageManagerInitialization:
 
     def test_creates_required_directories(self, temp_storage_dir: Path):
         """Test that StorageManager creates required directories."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         # Remove the temp dir contents to test creation
         import shutil
@@ -358,7 +358,7 @@ class TestStorageManagerInitialization:
 
     def test_handles_existing_directories(self, temp_storage_dir: Path):
         """Test that StorageManager works with existing directories."""
-        from storage import StorageManager
+        from app.core.storage import StorageManager
 
         # Create directories first
         (temp_storage_dir / "sessions").mkdir(parents=True, exist_ok=True)

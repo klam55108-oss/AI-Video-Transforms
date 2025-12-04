@@ -15,7 +15,7 @@ class TestPermissionConfig:
 
     def test_default_config(self):
         """Test creating PermissionConfig with defaults."""
-        from permissions import PermissionConfig
+        from app.core.permissions import PermissionConfig
 
         config = PermissionConfig()
 
@@ -25,7 +25,7 @@ class TestPermissionConfig:
 
     def test_blocked_paths(self):
         """Test that common system paths are blocked by default."""
-        from permissions import PermissionConfig
+        from app.core.permissions import PermissionConfig
 
         config = PermissionConfig()
 
@@ -43,7 +43,10 @@ class TestPermissionHandler:
         """Test that file writes to blocked paths are denied."""
         from claude_agent_sdk.types import PermissionResultDeny
 
-        from permissions import create_permission_handler, get_default_permission_config
+        from app.core.permissions import (
+            create_permission_handler,
+            get_default_permission_config,
+        )
 
         config = get_default_permission_config()
         handler = create_permission_handler(config)
@@ -64,7 +67,10 @@ class TestPermissionHandler:
         """Test that file writes to allowed paths are permitted."""
         from claude_agent_sdk.types import PermissionResultAllow
 
-        from permissions import create_permission_handler, get_default_permission_config
+        from app.core.permissions import (
+            create_permission_handler,
+            get_default_permission_config,
+        )
 
         config = get_default_permission_config()
         handler = create_permission_handler(config)
@@ -84,7 +90,7 @@ class TestPermissionHandler:
         """Test that permission decisions are logged when enabled."""
         import logging
 
-        from permissions import PermissionConfig, create_permission_handler
+        from app.core.permissions import PermissionConfig, create_permission_handler
 
         config = PermissionConfig(log_decisions=True)
         handler = create_permission_handler(config)
@@ -107,7 +113,10 @@ class TestPermissionHandler:
         """Test that different tool names are handled correctly."""
         from claude_agent_sdk.types import PermissionResultAllow
 
-        from permissions import create_permission_handler, get_default_permission_config
+        from app.core.permissions import (
+            create_permission_handler,
+            get_default_permission_config,
+        )
 
         config = get_default_permission_config()
         handler = create_permission_handler(config)
@@ -136,7 +145,7 @@ class TestPermissionFactory:
 
     def test_get_default_permission_config(self):
         """Test getting default permission configuration."""
-        from permissions import get_default_permission_config
+        from app.core.permissions import get_default_permission_config
 
         config = get_default_permission_config()
 
@@ -146,7 +155,7 @@ class TestPermissionFactory:
 
     def test_create_permission_handler_returns_callable(self):
         """Test that create_permission_handler returns a callable."""
-        from permissions import PermissionConfig, create_permission_handler
+        from app.core.permissions import PermissionConfig, create_permission_handler
 
         config = PermissionConfig()
         handler = create_permission_handler(config)
