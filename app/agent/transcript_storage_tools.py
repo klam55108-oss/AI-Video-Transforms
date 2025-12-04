@@ -20,16 +20,13 @@ from __future__ import annotations
 
 import asyncio
 import re
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from claude_agent_sdk import tool
 
-# Add parent directory to path for storage import
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from app.core.storage import storage  # noqa: E402
+from app.core.storage import storage
 
 
 def _sanitize_filename(name: str) -> str:
