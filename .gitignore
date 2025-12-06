@@ -29,6 +29,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+slash_commands_demo.ipynb
 
 # =============================================================================
 # Virtual Environments
