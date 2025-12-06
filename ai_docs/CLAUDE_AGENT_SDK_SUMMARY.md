@@ -1,6 +1,6 @@
 # Claude Agent SDK for Python - Complete Reference Guide
 
-> **Version:** Based on official documentation as of December 2025
+> **Version:** Based on official documentation as of December 2025 (v0.5.0)
 > **SDK Package:** `claude-agent-sdk` (migrated from `claude-code-sdk`)
 > **Official Docs:** https://docs.anthropic.com/en/docs/agent-sdk
 > **Python GitHub:** https://github.com/anthropics/claude-agent-sdk-python
@@ -20,12 +20,14 @@
 8. [Monitoring & Cost Tracking](#8-monitoring--cost-tracking)
 9. [Structured Outputs](#9-structured-outputs)
 10. [System Prompts & Configuration](#10-system-prompts--configuration)
-11. [Plugins & Skills](#11-plugins--skills)
-12. [Production Hosting](#12-production-hosting)
-13. [Best Practices & Patterns](#13-best-practices--patterns)
-14. [Quick Reference Tables](#14-quick-reference-tables)
-15. [Complete Examples](#15-complete-examples)
-16. [Migration Guide](#16-migration-guide)
+11. [Output Styles](#11-output-styles)
+12. [Slash Commands in SDK](#12-slash-commands-in-sdk)
+13. [Plugins & Skills](#13-plugins--skills)
+14. [Production Hosting](#14-production-hosting)
+15. [Best Practices & Patterns](#15-best-practices--patterns)
+16. [Quick Reference Tables](#16-quick-reference-tables)
+17. [Complete Examples](#17-complete-examples)
+18. [Migration Guide](#18-migration-guide)
 
 ---
 
@@ -141,13 +143,22 @@ asyncio.run(main())
 
 ### Streaming Input Mode (Recommended)
 
-Streaming input mode is the **preferred** way to use the Claude Agent SDK. It provides full access to the agent's capabilities including:
-- Image uploads
-- Queued messages with ability to interrupt
-- Full tool integration
-- Hooks support
-- Real-time feedback
-- Context persistence
+Streaming input mode is the **preferred** way to use the Claude Agent SDK. It allows the agent to operate as a long-lived process that takes in user input, handles interruptions, surfaces permission requests, and manages sessions.
+
+**Key Capabilities:**
+| Feature | Streaming Mode | Single Message Mode |
+|---------|----------------|---------------------|
+| Image uploads | ✅ | ❌ |
+| Queued messages | ✅ | ❌ |
+| Real-time interrupts | ✅ | ❌ |
+| Hooks support | ✅ | ❌ |
+| Custom MCP tools | ✅ | ✅ |
+| Session resumption | ✅ | ✅ (via `resume`) |
+
+**When to Use Single Message Mode:**
+- One-shot responses
+- Stateless environments (Lambda functions)
+- No need for image attachments or hooks
 
 ### Using query() - One-Shot Tasks
 
@@ -1134,7 +1145,114 @@ Programmatic options (like `agents`, `allowed_tools`) always override filesystem
 
 ---
 
-## 11. Plugins & Skills
+## 11. Output Styles
+
+Output styles are saved configurations that modify Claude's system prompt persistently. They're stored as markdown files and can be reused across sessions and projects.
+
+### Creating an Output Style
+
+Output styles are stored in:
+- **User-level**: `~/.claude/output-styles/`
+- **Project-level**: `.claude/output-styles/`
+
+```markdown
+---
+name: Code Reviewer
+description: Thorough code review assistant
+---
+
+You are an expert code reviewer.
+
+For every code submission:
+1. Check for bugs and security issues
+2. Evaluate performance
+3. Suggest improvements
+4. Rate code quality (1-10)
+```
+
+### Using Output Styles in SDK
+
+Output styles are loaded automatically when you include the appropriate `setting_sources`:
+
+```python
+from claude_agent_sdk import query, ClaudeAgentOptions
+
+options = ClaudeAgentOptions(
+    # Load output styles from user or project directories
+    setting_sources=["user", "project"],
+    system_prompt={
+        "type": "preset",
+        "preset": "claude_code"
+    }
+)
+
+async for message in query(prompt="Review this code", options=options):
+    print(message)
+```
+
+### When to Use Output Styles vs System Prompt
+
+| Approach | Use When |
+|----------|----------|
+| **Output Styles** | Persistent behavior across sessions, team-shared configs |
+| **`system_prompt` append** | Session-specific additions to Claude Code preset |
+| **Custom `system_prompt`** | Complete control, specialized single-session tasks |
+
+---
+
+## 12. Slash Commands in SDK
+
+Slash commands are user-invoked custom commands that can be used in SDK applications.
+
+### Defining Slash Commands
+
+Create markdown files in `.claude/commands/`:
+
+```markdown
+# .claude/commands/review.md
+---
+description: Run code review on specified path
+---
+
+Review the code at $ARGUMENTS for:
+1. Security vulnerabilities
+2. Performance issues
+3. Code style violations
+
+Provide a summary with actionable recommendations.
+```
+
+### Using Slash Commands in SDK
+
+```python
+from claude_agent_sdk import query, ClaudeAgentOptions
+
+options = ClaudeAgentOptions(
+    setting_sources=["project"],  # Required to load commands!
+    allowed_tools=["Read", "Grep", "Glob"]
+)
+
+# Invoke the slash command
+async for message in query(
+    prompt="/review src/auth/",  # Uses the review.md command
+    options=options
+):
+    print(message)
+```
+
+### Command Locations
+
+| Location | Scope |
+|----------|-------|
+| `.claude/commands/` | Project-level (shared via git) |
+| `~/.claude/commands/` | User-level (all projects) |
+| Plugin `commands/` folder | Plugin-scoped (namespaced) |
+
+> **Note:** Plugin commands are namespaced as `plugin-name:command-name`.
+
+---
+
+## 13. Plugins & Skills
 
 ### Plugins
 
@@ -1231,7 +1349,7 @@ When processing PDFs:
 
 ---
 
-## 12. Production Hosting
+## 14. Production Hosting
 
 ### Deployment Patterns
 
@@ -1314,7 +1432,7 @@ CMD ["python", "main.py"]
 
 ---
 
-## 13. Best Practices & Patterns
+## 15. Best Practices & Patterns
 
 ### Multi-Agent Design
 
@@ -1360,7 +1478,7 @@ return {"content": [{"type": "text", "text": "..."}]}
 
 ---
 
-## 14. Quick Reference Tables
+## 16. Quick Reference Tables
 
 ### ClaudeAgentOptions Fields
 
@@ -1380,6 +1498,7 @@ return {"content": [{"type": "text", "text": "..."}]}
 | `output_format` | `dict` | `None` | Structured output schema |
 | `can_use_tool` | `Callable` | `None` | Permission callback |
 | `setting_sources` | `list[SettingSource]` | `None` | Settings to load (**no settings loaded by default!**) |
+| `settings` | `str \| Path` | `None` | Path to settings file |
 | `plugins` | `list[SdkPluginConfig]` | `[]` | Load custom plugins from local paths |
 | `sandbox` | `SandboxSettings` | `None` | Configure sandbox behavior programmatically |
 | `hooks` | `dict[HookEvent, list[HookMatcher]]` | `None` | Hook configurations |
@@ -1389,6 +1508,9 @@ return {"content": [{"type": "text", "text": "..."}]}
 | `stderr` | `Callable[[str], None]` | `None` | Callback for stderr output from CLI |
 | `continue_conversation` | `bool` | `False` | Continue the most recent conversation |
 | `user` | `str` | `None` | User identifier |
+| `extra_args` | `dict[str, str \| None]` | `{}` | Additional CLI arguments to pass through |
+| `permission_prompt_tool_name` | `str` | `None` | Override tool name for permission prompts |
+| `max_buffer_size` | `int` | `None` | Max buffer size for stdin (None = unbounded) |
 
 > **CRITICAL BREAKING CHANGE:** As of v0.1.0, `setting_sources` defaults to `None` (no settings loaded). You must explicitly set `setting_sources=["project"]` to load CLAUDE.md files and project settings!
 
@@ -1405,9 +1527,14 @@ return {"content": [{"type": "text", "text": "..."}]}
 | `WebSearch` | Search the web |
 | `WebFetch` | Fetch URL content |
 | `Skill` | Invoke Agent Skills (requires setting_sources) |
+| `SlashCommand` | Execute custom slash commands (requires setting_sources) |
 | `Task` | Launch subagents |
-| `TodoWrite` | Manage todo lists |
+| `TodoWrite` | Manage todo lists for task tracking |
+| `AskUserQuestion` | Ask the user for input/clarification |
 | `NotebookEdit` | Edit Jupyter notebooks |
+| `AgentOutputTool` | Retrieve output from async agents |
+| `BashOutput` | Read output from background bash shells |
+| `KillShell` | Terminate background bash shells |
 
 ### SettingSource Values
 
@@ -1430,7 +1557,7 @@ return {"content": [{"type": "text", "text": "..."}]}
 
 ---
 
-## 15. Complete Examples
+## 17. Complete Examples
 
 ### Example 1: Code Review Agent with Custom Tools
 
@@ -1659,7 +1786,7 @@ asyncio.run(main())
 
 ---
 
-## 16. Migration Guide
+## 18. Migration Guide
 
 ### From `claude-code-sdk` to `claude-agent-sdk`
 
@@ -1736,4 +1863,4 @@ These breaking changes provide:
 
 ---
 
-*Last updated: December 2025*
+*Last updated: December 2025 (synced with official docs v0.5.0)*

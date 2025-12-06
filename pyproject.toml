@@ -25,6 +25,7 @@ dependencies = [
 dev = [
     "httpx>=0.28.1",
     "mypy>=1.18.2",
+    "nbqa>=1.9.1",
     "pytest>=9.0.1",
     "pytest-asyncio>=1.3.0",
     "ruff>=0.14.6",
@@ -36,3 +37,11 @@ asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
+
+[tool.mypy]
+python_version = "3.11"
+
+[[tool.mypy.overrides]]
+module = "slash_commands_demo"
+# Jupyter notebooks use top-level await which mypy doesn't support
+disable_error_code = ["top-level-await"]
