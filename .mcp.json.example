@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "gemini-cli": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "python", "-m", "mcp_servers.gemini.server"],
+      "env": {
+        "GEMINI_API_KEY": "your-gemini-api-key-here"
+      }
+    }
+  }
+}
