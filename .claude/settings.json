@@ -45,5 +45,18 @@
   "env": {
     "PYTHONDONTWRITEBYTECODE": "1",
     "PYTHONUNBUFFERED": "1"
+  },
+  "hooks": {
+    "PreToolUse": [
+    {
+        "matcher": "Bash",
+        "hooks": [
+        {
+            "type": "command",
+            "command": "/home/rudycosta3/agent-video-to-data/.claude/hooks/clean-claude-attributions.sh"
+        }
+        ]
+    }
+    ]
   }
 }
