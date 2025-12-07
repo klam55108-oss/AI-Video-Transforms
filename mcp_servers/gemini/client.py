@@ -2,6 +2,11 @@
 Gemini CLI async subprocess wrapper.
 
 Wraps: gemini --approval-mode yolo --model gemini-3-pro-preview
+
+Strategy for GEMINI.md context:
+- cwd is set to mcp_servers/gemini/ so Gemini CLI finds GEMINI.md there
+- --include-directories adds the project root for full file visibility
+- A PostToolUse hook handles moving generated GEMINI.md to mcp_servers/gemini/
 """
 
 from __future__ import annotations
@@ -14,6 +19,10 @@ from pathlib import Path
 
 
 DEFAULT_MODEL = "gemini-3-pro-preview"
+# Directory containing this module - used as cwd for GEMINI.md discovery
+_MODULE_DIR = Path(__file__).parent.resolve()
+# Project root for --include-directories
+_PROJECT_ROOT = _MODULE_DIR.parent.parent
 DEFAULT_TIMEOUT = 120.0
 MAX_OUTPUT_CHARS = 80_000
 
@@ -77,6 +86,8 @@ class GeminiClient:
             "yolo",
             "--model",
             model,
+            "--include-directories",
+            str(_PROJECT_ROOT),  # Full project visibility
             prompt,
         ]
 
@@ -86,6 +97,7 @@ class GeminiClient:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env={**os.environ, "NO_COLOR": "1", "TERM": "dumb"},
+                cwd=_MODULE_DIR,  # Run from mcp_servers/gemini/ to find GEMINI.md
             )
             stdout, stderr = await asyncio.wait_for(
                 process.communicate(), timeout=timeout

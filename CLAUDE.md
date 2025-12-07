@@ -34,6 +34,13 @@ app/
 ├── static/               # JS, CSS
 ├── templates/            # Jinja2 HTML
 └── main.py               # FastAPI web app
+
+mcp_servers/
+└── gemini/               # Gemini CLI MCP server
+    ├── server.py         # FastMCP server (6 tools)
+    ├── client.py         # Async subprocess wrapper
+    ├── session_manager.py # Chat session state
+    └── GEMINI.md         # Auto-generated context
 ```
 
 ## Commands
@@ -91,6 +98,19 @@ This queue-based actor model prevents race conditions when multiple HTTP request
 - XML structure: `<role>`, `<context>`, `<workflow>`, `<constraints>`
 - Access via `get_prompt(name)` or `get_prompt_content(name)`
 
+### External MCP Server Pattern (mcp_servers/gemini)
+Wraps Gemini CLI as an MCP server for Claude Code integration:
+- Uses FastMCP framework with `@mcp.tool` decorators
+- Subprocess execution: `gemini --approval-mode yolo --model <model> <prompt>`
+- Context management via `GEMINI.md` with auto-generation hooks
+- Session-based chat via `session_manager.py`
+
+Claude Code hooks handle GEMINI.md lifecycle:
+- `SessionStart`: Detects missing context, prompts creation
+- `PostToolUse`: Moves generated file to `mcp_servers/gemini/`
+
+See `mcp_servers/gemini/README.md` for full architecture.
+
 ## Code Style
 
 - Type hints on all signatures (return types included)
@@ -120,6 +140,7 @@ This queue-based actor model prevents race conditions when multiple HTTP request
 | `moviepy` | Audio extraction |
 | `pydub` | Audio segmentation |
 | `yt-dlp` | YouTube downloads |
+| `fastmcp` | External MCP server framework |
 
 ## Implementation Notes
 
@@ -130,3 +151,4 @@ This queue-based actor model prevents race conditions when multiple HTTP request
 - Frontend: `sessionStorage` for session ID (tab isolation)
 - Security: UUID v4 validation, Pydantic validators, DOMPurify XSS, blocked system paths
 - Cost tracking: SDK's `total_cost_usd` from `ResultMessage`, deduplicated by message ID
+- No more 🤖 Generated with Claude Code or Co-Authored-By lines. I'll remember not to add these for future commits in this project since you have the cleanup hook in place.

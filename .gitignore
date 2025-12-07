@@ -9,6 +9,9 @@
 # MCP server configuration (contains API keys)
 .mcp.json
 
+# Claude Code local settings (user-specific, not shared)
+.claude/settings.local.json
+
 # =============================================================================
 # Python
 # =============================================================================
@@ -69,9 +72,12 @@ htmlcov/
 # Archive directory for deprecated/old files
 archive/
 
-# Alternative AI configuration and documentation
+# Gemini CLI configuration (user-level)
 .gemini/
-GEMINI.md
+
+# Root GEMINI.md is transient (hook moves it to mcp_servers/gemini/)
+# Note: mcp_servers/gemini/GEMINI.md IS tracked (project context)
+/GEMINI.md
 
 # Runtime storage directories (sessions, transcripts)
 # Keep directory structure but ignore contents except .gitkeep

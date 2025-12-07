@@ -58,9 +58,14 @@ app/
 │   └── permissions.py
 ├── models/          # Pydantic schemas
 └── main.py          # FastAPI web app
+
+mcp_servers/
+└── gemini/          # Gemini CLI MCP integration
 ```
 
 ## MCP Tools
+
+### Core Tools (app/agent)
 
 | Tool | Description |
 |------|-------------|
@@ -69,6 +74,23 @@ app/
 | `save_transcript` | Persist transcription to library, returns ID |
 | `get_transcript` | Retrieve full transcript by ID (lazy loading) |
 | `list_transcripts` | Show available transcripts with metadata |
+
+### Gemini CLI MCP (mcp_servers/gemini)
+
+External MCP server wrapping [Gemini CLI](https://github.com/google-gemini/gemini-cli) for Claude Code integration.
+
+| Tool | Description |
+|------|-------------|
+| `gemini_query` | General queries to Gemini |
+| `gemini_code` | Code generation with language hints |
+| `gemini_analyze` | Content analysis (code review, security) |
+| `gemini_chat` | Multi-turn conversation with session |
+| `gemini_chat_clear` | Clear chat session |
+| `gemini_list_sessions` | List active sessions |
+
+**Setup**: Requires `GEMINI_API_KEY` in `.mcp.json` and Gemini CLI installed (`npm install -g @google/gemini-cli`).
+
+See [`mcp_servers/gemini/README.md`](mcp_servers/gemini/README.md) for architecture details.
 
 ## Web API
 
