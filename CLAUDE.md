@@ -1,154 +1,62 @@
 # Agent Video to Data
 
-## Project Overview
+Video transcription toolkit with CLI and Web UI. Built with Claude Agent SDK + OpenAI Whisper.
 
-A Python video transcription toolkit with two interfaces: CLI and Web UI. Built with the Claude Agent SDK and OpenAI Whisper, providing MCP-based tools for transcribing local videos and YouTube URLs.
-
-## Tech Stack
-
-- **Language**: Python 3.11+
-- **Package Manager**: uv
-- **AI Framework**: Claude Agent SDK
-- **Web Framework**: FastAPI, Uvicorn, Jinja2
-- **Frontend**: Tailwind CSS (CDN), Vanilla JS
-- **Transcription**: OpenAI Whisper API
-- **Video/Audio**: MoviePy, Pydub, yt-dlp
-- **Quality**: mypy (strict), ruff
-
-## Project Structure
-
-```
-app/
-├── agent/                # Agent core
-│   ├── agent.py          # CLI entry point
-│   ├── server.py         # MCP server (5 tools)
-│   └── prompts/          # Versioned system prompts
-├── core/                 # Shared modules
-│   ├── session.py        # SessionActor pattern
-│   ├── storage.py        # File-based persistence
-│   ├── cost_tracking.py  # Usage aggregation
-│   └── permissions.py    # Tool access control
-├── models/               # Pydantic schemas
-│   ├── api.py            # Web API models
-│   └── structured.py     # Agent output schemas
-├── static/               # JS, CSS
-├── templates/            # Jinja2 HTML
-└── main.py               # FastAPI web app
-
-mcp_servers/
-└── gemini/               # Gemini CLI MCP server
-    ├── server.py         # FastMCP server (6 tools)
-    ├── client.py         # Async subprocess wrapper
-    ├── session_manager.py # Chat session state
-    └── GEMINI.md         # Auto-generated context
-```
+@README for full overview and API documentation.
 
 ## Commands
 
 ```bash
-# CLI agent
-uv run python -m app.agent.agent
+# Development
+uv run python -m app.main              # Web server at http://127.0.0.1:8000
+uv run python -m app.agent.agent       # CLI agent
 
-# Web server (http://127.0.0.1:8000)
-uv run python -m app.main
-
-# Quality checks
-uv run mypy .
-uv run ruff check .
-uv run ruff format .
-uv run pytest
+# Quality (run before commits)
+uv run mypy .                          # Type checking (strict mode)
+uv run ruff check . && ruff format .   # Lint and format
+uv run pytest                          # Tests (88 total)
 ```
 
-## Environment Variables
+## Environment
 
 Required in `.env`:
 - `ANTHROPIC_API_KEY` — Claude Agent SDK
-- `OPENAI_API_KEY` — Whisper transcription
+- `OPENAI_API_KEY` — Whisper transcription + Codex MCP server
 
-## Architecture Patterns
+## External MCP Servers
 
-### MCP Server Pattern
-- Tools use `@tool` decorator from `claude_agent_sdk`
-- Server created via `create_sdk_mcp_server()` with tool list
-- Tools allowlisted as `mcp__<server-name>__<tool-name>`
-- Tool functions: `async def fn(args: dict[str, Any]) -> dict[str, Any]`
+Two external MCP servers in `mcp_servers/`:
+- **gemini/** — Wraps Gemini CLI via subprocess for Claude Code integration
+- **codex/** — Wraps GPT-5.1-Codex-Max via OpenAI Responses API for high-reasoning tasks
 
-### SessionActor Pattern (app/core/session.py)
-The web UI isolates each user session in a dedicated asyncio task to avoid SDK context/cancel scope issues:
+See `mcp_servers/*/README.md` or `CODEX.md`/`GEMINI.md` for tool documentation.
 
-```python
-class SessionActor:
-    input_queue: asyncio.Queue   # HTTP handler → agent
-    response_queue: asyncio.Queue # agent → HTTP handler
+## Critical Patterns
 
-    async def _worker_loop(self):
-        async with ClaudeSDKClient(options) as client:
-            # Single task owns the client context
-            while self.is_running:
-                msg = await self.input_queue.get()
-                await client.query(msg)
-                # ... collect response ...
-                await self.response_queue.put(response)
-```
+### SessionActor (app/core/session.py)
+- **Why**: ClaudeSDKClient must run in single asyncio task to avoid cancel scope errors
+- **Pattern**: Queue-based actor model isolates each user session
+- **Rule**: Never access ClaudeSDKClient from multiple concurrent tasks
 
-This queue-based actor model prevents race conditions when multiple HTTP requests interact with the same session.
+### MCP Tools (app/agent/)
+- Tool return format: `{"content": [{"type": "text", "text": "..."}]}`
+- Error format: `{"success": False, "error": "message"}`
+- Never raise exceptions that crash the agent loop
 
-### Prompt Management
-- Versioned via `PromptVersion` dataclass in `app/agent/prompts/registry.py`
-- XML structure: `<role>`, `<context>`, `<workflow>`, `<constraints>`
-- Access via `get_prompt(name)` or `get_prompt_content(name)`
-
-### External MCP Server Pattern (mcp_servers/gemini)
-Wraps Gemini CLI as an MCP server for Claude Code integration:
-- Uses FastMCP framework with `@mcp.tool` decorators
-- Subprocess execution: `gemini --approval-mode yolo --model <model> <prompt>`
-- Context management via `GEMINI.md` with auto-generation hooks
-- Session-based chat via `session_manager.py`
-
-Claude Code hooks handle GEMINI.md lifecycle:
-- `SessionStart`: Detects missing context, prompts creation
-- `PostToolUse`: Moves generated file to `mcp_servers/gemini/`
-
-See `mcp_servers/gemini/README.md` for full architecture.
+### Cost Tracking
+- Use `ResultMessage.total_cost_usd` from SDK (authoritative source)
+- Deduplicate by message ID to avoid double-counting
 
 ## Code Style
 
-- Type hints on all signatures (return types included)
-- `str | None` over `Optional[str]`
-- `list[str]` over `List[str]`
+- Type hints on ALL signatures including return types
+- `str | None` not `Optional[str]`; `list[str]` not `List[str]`
 - `# type: ignore[import-untyped]` for moviepy, pydub
 - Google-style docstrings
 - Max ~50 lines per function
 - `pathlib.Path` over `os.path`
 
-## Error Handling
+## Git Workflow
 
-- MCP tools return `{"content": [{"type": "text", "text": "..."}]}`
-- Errors return `{"success": False, "error": "message"}`
-- Never raise exceptions that crash the agent loop
-- FastAPI endpoints use `HTTPException` with status codes
-
-## Key Dependencies
-
-| Package | Purpose |
-|---------|---------|
-| `claude-agent-sdk` | MCP server, tool creation |
-| `fastapi` | Web API framework |
-| `uvicorn` | ASGI server |
-| `jinja2` | HTML templating |
-| `openai` | Whisper API |
-| `moviepy` | Audio extraction |
-| `pydub` | Audio segmentation |
-| `yt-dlp` | YouTube downloads |
-| `fastmcp` | External MCP server framework |
-
-## Implementation Notes
-
-- Audio segments: 5 minutes max, auto-downsamples if >23MB
-- YouTube: uses mobile client spoofing via yt-dlp
-- Temp files: auto-cleanup via `tempfile.TemporaryDirectory`
-- Sessions: file-based persistence via `StorageManager` in `data/sessions/`
-- Frontend: `sessionStorage` for session ID (tab isolation)
-- Security: UUID v4 validation, Pydantic validators, DOMPurify XSS, blocked system paths
-- Cost tracking: SDK's `total_cost_usd` from `ResultMessage`, deduplicated by message ID
-- No more 🤖 Generated with Claude Code or Co-Authored-By lines. I'll remember not to add these for future commits in this project since you have the cleanup hook in place.
+- No attribution lines in commits (cleanup hook removes them)
+- Run quality checks before committing
