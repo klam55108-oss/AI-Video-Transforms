@@ -1,20 +1,20 @@
 # Agent Video to Data
 
-AI-powered video transcription toolkit with CLI and Web interfaces. Built with Claude Agent SDK and OpenAI Whisper.
+AI-powered video transcription with CLI and Web interfaces. Transcribe local videos and YouTube URLs using Claude Agent SDK and OpenAI Whisper.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-88%20passing-brightgreen.svg)](#testing)
-[![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#code-quality)
+[![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#development)
 
 ## Features
 
-- **Multi-source transcription** - Local videos (mp4, mkv, avi, mov, webm, m4v) and YouTube URLs
-- **Smart segmentation** - Auto-splits long videos into 5-minute chunks
-- **Transcript library** - Save, retrieve, and manage transcriptions by ID
-- **Dual interface** - CLI for terminal, Web UI for browser
-- **Real-time cost tracking** - Per-session and cumulative API usage display
-- **Secure by design** - Path validation, permission controls, XSS protection
+- **Multi-source transcription** — Local videos (mp4, mkv, avi, mov, webm) and YouTube URLs
+- **Smart segmentation** — Auto-splits long videos into 5-minute chunks for Whisper
+- **Transcript library** — Save, retrieve, and manage transcriptions with unique IDs
+- **Dual interface** — Interactive CLI or responsive Web UI
+- **Cost tracking** — Real-time token usage and cost display (per-session and global)
+- **Secure by design** — Path validation, permission controls, XSS protection
 
 ## Quick Start
 
@@ -24,43 +24,51 @@ git clone https://github.com/costiash/agent-video-to-data.git
 cd agent-video-to-data
 uv sync
 
-# Configure environment
+# Configure
 cp .env.example .env
 # Add your API keys to .env
 
-# Run Web UI
-uv run python -m app.main          # http://127.0.0.1:8000
-
-# Or run CLI
-uv run python -m app.agent.agent
+# Run
+uv run python -m app.main              # Web UI at http://127.0.0.1:8000
+uv run python -m app.agent.agent       # CLI agent
 ```
 
 ## Configuration
 
-Create `.env` with:
+### Required Environment Variables
 
 ```bash
-ANTHROPIC_API_KEY=your-key    # Claude Agent SDK
-OPENAI_API_KEY=your-key       # Whisper transcription
+ANTHROPIC_API_KEY=sk-ant-...    # Claude API
+OPENAI_API_KEY=sk-...            # Whisper API
+```
+
+### Optional (External MCP Servers)
+
+```bash
+GEMINI_API_KEY=...               # For Gemini CLI integration
 ```
 
 ## Project Structure
 
 ```
 app/
-├── agent/           # Agent core
-│   ├── agent.py     # CLI entry point
-│   ├── server.py    # MCP server (5 tools)
+├── agent/           # MCP tools + CLI entry point
+│   ├── server.py    # 5 transcription tools
 │   └── prompts/     # Versioned system prompts
-├── core/            # Shared modules
-│   ├── session.py   # SessionActor pattern
-│   ├── storage.py   # File-based persistence
+├── core/            # Infrastructure
+│   ├── session.py   # SessionActor (async concurrency)
+│   ├── storage.py   # File persistence
 │   └── permissions.py
 ├── models/          # Pydantic schemas
-└── main.py          # FastAPI web app
+├── static/          # Frontend JS/CSS
+├── templates/       # Jinja2 HTML
+└── main.py          # FastAPI (15 endpoints)
 
 mcp_servers/
-└── gemini/          # Gemini CLI MCP integration
+├── gemini/          # Gemini CLI wrapper (6 tools)
+└── codex/           # GPT-5.1-Codex-Max (3 tools)
+
+tests/               # 88 tests
 ```
 
 ## MCP Tools
@@ -70,27 +78,17 @@ mcp_servers/
 | Tool | Description |
 |------|-------------|
 | `transcribe_video` | Transcribe local video or YouTube URL |
-| `write_file` | Save content to file with security controls |
-| `save_transcript` | Persist transcription to library, returns ID |
-| `get_transcript` | Retrieve full transcript by ID (lazy loading) |
-| `list_transcripts` | Show available transcripts with metadata |
+| `write_file` | Save content with security validation |
+| `save_transcript` | Persist transcript, returns 8-char ID |
+| `get_transcript` | Retrieve transcript by ID |
+| `list_transcripts` | List all saved transcripts |
 
-### Gemini CLI MCP (mcp_servers/gemini)
+### External MCP Servers
 
-External MCP server wrapping [Gemini CLI](https://github.com/google-gemini/gemini-cli) for Claude Code integration.
-
-| Tool | Description |
-|------|-------------|
-| `gemini_query` | General queries to Gemini |
-| `gemini_code` | Code generation with language hints |
-| `gemini_analyze` | Content analysis (code review, security) |
-| `gemini_chat` | Multi-turn conversation with session |
-| `gemini_chat_clear` | Clear chat session |
-| `gemini_list_sessions` | List active sessions |
-
-**Setup**: Requires `GEMINI_API_KEY` in `.mcp.json` and Gemini CLI installed (`npm install -g @google/gemini-cli`).
-
-See [`mcp_servers/gemini/README.md`](mcp_servers/gemini/README.md) for architecture details.
+| Server | Tools | Purpose |
+|--------|-------|---------|
+| **gemini/** | 6 | Gemini CLI for code generation, analysis, chat |
+| **codex/** | 3 | High-reasoning analysis and root-cause bug fixing |
 
 ## Web API
 
@@ -105,51 +103,78 @@ See [`mcp_servers/gemini/README.md`](mcp_servers/gemini/README.md) for architect
 ### Data
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/history` | List sessions |
-| GET/DELETE | `/history/{id}` | Get/delete session |
 | GET | `/transcripts` | List transcripts |
-| GET | `/transcripts/{id}/download` | Download file |
-| DELETE | `/transcripts/{id}` | Delete transcript |
+| GET | `/transcripts/{id}/download` | Download transcript |
 | POST | `/upload` | Upload video (500MB max) |
-| GET | `/cost`, `/cost/{id}` | Usage statistics |
+| GET | `/cost` | Usage statistics |
 
-## Testing
+<details>
+<summary>Example Requests</summary>
 
 ```bash
-uv run pytest           # 88 tests
-uv run pytest -v        # Verbose output
+# Initialize session
+curl -X POST http://127.0.0.1:8000/chat/init \
+  -H "Content-Type: application/json" \
+  -d '{"session_id": "550e8400-e29b-41d4-a716-446655440000"}'
+
+# Send message
+curl -X POST http://127.0.0.1:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"session_id": "...", "message": "Transcribe https://youtube.com/watch?v=..."}'
+
+# Upload video
+curl -X POST http://127.0.0.1:8000/upload \
+  -F "file=@video.mp4" \
+  -F "session_id=..."
+```
+</details>
+
+## Development
+
+```bash
+# Testing (88 tests)
+uv run pytest                    # All tests
+uv run pytest -v                 # Verbose
+
+# Code quality
+uv run mypy .                    # Type checking (strict)
+uv run ruff check .              # Linting
+uv run ruff format .             # Formatting
 ```
 
-| Test Module | Coverage |
-|-------------|----------|
-| `test_api.py` | 20 tests - endpoints, validation |
-| `test_storage.py` | 18 tests - persistence, atomicity |
-| `test_concurrency.py` | 9 tests - race conditions, TTL |
-| `test_async.py` | 11 tests - timeouts, queues |
-| `test_cost.py` | 8 tests - usage tracking |
-| `test_permissions.py` | 8 tests - access controls |
-| `test_structured.py` | 10 tests - schema validation |
-| `test_api_integration.py` | 4 tests - integration flows |
+### Test Coverage
 
-## Security
+| Module | Tests | Coverage |
+|--------|-------|----------|
+| `test_api.py` | 20 | Endpoints, validation |
+| `test_storage.py` | 18 | Persistence, atomicity |
+| `test_concurrency.py` | 9 | Race conditions, TTL |
+| `test_async.py` | 11 | Timeouts, queues |
+| `test_cost.py` | 8 | Usage tracking |
+| `test_permissions.py` | 8 | Access controls |
+| `test_structured.py` | 10 | Schema validation |
+
+## Architecture
+
+### SessionActor Pattern
+
+The Web UI uses a queue-based actor model to handle Claude SDK's single-task requirement:
+
+```
+HTTP Handlers ──> input_queue ──> [SessionActor] ──> response_queue ──> Response
+```
+
+Each session runs in a dedicated asyncio task, preventing cancel scope errors when multiple requests interact with the same agent.
+
+### Security
 
 | Layer | Protection |
 |-------|------------|
 | Input | UUID v4 validation, Pydantic schemas |
-| Files | Blocked system paths (`/etc`, `/usr`, `/bin`), traversal prevention |
-| Frontend | DOMPurify XSS sanitization, CSP headers |
+| Files | Blocked system paths, traversal prevention |
+| Frontend | DOMPurify XSS sanitization |
 | Uploads | 500MB limit, extension allowlist |
-| Sessions | TTL expiration (1 hour), isolated storage |
-
-## Code Quality
-
-```bash
-uv run mypy .           # Strict type checking
-uv run ruff check .     # Linting
-uv run ruff format .    # Formatting
-```
-
-All code passes mypy strict mode and ruff with zero warnings.
+| Sessions | 1-hour TTL, isolated storage |
 
 ## Tech Stack
 
@@ -157,9 +182,9 @@ All code passes mypy strict mode and ruff with zero warnings.
 |-------|--------------|
 | AI | Claude Agent SDK, OpenAI Whisper |
 | Backend | FastAPI, Uvicorn, Pydantic |
-| Frontend | Tailwind CSS, Vanilla JS |
+| Frontend | Tailwind CSS (CDN), Vanilla JS |
 | Media | MoviePy, Pydub, yt-dlp |
-| Quality | mypy, ruff, pytest |
+| Quality | mypy (strict), ruff, pytest |
 
 ## License
 
