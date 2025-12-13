@@ -7,6 +7,7 @@ import shutil
 import tempfile
 from pathlib import Path
 from typing import AsyncGenerator, Generator
+from unittest.mock import MagicMock
 
 import pytest
 import pytest_asyncio
@@ -16,10 +17,32 @@ from httpx import ASGITransport, AsyncClient
 pytest_plugins = ("pytest_asyncio",)
 
 
-@pytest.fixture(scope="session")
-def event_loop_policy():
-    """Use the default event loop policy."""
-    return asyncio.DefaultEventLoopPolicy()
+@pytest.fixture(scope="session", autouse=True)
+def initialize_services():
+    """Initialize services for all tests.
+
+    This fixture uses the services_lifespan context manager to ensure
+    all services (storage, session, transcription) are properly initialized
+    before any tests run, and cleaned up after all tests complete.
+
+    We use a sync fixture that creates its own event loop to avoid
+    pytest-asyncio scope mismatch issues.
+    """
+    from app.services import services_lifespan
+
+    mock_app = MagicMock()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    # Enter the async context manager synchronously
+    cm = services_lifespan(mock_app)
+    loop.run_until_complete(cm.__aenter__())
+
+    yield
+
+    # Exit the async context manager
+    loop.run_until_complete(cm.__aexit__(None, None, None))
+    loop.close()
 
 
 @pytest.fixture

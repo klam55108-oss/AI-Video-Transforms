@@ -39,8 +39,9 @@ class TestStatusEndpoint:
     @pytest.mark.asyncio
     async def test_status_returns_ready_for_active_session(self):
         """Test that status returns READY for active session."""
-        from app.main import app, active_sessions, sessions_lock
         from app.core.session import SessionActor
+        from app.main import app
+        from app.services import get_services
 
         transport = ASGITransport(app=app)
 
@@ -50,8 +51,10 @@ class TestStatusEndpoint:
         actor._running_event.set()
         actor._is_processing = False
 
-        async with sessions_lock:
-            active_sessions[session_id] = actor
+        # Access service layer's internal state for testing
+        services = get_services()
+        async with services.session._sessions_lock:
+            services.session._active_sessions[session_id] = actor
 
         try:
             async with AsyncClient(
@@ -63,15 +66,16 @@ class TestStatusEndpoint:
             data = response.json()
             assert data["status"] == "ready"
         finally:
-            async with sessions_lock:
-                if session_id in active_sessions:
-                    del active_sessions[session_id]
+            async with services.session._sessions_lock:
+                if session_id in services.session._active_sessions:
+                    del services.session._active_sessions[session_id]
 
     @pytest.mark.asyncio
     async def test_status_returns_processing_when_active(self):
         """Test that status returns PROCESSING when session is processing."""
-        from app.main import app, active_sessions, sessions_lock
         from app.core.session import SessionActor
+        from app.main import app
+        from app.services import get_services
 
         transport = ASGITransport(app=app)
 
@@ -80,8 +84,9 @@ class TestStatusEndpoint:
         actor._running_event.set()
         actor._is_processing = True
 
-        async with sessions_lock:
-            active_sessions[session_id] = actor
+        services = get_services()
+        async with services.session._sessions_lock:
+            services.session._active_sessions[session_id] = actor
 
         try:
             async with AsyncClient(
@@ -93,9 +98,9 @@ class TestStatusEndpoint:
             data = response.json()
             assert data["status"] == "processing"
         finally:
-            async with sessions_lock:
-                if session_id in active_sessions:
-                    del active_sessions[session_id]
+            async with services.session._sessions_lock:
+                if session_id in services.session._active_sessions:
+                    del services.session._active_sessions[session_id]
 
 
 class TestHistoryEndpoints:
@@ -180,8 +185,8 @@ class TestTranscriptsEndpoints:
     @pytest.mark.asyncio
     async def test_download_transcript_returns_file_with_headers(self):
         """Test that download returns file with correct headers."""
-        from app.main import app
         from app.core.storage import storage
+        from app.main import app
 
         # Create a temporary transcript file
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
@@ -275,8 +280,8 @@ class TestUploadEndpoint:
         # Use valid UUID v4 format
         session_id = "12345678-1234-4123-8123-123456789abc"
 
-        # Patch UPLOAD_DIR to use temp directory
-        with patch("app.main.UPLOAD_DIR", temp_upload_dir):
+        # Patch UPLOAD_DIR in the upload router module
+        with patch("app.api.routers.upload.UPLOAD_DIR", temp_upload_dir):
             transport = ASGITransport(app=app)
 
             files = {
@@ -298,12 +303,13 @@ class TestUploadEndpoint:
     @pytest.mark.asyncio
     async def test_upload_accepts_all_allowed_extensions(self, temp_upload_dir: Path):
         """Test that upload accepts all allowed video extensions."""
-        from app.main import app, ALLOWED_EXTENSIONS
+        from app.api.routers.upload import ALLOWED_EXTENSIONS
+        from app.main import app
 
         # Use valid UUID v4 format (one for all tests)
         session_id = "12345678-1234-4123-8123-123456789abc"
 
-        with patch("app.main.UPLOAD_DIR", temp_upload_dir):
+        with patch("app.api.routers.upload.UPLOAD_DIR", temp_upload_dir):
             transport = ASGITransport(app=app)
 
             async with AsyncClient(
@@ -329,7 +335,7 @@ class TestUploadEndpoint:
         # Use valid UUID v4 format
         session_id = "abcdef12-3456-4789-abcd-ef1234567890"
 
-        with patch("app.main.UPLOAD_DIR", temp_upload_dir):
+        with patch("app.api.routers.upload.UPLOAD_DIR", temp_upload_dir):
             transport = ASGITransport(app=app)
 
             files = {"file": ("video.mkv", io.BytesIO(b"content"), "video/x-matroska")}
@@ -397,15 +403,76 @@ class TestAllowedExtensions:
 
     def test_allowed_extensions_includes_common_formats(self):
         """Test that ALLOWED_EXTENSIONS includes common video formats."""
-        from app.main import ALLOWED_EXTENSIONS
+        from app.api.routers.upload import ALLOWED_EXTENSIONS
 
         expected = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v"}
         assert ALLOWED_EXTENSIONS == expected
 
     def test_allowed_extensions_are_lowercase(self):
         """Test that all allowed extensions are lowercase."""
-        from app.main import ALLOWED_EXTENSIONS
+        from app.api.routers.upload import ALLOWED_EXTENSIONS
 
         for ext in ALLOWED_EXTENSIONS:
             assert ext == ext.lower()
             assert ext.startswith(".")
+
+
+class TestCostEndpoints:
+    """Test /cost endpoints."""
+
+    @pytest.mark.asyncio
+    async def test_global_cost_returns_200(self):
+        """Test that global cost endpoint returns 200."""
+        from app.main import app
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/cost")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "total_input_tokens" in data
+        assert "total_output_tokens" in data
+        assert "total_cost_usd" in data
+        assert "session_count" in data
+
+    @pytest.mark.asyncio
+    async def test_session_cost_returns_404_for_unknown(self):
+        """Test that session cost returns 404 for unknown session."""
+        from app.main import app
+
+        unknown_session_id = "ffffffff-ffff-4fff-8fff-ffffffffffff"
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get(f"/cost/{unknown_session_id}")
+
+        assert response.status_code == 404
+
+
+class TestValidationErrors:
+    """Test validation error handling."""
+
+    @pytest.mark.asyncio
+    async def test_invalid_uuid_in_path_returns_400(self):
+        """Test that invalid UUID in path returns 400."""
+        from app.main import app
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/status/not-a-valid-uuid")
+
+        assert response.status_code == 400
+        data = response.json()
+        assert "Invalid" in data["detail"]
+
+    @pytest.mark.asyncio
+    async def test_invalid_transcript_id_returns_400(self):
+        """Test that invalid transcript ID returns 400."""
+        from app.main import app
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/transcripts/invalid!/download")
+
+        assert response.status_code == 400
