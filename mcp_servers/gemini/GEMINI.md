@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A Python video transcription toolkit with two interfaces: CLI and Web UI. Built with the **Claude Agent SDK** and **OpenAI Whisper**, providing MCP-based tools for transcribing local videos and YouTube URLs. The system features smart segmentation for long videos, a transcript library, and real-time cost tracking.
+A Python video transcription web application. Built with the **Claude Agent SDK** and **OpenAI Whisper**, providing MCP-based tools for transcribing local videos and YouTube URLs. The system features smart segmentation for long videos, a transcript library, and real-time cost tracking.
 
 ## Tech Stack
 
@@ -20,8 +20,15 @@ A Python video transcription toolkit with two interfaces: CLI and Web UI. Built 
 
 ```
 app/
-├── agent/                # Agent core logic
-│   ├── agent.py          # CLI entry point
+├── api/                  # API layer
+│   ├── deps.py           # Dependency injection providers
+│   ├── errors.py         # Centralized error handling
+│   └── routers/          # Endpoint routers (chat, history, transcripts, etc.)
+├── services/             # Service layer
+│   ├── session_service.py    # SessionActor lifecycle management
+│   ├── storage_service.py    # Storage operations wrapper
+│   └── transcription_service.py # Transcription orchestration
+├── agent/                # MCP tools
 │   ├── server.py         # MCP server definition (tools)
 │   ├── prompts/          # Versioned system prompts
 │   ├── file_tool.py      # File I/O tools
@@ -33,11 +40,15 @@ app/
 │   ├── cost_tracking.py  # API usage aggregation
 │   └── permissions.py    # Path validation & security
 ├── models/               # Pydantic schemas
-│   ├── api.py            # Web API request/response models
+│   ├── api.py            # Web API response models
+│   ├── requests.py       # Web API request models
+│   ├── service.py        # Service layer models
 │   └── structured.py     # Agent output structures
+├── ui/                   # UI routes
+│   └── routes.py         # GET / endpoint
 ├── static/               # Frontend assets (JS, CSS)
 ├── templates/            # Jinja2 HTML templates
-└── main.py               # FastAPI web application entry point
+└── main.py               # FastAPI application entry point (slim)
 
 data/                     # Persistent storage (ignored by git)
 ├── sessions/             # Chat history JSONs
@@ -54,13 +65,10 @@ tests/                    # Pytest suite
 
 ## Development Commands
 
-**Run Applications:**
+**Run Application:**
 ```bash
 # Web UI (http://127.0.0.1:8000)
 uv run python -m app.main
-
-# CLI Agent
-uv run python -m app.agent.agent
 ```
 
 **Quality & Testing:**

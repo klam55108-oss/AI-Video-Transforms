@@ -1,533 +1,72 @@
-import asyncio
-import logging
-import uuid
-from pathlib import Path
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+"""
+FastAPI application entry point.
 
-from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field, field_validator
+Configures and creates the FastAPI application with:
+- Service lifecycle management
+- Exception handlers
+- Router mounting
+- Static file serving
+"""
+
+import logging
+from pathlib import Path
 
 from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
-# Load environment variables
+# Load environment variables first
 load_dotenv()
 
-# Logging configuration
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[logging.StreamHandler()],
 )
-logger = logging.getLogger(__name__)
 
+# Apply filter to SDK logger to suppress benign exit code messages
+from app.core.logging import ExitCodeFilter  # noqa: E402
 
-class ExitCodeFilter(logging.Filter):
-    """Filter out benign subprocess exit errors during shutdown."""
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        # Suppress "Command failed with exit code -2" (SIGINT) from SDK
-        return "exit code -2" not in record.getMessage()
-
-
-# Apply filter to SDK logger to avoid false alarms on CTRL+C
 logging.getLogger("claude_agent_sdk").addFilter(ExitCodeFilter())
 
-# Import validation utilities (after logging setup)
-from app.core.validators import UUID_PATTERN, SHORT_ID_PATTERN  # noqa: E402
-
-
-def validate_uuid(value: str, field_name: str = "ID") -> None:
-    """
-    Validate that a string is a valid UUID v4 format.
-
-    Args:
-        value: The string to validate
-        field_name: Name of the field for error messages
-
-    Raises:
-        HTTPException: If the value is not a valid UUID v4
-    """
-    if not UUID_PATTERN.match(value):
-        raise HTTPException(
-            status_code=400, detail=f"Invalid {field_name} format (must be UUID v4)"
-        )
-
-
-def validate_short_id(value: str, field_name: str = "ID") -> None:
-    """
-    Validate that a string is a valid short ID (8 hex characters).
-
-    Args:
-        value: The string to validate
-        field_name: Name of the field for error messages
-
-    Raises:
-        HTTPException: If the value is not a valid short ID
-    """
-    if not SHORT_ID_PATTERN.match(value):
-        raise HTTPException(status_code=400, detail=f"Invalid {field_name} format")
-
-
-from app.core.storage import storage  # noqa: E402
-from app.models.api import (  # noqa: E402
-    StatusResponse,
-    AgentStatus,
-    HistoryListResponse,
-    SessionDetail,
-    SessionSummary,
-    TranscriptListResponse,
-    TranscriptMetadata,
-    UploadResponse,
-    ChatResponse,
-    UsageStats,
-    SessionCostResponse,
-    GlobalCostResponse,
+# Import application components
+from app.api.errors import register_exception_handlers  # noqa: E402
+from app.api.routers import (  # noqa: E402
+    chat_router,
+    cost_router,
+    history_router,
+    status_router,
+    transcripts_router,
+    upload_router,
 )
-from app.core.session import (  # noqa: E402
-    get_or_create_session,
-    cleanup_expired_sessions,
-    active_sessions,
-    sessions_lock,
+from app.services import services_lifespan  # noqa: E402
+from app.ui.routes import router as ui_router  # noqa: E402
+
+# Create FastAPI application with service lifecycle management
+app = FastAPI(
+    title="Agent Video to Data",
+    description="AI-powered video transcription using Claude Agent SDK and OpenAI Whisper",
+    version="1.0.0",
+    lifespan=services_lifespan,
 )
-
-# Upload configuration
-UPLOAD_DIR = Path("uploads")
-ALLOWED_EXTENSIONS = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v"}
-MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
-
-
-# --------------------------------------------------------------------------
-# Exception Handling
-# --------------------------------------------------------------------------
-
-
-async def validation_exception_handler(
-    request: Request, exc: Exception
-) -> JSONResponse:
-    """Return 422 with structured validation error details."""
-    if not isinstance(exc, RequestValidationError):
-        raise exc
-    errors = []
-    for error in exc.errors():
-        field = ".".join(str(loc) for loc in error["loc"])
-        errors.append({"field": field, "message": error["msg"]})
-
-    return JSONResponse(
-        status_code=422, content={"detail": "Validation error", "errors": errors}
-    )
-
-
-def handle_endpoint_error(e: Exception, context: str) -> HTTPException:
-    """
-    Convert exceptions to safe HTTP responses.
-
-    Logs full error details server-side but returns
-    generic messages to clients to prevent information leakage.
-
-    Args:
-        e: The exception that occurred
-        context: Description of the endpoint context for logging
-
-    Returns:
-        HTTPException with appropriate status code and safe message
-    """
-    if isinstance(e, HTTPException):
-        return e
-
-    if isinstance(e, TimeoutError):
-        logger.warning(f"{context}: Timeout - {e}")
-        return HTTPException(
-            status_code=504, detail="Request timed out. Please try again."
-        )
-
-    if isinstance(e, RuntimeError):
-        error_msg = str(e).lower()
-        if "closed" in error_msg:
-            logger.warning(f"{context}: Session closed - {e}")
-            return HTTPException(status_code=410, detail="Session is closed")
-
-    # Log full error details but don't expose to client
-    logger.error(f"{context}: {type(e).__name__}: {e}", exc_info=True)
-    return HTTPException(
-        status_code=500, detail="An internal error occurred. Please try again."
-    )
-
-
-# --------------------------------------------------------------------------
-# Application Lifespan & Configuration
-# --------------------------------------------------------------------------
-
-# Background task reference for cleanup
-_cleanup_task: asyncio.Task[None] | None = None
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Manage application lifecycle with startup and shutdown events."""
-    global _cleanup_task
-    # Startup: begin background cleanup task
-    _cleanup_task = asyncio.create_task(cleanup_expired_sessions())
-    logger.info("Started session cleanup background task")
-
-    yield
-
-    # Shutdown: cancel cleanup and stop all sessions
-    if _cleanup_task:
-        _cleanup_task.cancel()
-        try:
-            await _cleanup_task
-        except asyncio.CancelledError:
-            pass
-
-    # Gracefully stop all active sessions
-    async with sessions_lock:
-        actors = list(active_sessions.values())
-        active_sessions.clear()
-
-    for actor in actors:
-        await actor.stop()
-    logger.info("Shutdown complete: all sessions closed")
-
-
-# Initialize FastAPI app with lifespan context manager
-app = FastAPI(title="Agent Video to Data", lifespan=lifespan)
 
 # Register exception handlers
-app.add_exception_handler(RequestValidationError, validation_exception_handler)
+register_exception_handlers(app)
 
 # Mount static files
 app.mount(
     "/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static"
 )
 
-# Configure templates
-templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
-
-
-class ChatRequest(BaseModel):
-    """Request model for chat messages."""
-
-    session_id: str = Field(
-        ..., min_length=36, max_length=36, description="UUID v4 session identifier"
-    )
-    message: str = Field(
-        ..., min_length=1, max_length=50000, description="User message content"
-    )
-
-    @field_validator("session_id")
-    @classmethod
-    def validate_session_id_format(cls, v: str) -> str:
-        """Validate session_id is a valid UUID v4."""
-        if not UUID_PATTERN.match(v):
-            raise ValueError("session_id must be a valid UUID v4 format")
-        return v
-
-    @field_validator("message")
-    @classmethod
-    def validate_message_not_empty(cls, v: str) -> str:
-        """Validate message is not just whitespace."""
-        stripped = v.strip()
-        if not stripped:
-            raise ValueError("message cannot be empty or whitespace only")
-        return stripped
-
-
-class InitRequest(BaseModel):
-    """Request model for session initialization."""
-
-    session_id: str = Field(
-        ..., min_length=36, max_length=36, description="UUID v4 session identifier"
-    )
-
-    @field_validator("session_id")
-    @classmethod
-    def validate_session_id_format(cls, v: str) -> str:
-        """Validate session_id is a valid UUID v4."""
-        if not UUID_PATTERN.match(v):
-            raise ValueError("session_id must be a valid UUID v4 format")
-        return v
-
-
-# --------------------------------------------------------------------------
-# Endpoints
-# --------------------------------------------------------------------------
-
-
-@app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
-    return templates.TemplateResponse(request, "index.html")
-
-
-@app.post("/chat/init", response_model=ChatResponse)
-async def chat_init(request: InitRequest):
-    """Initialize a chat session and return the greeting message."""
-    try:
-        actor = await get_or_create_session(request.session_id)
-        response = await actor.get_greeting()
-
-        # Save greeting to storage
-        storage.save_message(request.session_id, "agent", response.text)
-
-        return ChatResponse(
-            response=response.text,
-            session_id=request.session_id,
-            usage=UsageStats(
-                input_tokens=response.usage.input_tokens,
-                output_tokens=response.usage.output_tokens,
-                cache_creation_tokens=response.usage.cache_creation_tokens,
-                cache_read_tokens=response.usage.cache_read_tokens,
-                total_cost_usd=response.usage.cost_usd,
-            ),
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise handle_endpoint_error(e, f"chat_init session={request.session_id[:8]}...")
-
-
-@app.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest):
-    """Process a chat message and return the response."""
-    try:
-        actor = await get_or_create_session(request.session_id)
-
-        # Save user message to storage
-        storage.save_message(request.session_id, "user", request.message)
-
-        # Send message to actor and await response
-        response = await actor.process_message(request.message)
-
-        # Save agent response to storage
-        storage.save_message(request.session_id, "agent", response.text)
-
-        return ChatResponse(
-            response=response.text,
-            session_id=request.session_id,
-            usage=UsageStats(
-                input_tokens=response.usage.input_tokens,
-                output_tokens=response.usage.output_tokens,
-                cache_creation_tokens=response.usage.cache_creation_tokens,
-                cache_read_tokens=response.usage.cache_read_tokens,
-                total_cost_usd=response.usage.cost_usd,
-            ),
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise handle_endpoint_error(e, f"chat session={request.session_id[:8]}...")
-
-
-@app.delete("/chat/{session_id}")
-async def delete_session(session_id: str):
-    """Delete a chat session."""
-    # Validate session ID format
-    if not UUID_PATTERN.match(session_id):
-        raise HTTPException(status_code=400, detail="Invalid session ID format")
-
-    async with sessions_lock:
-        if session_id not in active_sessions:
-            raise HTTPException(status_code=404, detail="Session not found")
-        actor = active_sessions.pop(session_id)
-
-    await actor.stop()
-    logger.info(f"Session deleted: {session_id[:8]}...")
-
-    return {"status": "success", "message": f"Session {session_id} closed"}
-
-
-@app.get("/status/{session_id}", response_model=StatusResponse)
-async def get_status(session_id: str):
-    """Get current status of a session's agent."""
-    validate_uuid(session_id, "session ID")
-
-    async with sessions_lock:
-        if session_id not in active_sessions:
-            return StatusResponse(
-                status=AgentStatus.INITIALIZING,
-                session_id=session_id,
-                message="Session not yet initialized",
-            )
-
-        actor = active_sessions[session_id]
-
-    if not actor.is_running:
-        return StatusResponse(
-            status=AgentStatus.ERROR,
-            session_id=session_id,
-            message="Session worker stopped",
-        )
-
-    if actor.is_processing:
-        return StatusResponse(status=AgentStatus.PROCESSING, session_id=session_id)
-
-    return StatusResponse(status=AgentStatus.READY, session_id=session_id)
-
-
-@app.get("/history", response_model=HistoryListResponse)
-async def list_history(limit: int = 50):
-    """List all chat sessions with previews."""
-    sessions = storage.list_sessions(limit=limit)
-    return HistoryListResponse(
-        sessions=[SessionSummary(**s) for s in sessions], total=len(sessions)
-    )
-
-
-@app.get("/history/{session_id}", response_model=SessionDetail)
-async def get_history(session_id: str):
-    """Get full chat history for a session."""
-    validate_uuid(session_id, "session ID")
-
-    session = storage.get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session history not found")
-    return SessionDetail(**session)
-
-
-@app.delete("/history/{session_id}")
-async def delete_history(session_id: str):
-    """Delete a session's history."""
-    validate_uuid(session_id, "session ID")
-
-    success = storage.delete_session(session_id)
-    return {"success": success}
-
-
-@app.get("/transcripts", response_model=TranscriptListResponse)
-async def list_transcripts():
-    """List all saved transcript files."""
-    transcripts = storage.list_transcripts()
-    return TranscriptListResponse(
-        transcripts=[TranscriptMetadata(**t) for t in transcripts],
-        total=len(transcripts),
-    )
-
-
-@app.get("/transcripts/{transcript_id}/download")
-async def download_transcript(transcript_id: str):
-    """Download a transcript file."""
-    validate_short_id(transcript_id, "transcript ID")
-
-    metadata = storage.get_transcript(transcript_id)
-    if not metadata:
-        raise HTTPException(status_code=404, detail="Transcript not found")
-
-    file_path = Path(metadata["file_path"])
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found on disk")
-
-    return FileResponse(
-        path=str(file_path), filename=metadata["filename"], media_type="text/plain"
-    )
-
-
-@app.delete("/transcripts/{transcript_id}")
-async def delete_transcript(transcript_id: str):
-    """Delete a transcript file."""
-    validate_short_id(transcript_id, "transcript ID")
-
-    success = storage.delete_transcript(transcript_id)
-    return {"success": success}
-
-
-@app.get("/cost/{session_id}", response_model=SessionCostResponse)
-async def get_session_cost(session_id: str):
-    """Get cost tracking data for a specific session."""
-    validate_uuid(session_id, "session ID")
-
-    cost_data = storage.get_session_cost(session_id)
-    if not cost_data:
-        raise HTTPException(status_code=404, detail="Cost data not found for session")
-
-    usage = UsageStats(
-        input_tokens=cost_data.get("total_input_tokens", 0),
-        output_tokens=cost_data.get("total_output_tokens", 0),
-        cache_creation_tokens=cost_data.get("total_cache_creation_tokens", 0),
-        cache_read_tokens=cost_data.get("total_cache_read_tokens", 0),
-        total_cost_usd=cost_data.get("total_cost_usd", 0.0),
-    )
-
-    return SessionCostResponse(session_id=session_id, usage=usage)
-
-
-@app.get("/cost", response_model=GlobalCostResponse)
-async def get_global_cost():
-    """Get aggregated cost statistics across all sessions."""
-    cost_data = storage.get_global_cost()
-
-    return GlobalCostResponse(
-        total_input_tokens=cost_data.get("total_input_tokens", 0),
-        total_output_tokens=cost_data.get("total_output_tokens", 0),
-        total_cache_creation_tokens=cost_data.get("total_cache_creation_tokens", 0),
-        total_cache_read_tokens=cost_data.get("total_cache_read_tokens", 0),
-        total_cost_usd=cost_data.get("total_cost_usd", 0.0),
-        session_count=cost_data.get("session_count", 0),
-    )
-
-
-@app.post("/upload", response_model=UploadResponse)
-async def upload_video(file: UploadFile = File(...), session_id: str = Form(...)):
-    """Upload a video file for transcription."""
-    # Validate session_id is a valid UUID v4
-    if not UUID_PATTERN.match(session_id):
-        return UploadResponse(success=False, error="Invalid session ID format")
-
-    # Validate extension
-    ext = Path(file.filename or "").suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        return UploadResponse(
-            success=False,
-            error=f"Invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
-        )
-
-    # Sanitize filename - extract only the base name to prevent path traversal
-    original_filename = Path(file.filename or "upload").name
-    if not original_filename or original_filename.startswith("."):
-        original_filename = "upload" + ext
-
-    # Create session upload directory
-    session_upload_dir = UPLOAD_DIR / session_id
-    session_upload_dir.mkdir(parents=True, exist_ok=True)
-
-    # Generate unique filename with sanitized original name
-    file_id = str(uuid.uuid4())[:8]
-    safe_filename = f"{file_id}_{original_filename}"
-    file_path = session_upload_dir / safe_filename
-
-    # Stream file to disk with size validation
-    try:
-        total_size = 0
-        with open(file_path, "wb") as buffer:
-            while chunk := await file.read(8192):
-                total_size += len(chunk)
-                if total_size > MAX_FILE_SIZE:
-                    buffer.close()
-                    file_path.unlink(missing_ok=True)
-                    return UploadResponse(
-                        success=False,
-                        error=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024 * 1024)}MB",
-                    )
-                buffer.write(chunk)
-
-        # Return relative path to avoid exposing server filesystem structure
-        # The agent can access files from the project root
-        try:
-            relative_path = file_path.relative_to(Path.cwd())
-            path_to_return = str(relative_path)
-        except ValueError:
-            # If file_path is not under cwd (e.g., in tests), return path from UPLOAD_DIR
-            path_to_return = str(UPLOAD_DIR / session_id / safe_filename)
-
-        return UploadResponse(success=True, file_id=file_id, file_path=path_to_return)
-    except Exception as e:
-        logger.error(f"Upload failed: {e}")
-        # Clean up partial file on error
-        file_path.unlink(missing_ok=True)
-        return UploadResponse(success=False, error="Upload failed")
+# Mount API routers
+app.include_router(ui_router)
+app.include_router(chat_router)
+app.include_router(status_router)
+app.include_router(history_router)
+app.include_router(transcripts_router)
+app.include_router(cost_router)
+app.include_router(upload_router)
 
 
 if __name__ == "__main__":
