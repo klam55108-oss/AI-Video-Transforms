@@ -65,7 +65,7 @@ ALLOWED_EXTENSIONS = {
     ".xml",
     ".md",
     ".txt",
-    ".env",
+    # NOTE: .env deliberately excluded to prevent secret exposure
     ".gitignore",
     ".dockerfile",
     "Dockerfile",
@@ -84,13 +84,15 @@ def _is_safe_path(path: Path) -> bool:
 
 def _should_include_file(path: Path) -> bool:
     """Check if file should be included in analysis."""
-    if path.name.startswith(".") and path.suffix not in {".env", ".gitignore"}:
+    # Skip hidden files except .gitignore (never .env - security risk)
+    if path.name.startswith(".") and path.name not in {".gitignore"}:
         return False
     if path.suffix not in ALLOWED_EXTENSIONS and path.name not in ALLOWED_EXTENSIONS:
         return False
     if "__pycache__" in str(path) or "node_modules" in str(path):
         return False
-    if ".git" in str(path):
+    # Check for .git directory (not .gitignore file)
+    if "/.git/" in str(path) or str(path).endswith("/.git"):
         return False
     return True
 
@@ -126,6 +128,11 @@ def _collect_files(
         target_path = base / target_path
 
     target_path = target_path.resolve()
+
+    # Security: Prevent path traversal escaping project root
+    if not target_path.is_relative_to(base):
+        return {}  # Path escaped project root via ../
+
     files: dict[str, str] = {}
     total_size = 0
 
@@ -187,6 +194,7 @@ async def codex_query(
         prompt: The question or prompt to send.
         reasoning_effort: Reasoning level - 'none', 'low', 'medium', 'high', 'xhigh'.
                          Default 'high' for thorough responses.
+                         Note: 'xhigh' is only available for GPT-5.1-Codex-Max.
         timeout_seconds: Maximum wait time (default 300s for complex reasoning).
 
     Returns:
