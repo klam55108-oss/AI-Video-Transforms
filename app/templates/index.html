@@ -12,139 +12,155 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- DOMPurify for XSS Protection -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
-    <!-- Phosphor Icons (Cleaner than FontAwesome) -->
+    <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <!-- Custom CSS -->
+    <!-- Custom CSS (Theme System) -->
     <link rel="stylesheet" href="/static/style.css">
+    <!-- Inline theme initialization to prevent flash -->
+    <script>
+        (function() {
+            const theme = localStorage.getItem('videoagent-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
 </head>
-<body class="h-full bg-slate-100 font-sans text-slate-900 antialiased overflow-hidden flex">
+<body class="h-full overflow-hidden flex transition-theme">
 
-    <!-- Sidebar (Slate-900) -->
-    <aside class="w-64 bg-slate-900 flex-shrink-0 flex flex-col border-r border-slate-800">
-        <!-- Sidebar Header -->
-        <div class="h-16 flex items-center px-6 border-b border-slate-800">
-            <div class="flex items-center space-x-2.5">
-                <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-highlight-strong">
+    <!-- Mobile Sidebar Overlay -->
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar w-72 flex-shrink-0 flex flex-col h-full">
+        <!-- Sidebar Header with Brand -->
+        <div class="h-16 flex items-center justify-between px-5 border-b border-[var(--sidebar-border)]">
+            <div class="flex items-center gap-3">
+                <div class="brand-logo w-9 h-9 rounded-xl flex items-center justify-center" style="background: var(--accent-gradient);">
                     <i class="ph-bold ph-video-camera text-white text-lg"></i>
                 </div>
-                <span class="text-white font-semibold text-sm tracking-wide">VideoAgent</span>
+                <span class="font-display text-base font-semibold text-[var(--sidebar-text-primary)] tracking-tight">VideoAgent</span>
             </div>
+            <!-- Mobile close button -->
+            <button id="sidebar-close" class="lg:hidden p-2 rounded-lg text-[var(--sidebar-text-secondary)] hover:text-[var(--sidebar-text-primary)] hover:bg-[var(--sidebar-hover)] transition-all">
+                <i class="ph-bold ph-x text-lg"></i>
+            </button>
         </div>
 
         <!-- Navigation -->
-        <nav class="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
+        <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto sidebar-scroll">
 
-            <!-- Primary Action -->
-            <button id="reset-btn" class="w-full group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-500 transition-all shadow-md shadow-highlight-strong mb-6">
-                <i class="ph-bold ph-plus-circle text-lg mr-3 opacity-90"></i>
-                New Transcription
+            <!-- Primary Action Button -->
+            <button id="reset-btn" class="btn-primary w-full justify-center mb-6">
+                <i class="ph-bold ph-plus-circle text-lg"></i>
+                <span>New Transcription</span>
             </button>
 
-            <!-- Menu Items -->
-            <div class="space-y-1">
-                <p class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Workspace</p>
+            <!-- Section Label -->
+            <p class="px-3 text-[10px] font-semibold text-[var(--sidebar-text-muted)] uppercase tracking-widest mb-3">Workspace</p>
 
-                <!-- Current Session (Active) -->
-                <a href="#" class="group flex items-center px-3 py-2 text-sm font-medium rounded-md bg-white/10 text-white shadow-inner">
-                    <i class="ph-fill ph-chat-circle-text text-lg mr-3 text-blue-400"></i>
-                    Current Session
-                </a>
+            <!-- Current Session (Active) -->
+            <a href="#" class="sidebar-nav-item active flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[var(--sidebar-text-primary)]">
+                <i class="ph-fill ph-chat-circle-text text-lg" style="color: var(--accent-primary);"></i>
+                <span>Current Session</span>
+            </a>
 
-                <!-- History Section (Collapsible) -->
-                <div id="history-section">
-                    <button id="history-toggle" class="group flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors w-full text-left">
-                        <i class="ph-fill ph-clock-counter-clockwise text-lg mr-3 text-slate-500 group-hover:text-slate-400"></i>
-                        History
-                        <i id="history-caret" class="ph-bold ph-caret-right ml-auto text-slate-500 transition-transform duration-200"></i>
-                    </button>
-                    <div id="history-list" class="hidden ml-6 mt-1 space-y-1 max-h-48 overflow-y-auto">
-                        <p class="text-xs text-slate-500 px-2 py-1">Loading...</p>
-                    </div>
+            <!-- History Section (Collapsible) -->
+            <div id="history-section">
+                <button id="history-toggle" class="panel-toggle text-sm font-medium text-[var(--sidebar-text-secondary)]">
+                    <i class="ph-fill ph-clock-counter-clockwise text-lg mr-3 text-[var(--sidebar-text-muted)]"></i>
+                    <span>History</span>
+                    <i id="history-caret" class="ph-bold ph-caret-right panel-caret text-[var(--sidebar-text-muted)]"></i>
+                </button>
+                <div id="history-list" class="panel-content ml-8 mt-1 space-y-1 sidebar-scroll" style="max-height: 200px; overflow-y: auto;">
+                    <p class="text-xs text-[var(--sidebar-text-muted)] px-2 py-1">Loading...</p>
                 </div>
+            </div>
 
-                <!-- Transcripts Section (Collapsible) -->
-                <div id="transcripts-section">
-                    <button id="transcripts-toggle" class="group flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors w-full text-left">
-                        <i class="ph-fill ph-folder-open text-lg mr-3 text-slate-500 group-hover:text-slate-400"></i>
-                        Transcripts
-                        <i id="transcripts-caret" class="ph-bold ph-caret-right ml-auto text-slate-500 transition-transform duration-200"></i>
-                    </button>
-                    <div id="transcripts-list" class="hidden ml-6 mt-1 space-y-1 max-h-48 overflow-y-auto">
-                        <p class="text-xs text-slate-500 px-2 py-1">Loading...</p>
-                    </div>
+            <!-- Transcripts Section (Collapsible) -->
+            <div id="transcripts-section">
+                <button id="transcripts-toggle" class="panel-toggle text-sm font-medium text-[var(--sidebar-text-secondary)]">
+                    <i class="ph-fill ph-folder-open text-lg mr-3 text-[var(--sidebar-text-muted)]"></i>
+                    <span>Transcripts</span>
+                    <i id="transcripts-caret" class="ph-bold ph-caret-right panel-caret text-[var(--sidebar-text-muted)]"></i>
+                </button>
+                <div id="transcripts-list" class="panel-content ml-8 mt-1 space-y-1 sidebar-scroll" style="max-height: 200px; overflow-y: auto;">
+                    <p class="text-xs text-[var(--sidebar-text-muted)] px-2 py-1">Loading...</p>
                 </div>
             </div>
         </nav>
 
-        <!-- User/Footer -->
-        <div class="p-4 border-t border-slate-800">
-            <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center ring-1 ring-slate-600">
-                    <i class="ph-regular ph-user text-slate-300"></i>
-                </div>
-                <div>
-                    <p class="text-sm font-medium text-white">User</p>
-                </div>
+        <!-- User Profile Footer -->
+        <div class="user-profile">
+            <div class="user-avatar">
+                <i class="ph-regular ph-user text-lg"></i>
             </div>
+            <div class="user-info">
+                <p class="user-name truncate">User</p>
+                <p class="user-status">Free Plan</p>
+            </div>
+            <!-- Theme Toggle in Profile Area -->
+            <button id="theme-toggle" class="theme-toggle" title="Toggle theme">
+                <i class="ph-fill ph-moon theme-toggle-icon moon-icon"></i>
+                <i class="ph-fill ph-sun theme-toggle-icon sun-icon"></i>
+            </button>
         </div>
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 flex flex-col min-w-0 bg-slate-50/50">
+    <main class="main-content flex-1 flex flex-col min-w-0 h-full">
 
         <!-- Header -->
-        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shadow-sm z-10">
-            <div class="flex items-center">
-                <i class="ph-regular ph-hash text-slate-400 mr-2"></i>
-                <h1 class="text-sm font-semibold text-slate-700">Transcription & Analysis</h1>
+        <header class="content-header h-14 flex items-center justify-between px-6 z-10">
+            <div class="flex items-center gap-3">
+                <!-- Mobile menu button -->
+                <button id="mobile-menu-btn" class="lg:hidden p-2 -ml-2 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all">
+                    <i class="ph-bold ph-list text-xl"></i>
+                </button>
+                <div class="flex items-center gap-2">
+                    <i class="ph-regular ph-hash text-[var(--text-tertiary)]"></i>
+                    <h1 class="font-display text-sm font-semibold text-[var(--text-primary)]">Transcription & Analysis</h1>
+                </div>
             </div>
 
-            <div class="flex items-center space-x-4">
-                <div class="flex items-center space-x-2 px-3 py-1.5 bg-slate-50 rounded-full border border-slate-200">
-                    <span id="status-indicator" class="relative flex h-2.5 w-2.5">
-                        <span id="status-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-                        <span id="status-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-yellow-500"></span>
-                    </span>
-                    <span id="status-label" class="text-xs font-medium text-slate-600">Initializing...</span>
+            <div class="flex items-center gap-3">
+                <!-- Status Badge -->
+                <div class="status-badge">
+                    <span id="status-indicator" class="status-dot initializing"></span>
+                    <span id="status-label" class="text-[var(--text-secondary)]">Initializing...</span>
                 </div>
             </div>
         </header>
 
-        <!-- Chat Scroll Area -->
-        <div id="chat-messages" class="flex-1 overflow-y-auto px-6 py-8 scroll-smooth">
-            <div class="max-w-3xl mx-auto space-y-8">
+        <!-- Chat Messages Area -->
+        <div id="chat-messages" class="chat-container flex-1 overflow-y-auto px-6 py-8 scroll-smooth">
+            <div class="max-w-3xl mx-auto space-y-6">
                 <!-- Messages injected here via JS -->
             </div>
         </div>
 
         <!-- Input Area -->
-        <div class="bg-white border-t border-slate-200 p-6 z-20">
+        <div class="input-area">
             <div class="max-w-3xl mx-auto">
-                <form id="chat-form" class="relative group">
-
-                    <div class="relative flex items-end gap-2 bg-white p-2 rounded-xl border border-slate-300 shadow-sm focus-within:ring-4 focus-within:ring-blue-500/10 focus-within:border-blue-500 transition-all">
-
-                        <button id="attach-btn" type="button" title="Attach video file" class="p-2 text-slate-400 hover:text-slate-600 transition-colors mb-0.5">
+                <form id="chat-form">
+                    <div class="input-container">
+                        <!-- Attach Button -->
+                        <button id="attach-btn" type="button" class="input-btn" title="Attach video file">
                             <i class="ph-bold ph-paperclip text-lg"></i>
                         </button>
 
+                        <!-- Text Input -->
                         <textarea
                             id="user-input"
                             rows="1"
-                            class="flex-1 bg-transparent border-0 focus:ring-0 text-slate-800 placeholder:text-slate-400 text-sm py-2.5 resize-none max-h-32"
+                            class="input-textarea"
                             placeholder="Paste a YouTube URL or ask a question..."
                         ></textarea>
 
-                        <button
-                            type="submit"
-                            id="send-btn"
-                            title="Send message"
-                            class="p-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-highlight transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-0.5"
-                        >
+                        <!-- Send Button -->
+                        <button type="submit" id="send-btn" class="input-btn input-btn-primary" title="Send message">
                             <i class="ph-bold ph-paper-plane-right text-lg"></i>
                         </button>
                     </div>
-                    <p class="text-center text-[10px] text-slate-400 mt-2">
+                    <p class="text-center text-[10px] text-[var(--text-muted)] mt-3">
                         Agent may produce inaccurate information. Please verify important data.
                     </p>
                 </form>

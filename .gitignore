@@ -103,3 +103,15 @@ uploads/**
 *.test.mp4
 *.test.webm
 *.test.wav
+
+# =============================================================================
+# Screenshots & Images (Documentation Only in screenshots/ Directory)
+# =============================================================================
+# Ignore all screenshots in root directory
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+/*.webp
+# But allow the screenshots/ directory
+!screenshots/

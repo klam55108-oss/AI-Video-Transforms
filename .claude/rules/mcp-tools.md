@@ -5,28 +5,45 @@ paths: app/agent/**/*.py
 # MCP Tool Development
 
 ## Tool Structure
-- Use `@tool(name, description, schema)` decorator from `claude_agent_sdk`
-- Tool functions must be `async def fn(args: dict[str, Any]) -> dict[str, Any]`
-- Create servers via `create_sdk_mcp_server(name, version, tools=[...])`
 
-## Return Format
 ```python
-# Success
+from claude_agent_sdk import tool
+
+@tool(name="my_tool", description="...", schema={"param": str})
+async def my_tool(args: dict[str, Any]) -> dict[str, Any]:
+    ...
+```
+
+## Return Format (CRITICAL)
+
+```python
+# ✅ Success
 return {"content": [{"type": "text", "text": "Result message"}]}
 
-# Error (never raise exceptions)
+# ✅ Error — ALWAYS return structured errors
 return {"success": False, "error": "Human-readable error message"}
+
+# ❌ NEVER raise exceptions — they crash the agent loop!
+raise ValueError("...")  # NEVER do this
+```
+
+## Error Handling Rules
+
+- ALWAYS wrap tool body in try/except
+- ALWAYS return structured error responses
+- NEVER let exceptions escape the tool function
+- NEVER use bare `raise` without catching
+
+```python
+async def my_tool(args: dict[str, Any]) -> dict[str, Any]:
+    try:
+        result = await do_work(args)
+        return {"content": [{"type": "text", "text": result}]}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 ```
 
 ## Tool Naming
+
 - Allowlist format: `mcp__<server-name>__<tool-name>`
 - Example: `mcp__video-tools__transcribe_video`
-
-## Error Handling
-- Catch ALL exceptions inside tool functions
-- Return structured error responses
-- Never let exceptions escape and crash the agent loop
-
-## Schema Definition
-- Use simple type mapping: `{"param": str, "count": int}`
-- Or full JSON Schema for complex validation

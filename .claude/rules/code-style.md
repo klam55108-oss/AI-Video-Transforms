@@ -1,21 +1,38 @@
+---
+paths: "**/*.py"
+---
+
 # Python Code Style
 
-## Type Annotations
-- ALL function signatures must include return types
-- Use modern union syntax: `str | None` not `Optional[str]`
-- Use builtin generics: `list[str]`, `dict[str, Any]` not `List`, `Dict`
-- Add `# type: ignore[import-untyped]` for moviepy, pydub imports
+## Type Annotations (Strict Mode)
+
+- ALWAYS include return types on ALL function signatures
+- Use modern union syntax: `str | None` NOT `Optional[str]`
+- Use builtin generics: `list[str]`, `dict[str, Any]` NOT `List`, `Dict`
+- Add `# type: ignore[import-untyped]` for pydub imports
 
 ## Formatting
+
 - Google-style docstrings for public functions
 - Max ~50 lines per function (split if longer)
-- Use `pathlib.Path` over `os.path` for all file operations
+- ALWAYS use `pathlib.Path` over `os.path` for file operations
 
 ## Imports
-- Group: stdlib → third-party → local
-- Absolute imports for app modules: `from app.core.session import SessionActor`
+
+```python
+# Order: stdlib → third-party → local (blank line between groups)
+import asyncio
+from pathlib import Path
+
+from fastapi import Depends
+from pydantic import BaseModel
+
+from app.core.session import SessionActor
+from app.services import SessionService
+```
 
 ## Async Patterns
-- Use `async def` for I/O-bound operations
-- Prefer `asyncio.gather()` for parallel operations
-- Always handle `asyncio.CancelledError` in long-running tasks
+
+- Use `async def` for ALL I/O-bound operations
+- Use `asyncio.gather()` for parallel operations
+- ALWAYS handle `asyncio.CancelledError` in long-running tasks

@@ -15,25 +15,31 @@ paths: app/api/**/*.py, app/models/**/*.py, app/main.py
 - Validate all inputs with Pydantic models
 - Return Pydantic models or `dict` responses
 
-## Dependency Injection
+## Dependency Injection (CRITICAL)
+
 ```python
-# Define provider in app/api/deps.py
+# ✅ CORRECT: Define provider in app/api/deps.py
 def get_session_service() -> SessionService:
     return get_services().session
 
-# Use in routers
+# ✅ CORRECT: Use in routers
 @router.post("/chat/init")
 async def init(
     request: InitRequest,
     session_svc: SessionService = Depends(get_session_service)
 ):
     ...
+
+# ❌ NEVER: Import services directly in routers
+from app.core.session import SessionActor  # NEVER do this in routers
 ```
 
-## Security
-- Validate UUID v4 format for session/transcript IDs
-- Block system paths (`/etc`, `/usr`, `/bin`) in file operations
-- Use `FileUploadValidator` for uploads (500MB limit)
+## Security Rules
+
+- ALWAYS validate UUID v4 format for session/transcript IDs
+- NEVER allow file operations on system paths (`/etc`, `/usr`, `/bin`)
+- ALWAYS use `FileUploadValidator` for uploads (500MB limit)
+- NEVER trust user input without Pydantic validation
 
 ## Pydantic Models
 - `app/models/api.py` — API response schemas

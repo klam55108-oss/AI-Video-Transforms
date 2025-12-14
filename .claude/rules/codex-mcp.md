@@ -35,10 +35,12 @@ response = await client.responses.create(
 - Blocks system paths (`/etc`, `/usr`, `/bin`, `/var`, `/root`)
 - Filters: no `__pycache__`, `node_modules`, `.git`
 
-## Error Handling
-- Return `CodexResponse` dataclass with `success`, `output`, `error`
-- Retry with exponential backoff for timeouts/rate limits
-- Never raise exceptions - return structured errors
+## Error Handling (CRITICAL)
+
+- ALWAYS return `CodexResponse` dataclass with `success`, `output`, `error`
+- ALWAYS retry with exponential backoff for timeouts/rate limits
+- NEVER raise exceptions — return structured errors
+- NEVER expose raw API errors to users
 
 ## System Prompts
 - Defined in `prompts.py` with specialized instructions

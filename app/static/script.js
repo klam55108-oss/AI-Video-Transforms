@@ -1,4 +1,9 @@
 // ============================================
+// VIDEOAGENT - Enhanced Frontend Script
+// Dual Theme System + Improved UX
+// ============================================
+
+// ============================================
 // Session Management
 // ============================================
 
@@ -23,7 +28,7 @@ const chatMessages = document.getElementById('chat-messages');
 const sendBtn = document.getElementById('send-btn');
 const resetBtn = document.getElementById('reset-btn');
 
-// New element references
+// Sidebar elements
 const attachBtn = document.getElementById('attach-btn');
 const historyToggle = document.getElementById('history-toggle');
 const historyList = document.getElementById('history-list');
@@ -31,6 +36,15 @@ const historyCaret = document.getElementById('history-caret');
 const transcriptsToggle = document.getElementById('transcripts-toggle');
 const transcriptsList = document.getElementById('transcripts-list');
 const transcriptsCaret = document.getElementById('transcripts-caret');
+
+// Theme toggle
+const themeToggle = document.getElementById('theme-toggle');
+
+// Mobile navigation
+const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+const sidebar = document.getElementById('sidebar');
+const sidebarOverlay = document.getElementById('sidebar-overlay');
+const sidebarClose = document.getElementById('sidebar-close');
 
 // Toast Container
 let toastContainer = document.querySelector('.toast-container');
@@ -55,6 +69,7 @@ let fileInput = null;
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1000;
 const STATUS_POLL_INTERVAL_MS = 3000;
+const THEME_STORAGE_KEY = 'videoagent-theme';
 
 // DOMPurify configuration for safe markdown rendering
 const PURIFY_CONFIG = {
@@ -64,6 +79,65 @@ const PURIFY_CONFIG = {
     ALLOWED_ATTR: ['href', 'class', 'target', 'rel'],
     ALLOW_DATA_ATTR: false
 };
+
+// ============================================
+// Theme Management
+// ============================================
+
+function getTheme() {
+    return localStorage.getItem(THEME_STORAGE_KEY) || 'dark';
+}
+
+function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+}
+
+function toggleTheme() {
+    const currentTheme = getTheme();
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+
+    // Optional: Show toast notification
+    const themeName = newTheme === 'dark' ? 'Dark' : 'Light';
+    showToast(`Switched to ${themeName} theme`, 'info');
+}
+
+function initTheme() {
+    // Theme is already set in inline script, but ensure toggle works
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+    }
+}
+
+// ============================================
+// Mobile Navigation
+// ============================================
+
+function openSidebar() {
+    sidebar?.classList.add('open');
+    sidebarOverlay?.classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeSidebar() {
+    sidebar?.classList.remove('open');
+    sidebarOverlay?.classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+function initMobileNav() {
+    mobileMenuBtn?.addEventListener('click', openSidebar);
+    sidebarClose?.addEventListener('click', closeSidebar);
+    sidebarOverlay?.addEventListener('click', closeSidebar);
+
+    // Close sidebar on escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && sidebar?.classList.contains('open')) {
+            closeSidebar();
+        }
+    });
+}
 
 // ============================================
 // Utilities
@@ -104,7 +178,7 @@ function copyToClipboard(text) {
     if (navigator.clipboard && window.isSecureContext) {
         return navigator.clipboard.writeText(text);
     } else {
-        // Fallback for non-secure context (e.g. http://localhost vs http://127.0.0.1)
+        // Fallback for non-secure context
         const textArea = document.createElement("textarea");
         textArea.value = text;
         textArea.style.position = "fixed";
@@ -130,38 +204,38 @@ function copyToClipboard(text) {
 function showToast(message, type = 'info') {
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    
+
     const iconMap = {
         'info': 'ph-info',
         'success': 'ph-check-circle',
         'error': 'ph-warning-circle',
         'warning': 'ph-warning'
     };
-    
+
     const iconClass = iconMap[type] || 'ph-info';
 
     toast.innerHTML = `
         <div class="flex items-center gap-3">
             <i class="ph-fill ${iconClass} text-lg opacity-80"></i>
-            <span class="text-sm font-medium text-slate-700">${message}</span>
+            <span class="text-sm font-medium">${escapeHtml(message)}</span>
         </div>
-        <button class="ml-4 text-slate-400 hover:text-slate-600">
+        <button class="ml-4 opacity-60 hover:opacity-100 transition-opacity">
             <i class="ph-bold ph-x"></i>
         </button>
     `;
 
-    // Close button
+    // Close button handler
     toast.querySelector('button').onclick = () => {
-        toast.style.animation = 'fadeOut 0.2s forwards';
+        toast.style.animation = 'toastFadeOut 0.2s forwards';
         setTimeout(() => toast.remove(), 200);
     };
 
     toastContainer.appendChild(toast);
 
-    // Auto dismiss
+    // Auto dismiss after 4 seconds
     setTimeout(() => {
         if (toast.isConnected) {
-            toast.style.animation = 'fadeOut 0.2s forwards';
+            toast.style.animation = 'toastFadeOut 0.2s forwards';
             setTimeout(() => toast.remove(), 200);
         }
     }, 4000);
@@ -196,29 +270,29 @@ async function updateStatus() {
 }
 
 function renderStatus(status) {
-    const ping = document.getElementById('status-ping');
-    const dot = document.getElementById('status-dot');
+    const indicator = document.getElementById('status-indicator');
     const label = document.getElementById('status-label');
 
-    if (!ping || !dot || !label) return;
+    if (!indicator || !label) return;
 
     const states = {
-        initializing: { color: 'yellow', text: 'Initializing...' },
-        ready: { color: 'emerald', text: 'Agent Ready' },
-        processing: { color: 'blue', text: 'Processing...' },
-        error: { color: 'red', text: 'Error' }
+        initializing: { class: 'initializing', text: 'Initializing...' },
+        ready: { class: 'ready', text: 'Agent Ready' },
+        processing: { class: 'processing', text: 'Processing...' },
+        error: { class: 'error', text: 'Error' }
     };
 
     const state = states[status] || states.error;
 
-    // Update colors
-    ping.className = `animate-ping absolute inline-flex h-full w-full rounded-full bg-${state.color}-400 opacity-75`;
-    dot.className = `relative inline-flex rounded-full h-2.5 w-2.5 bg-${state.color}-500`;
+    // Update classes
+    indicator.className = `status-dot ${state.class}`;
     label.textContent = state.text;
 
     // Pause animation when ready (less distracting)
     if (status === 'ready') {
-        ping.classList.remove('animate-ping');
+        indicator.style.setProperty('--pulse-animation', 'none');
+    } else {
+        indicator.style.removeProperty('--pulse-animation');
     }
 }
 
@@ -235,7 +309,7 @@ async function loadHistory() {
     } catch (e) {
         console.error('History load failed:', e);
         if (historyList) {
-            historyList.innerHTML = '<p class="text-xs text-slate-500 px-2 py-1">Failed to load</p>';
+            historyList.innerHTML = '<p class="text-xs text-[var(--sidebar-text-muted)] px-2 py-1">Failed to load</p>';
         }
     }
 }
@@ -244,18 +318,19 @@ function renderHistoryList(sessions) {
     if (!historyList) return;
 
     if (sessions.length === 0) {
-        historyList.innerHTML = '<p class="text-xs text-slate-500 px-2 py-1">No history yet</p>';
+        historyList.innerHTML = '<p class="text-xs text-[var(--sidebar-text-muted)] px-2 py-1">No history yet</p>';
         return;
     }
 
     historyList.innerHTML = sessions.map(s => `
         <button
             onclick="loadSession('${escapeHtml(s.session_id)}')"
-            class="w-full text-left px-2 py-1.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-white rounded transition-colors truncate"
+            class="w-full text-left px-2 py-1.5 text-xs rounded-md transition-all
+                   text-[var(--sidebar-text-secondary)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-text-primary)]"
             title="${escapeHtml(s.title || 'Untitled')}"
         >
             <div class="truncate font-medium">${escapeHtml(s.title || 'Untitled')}</div>
-            <div class="text-slate-500 text-[10px]">${formatRelativeTime(s.updated_at)} · ${s.message_count} msgs</div>
+            <div class="text-[var(--sidebar-text-muted)] text-[10px]">${formatRelativeTime(s.updated_at)} · ${s.message_count} msgs</div>
         </button>
     `).join('');
 }
@@ -263,12 +338,14 @@ function renderHistoryList(sessions) {
 function toggleHistoryPanel() {
     if (!historyList || !historyCaret) return;
 
-    const isHidden = historyList.classList.contains('hidden');
-    historyList.classList.toggle('hidden');
-    historyCaret.style.transform = isHidden ? 'rotate(90deg)' : '';
+    const isOpen = historyList.classList.contains('open');
 
-    // Load data when opening
-    if (isHidden) {
+    if (isOpen) {
+        historyList.classList.remove('open');
+        historyCaret.classList.remove('open');
+    } else {
+        historyList.classList.add('open');
+        historyCaret.classList.add('open');
         loadHistory();
     }
 }
@@ -299,7 +376,7 @@ async function deleteHistoryItem(historySessionId) {
 
     try {
         await fetch(`/history/${historySessionId}`, { method: 'DELETE' });
-        loadHistory(); // Refresh list
+        loadHistory();
     } catch (e) {
         console.error('Delete failed:', e);
         showToast('Failed to delete history item', 'error');
@@ -319,7 +396,7 @@ async function loadTranscripts() {
     } catch (e) {
         console.error('Transcripts load failed:', e);
         if (transcriptsList) {
-            transcriptsList.innerHTML = '<p class="text-xs text-slate-500 px-2 py-1">Failed to load</p>';
+            transcriptsList.innerHTML = '<p class="text-xs text-[var(--sidebar-text-muted)] px-2 py-1">Failed to load</p>';
         }
     }
 }
@@ -328,21 +405,24 @@ function renderTranscriptsList(transcripts) {
     if (!transcriptsList) return;
 
     if (transcripts.length === 0) {
-        transcriptsList.innerHTML = '<p class="text-xs text-slate-500 px-2 py-1">No transcripts yet</p>';
+        transcriptsList.innerHTML = '<p class="text-xs text-[var(--sidebar-text-muted)] px-2 py-1">No transcripts yet</p>';
         return;
     }
 
     transcriptsList.innerHTML = transcripts.map(t => `
-        <div class="flex items-center justify-between px-2 py-1.5 text-xs text-slate-400 hover:bg-slate-700 rounded group">
+        <div class="flex items-center justify-between px-2 py-1.5 text-xs rounded-md group
+                    text-[var(--sidebar-text-secondary)] hover:bg-[var(--sidebar-hover)]">
             <div class="truncate flex-1 mr-2" title="${escapeHtml(t.filename)}">
                 <div class="font-medium truncate">${escapeHtml(t.filename)}</div>
-                <div class="text-slate-500 text-[10px]">${formatFileSize(t.file_size)} · ${formatRelativeTime(t.created_at)}</div>
+                <div class="text-[var(--sidebar-text-muted)] text-[10px]">${formatFileSize(t.file_size)} · ${formatRelativeTime(t.created_at)}</div>
             </div>
             <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onclick="downloadTranscript('${t.id}')" title="Download" class="p-1 hover:text-white">
+                <button onclick="downloadTranscript('${t.id}')" title="Download"
+                        class="p-1 hover:text-[var(--sidebar-text-primary)] transition-colors">
                     <i class="ph-bold ph-download-simple text-sm"></i>
                 </button>
-                <button onclick="deleteTranscript('${t.id}')" title="Delete" class="p-1 hover:text-red-400">
+                <button onclick="deleteTranscript('${t.id}')" title="Delete"
+                        class="p-1 hover:text-[var(--status-error)] transition-colors">
                     <i class="ph-bold ph-trash text-sm"></i>
                 </button>
             </div>
@@ -353,12 +433,14 @@ function renderTranscriptsList(transcripts) {
 function toggleTranscriptsPanel() {
     if (!transcriptsList || !transcriptsCaret) return;
 
-    const isHidden = transcriptsList.classList.contains('hidden');
-    transcriptsList.classList.toggle('hidden');
-    transcriptsCaret.style.transform = isHidden ? 'rotate(90deg)' : '';
+    const isOpen = transcriptsList.classList.contains('open');
 
-    // Load data when opening
-    if (isHidden) {
+    if (isOpen) {
+        transcriptsList.classList.remove('open');
+        transcriptsCaret.classList.remove('open');
+    } else {
+        transcriptsList.classList.add('open');
+        transcriptsCaret.classList.add('open');
         loadTranscripts();
     }
 }
@@ -372,7 +454,7 @@ async function deleteTranscript(id) {
 
     try {
         await fetch(`/transcripts/${id}`, { method: 'DELETE' });
-        loadTranscripts(); // Refresh list
+        loadTranscripts();
         showToast('Transcript deleted', 'success');
     } catch (e) {
         console.error('Delete failed:', e);
@@ -438,12 +520,11 @@ async function handleFileSelect(e) {
 
         if (data.success) {
             showToast('File uploaded successfully', 'success');
-            // Automatically request transcription
             addMessage(`File uploaded successfully. Starting transcription...`, 'agent');
 
             // Trigger transcription request
             const message = `Please transcribe this uploaded video file: ${data.file_path}`;
-            await sendMessage(message, false); // Don't show in UI, it's automated
+            await sendMessage(message, false);
         } else {
             showToast(data.error || 'Upload failed', 'error');
             addMessage(`**Upload Error:** ${data.error || 'Unknown error'}`, 'agent');
@@ -454,7 +535,7 @@ async function handleFileSelect(e) {
         addMessage(`**Upload Error:** ${e.message}`, 'agent');
     }
 
-    // Reset file input for next upload
+    // Reset file input
     fileInput.value = '';
 }
 
@@ -463,16 +544,16 @@ async function handleFileSelect(e) {
 // ============================================
 
 // Auto-resize textarea
-userInput.addEventListener('input', function() {
+userInput?.addEventListener('input', function() {
     this.style.height = 'auto';
     this.style.height = (this.scrollHeight) + 'px';
     if(this.value === '') {
-        this.style.height = '44px'; // Reset to min-height
+        this.style.height = '44px';
     }
 });
 
 // Handle Enter to submit (Shift+Enter for newline)
-userInput.addEventListener('keydown', function(e) {
+userInput?.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         chatForm.requestSubmit();
@@ -480,7 +561,6 @@ userInput.addEventListener('keydown', function(e) {
 });
 
 function scrollToBottom() {
-    // Smooth scroll to bottom
     const scrollHeight = chatMessages.scrollHeight;
     chatMessages.scrollTo({
         top: scrollHeight,
@@ -495,7 +575,6 @@ function formatUsageStats(usage) {
     const totalTokens = (usage.input_tokens || 0) + (usage.output_tokens || 0);
     const cost = usage.total_cost_usd || 0;
 
-    // Format cost with appropriate precision
     const costStr = cost < 0.01
         ? `$${cost.toFixed(4)}`
         : `$${cost.toFixed(2)}`;
@@ -514,39 +593,26 @@ function formatUsageStats(usage) {
 function enhanceMarkdown(html) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
-    
+
     // Process all code blocks
     const preTags = doc.querySelectorAll('pre');
     preTags.forEach(pre => {
         // Create wrapper
         const wrapper = document.createElement('div');
         wrapper.className = 'code-block-wrapper';
-        
+
         // Wrap pre
         pre.parentNode.insertBefore(wrapper, pre);
         wrapper.appendChild(pre);
-        
-        // Add copy button
+
+        // Add copy button (will be re-attached after innerHTML)
         const btn = document.createElement('button');
         btn.className = 'code-copy-btn';
+        btn.setAttribute('data-copy-btn', 'true');
         btn.innerHTML = '<i class="ph-bold ph-copy"></i> Copy';
-        btn.onclick = async (e) => {
-            const code = pre.querySelector('code')?.innerText || pre.innerText;
-            try {
-                await copyToClipboard(code);
-                btn.innerHTML = '<i class="ph-bold ph-check"></i> Copied!';
-                setTimeout(() => {
-                    btn.innerHTML = '<i class="ph-bold ph-copy"></i> Copy';
-                }, 2000);
-            } catch (err) {
-                console.error('Copy failed', err);
-                showToast('Failed to copy to clipboard', 'error');
-            }
-        };
-        
         wrapper.appendChild(btn);
     });
-    
+
     return doc.body.innerHTML;
 }
 
@@ -562,20 +628,13 @@ function addMessage(text, sender, usage = null) {
 
     // Avatar
     const avatar = document.createElement('div');
-    avatar.className = "flex-shrink-0";
 
     if (isUser) {
-        avatar.innerHTML = `
-            <div class="w-8 h-8 rounded-lg bg-blue-600 shadow-highlight-strong flex items-center justify-center">
-                <span class="text-xs font-bold text-white">C</span>
-            </div>
-        `;
+        avatar.className = "avatar avatar-user";
+        avatar.innerHTML = `<span class="text-sm font-bold text-white">U</span>`;
     } else {
-        avatar.innerHTML = `
-            <div class="w-8 h-8 rounded-lg bg-white border border-slate-200 shadow-sm flex items-center justify-center">
-                <i class="ph-fill ph-robot text-blue-600"></i>
-            </div>
-        `;
+        avatar.className = "avatar avatar-agent";
+        avatar.innerHTML = `<i class="ph-fill ph-robot text-lg" style="color: var(--accent-primary);"></i>`;
     }
 
     // Message Content Wrapper
@@ -586,32 +645,19 @@ function addMessage(text, sender, usage = null) {
     const bubble = document.createElement('div');
 
     if (isUser) {
-        // User Styling
-        bubble.className = "bg-blue-600 text-white rounded-xl rounded-tr-none p-4 shadow-md shadow-highlight-strong text-sm leading-relaxed";
+        bubble.className = "message-user text-sm leading-relaxed";
         bubble.textContent = text;
     } else {
-        // Agent Styling
-        bubble.className = "message-agent relative bg-white rounded-xl rounded-tl-none p-5 shadow-sm ring-1 ring-slate-900/5 text-sm text-slate-700 prose prose-slate max-w-none";
-        
-        // Sanitize first
+        bubble.className = "message-agent prose prose-sm max-w-none";
+
+        // Sanitize and enhance markdown
         const safeHtml = DOMPurify.sanitize(marked.parse(text), PURIFY_CONFIG);
-        // Then enhance with copy buttons
         bubble.innerHTML = enhanceMarkdown(safeHtml);
-        
-        // Bind click events for new elements (since innerHTML breaks event listeners)
-        // We need to re-attach the event listeners because innerHTML string injection doesn't preserve function references
-        // A better approach is to not use on* attributes in string but attach after.
-        // Let's fix the enhanceMarkdown logic to handle this or just delegate.
-        
-        // Actually, since I used innerHTML in enhanceMarkdown to serialize back, the onclicks are gone if they were properties.
-        // If they were attributes string (onclick="..."), they stay but scope is window.
-        // My implementation in enhanceMarkdown assigns btn.onclick = function... which is lost on serialization.
-        
-        // FIX: Re-attach listeners after injection
-        const copyBtns = bubble.querySelectorAll('.code-copy-btn');
+
+        // Re-attach copy button event listeners
+        const copyBtns = bubble.querySelectorAll('[data-copy-btn]');
         copyBtns.forEach(btn => {
             btn.onclick = async () => {
-                // Find sibling pre/code
                 const pre = btn.parentElement.querySelector('pre');
                 const code = pre.querySelector('code')?.innerText || pre.innerText;
                 try {
@@ -628,25 +674,26 @@ function addMessage(text, sender, usage = null) {
         });
     }
 
-    // Footer container for timestamp and usage
+    // Footer container
     const footer = document.createElement('div');
-    footer.className = `flex items-center gap-3 mt-1 ${isUser ? 'flex-row-reverse mr-1' : 'ml-1'}`;
+    footer.className = `flex items-center gap-3 mt-2 ${isUser ? 'flex-row-reverse mr-1' : 'ml-1'}`;
 
     // Timestamp
     const timestamp = document.createElement('span');
-    timestamp.className = 'text-[10px] text-slate-400 font-medium';
+    timestamp.className = 'text-[10px] font-medium';
+    timestamp.style.color = 'var(--text-muted)';
     timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     footer.appendChild(timestamp);
 
-    // Usage Stats
+    // Usage Stats (for agent messages)
     if (!isUser && usage) {
         const stats = formatUsageStats(usage);
         if (stats) {
             const usageEl = document.createElement('span');
-            usageEl.className = 'inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 rounded-full';
+            usageEl.className = 'cost-badge';
             usageEl.innerHTML = `
-                <i class="ph-fill ph-coins text-amber-500 text-xs"></i>
-                <span class="text-xs font-semibold text-amber-700" title="Total API cost for this session (all messages)">${stats.cost}</span>
+                <i class="ph-fill ph-coins text-xs"></i>
+                <span title="Total API cost for this session">${stats.cost}</span>
             `;
             footer.appendChild(usageEl);
         }
@@ -658,10 +705,10 @@ function addMessage(text, sender, usage = null) {
     container.appendChild(avatar);
     container.appendChild(contentWrapper);
 
-    let listContainer = chatMessages.querySelector('div.space-y-8');
+    let listContainer = chatMessages.querySelector('div.space-y-6');
     if (!listContainer) {
         listContainer = document.createElement('div');
-        listContainer.className = "max-w-3xl mx-auto space-y-8";
+        listContainer.className = "max-w-3xl mx-auto space-y-6";
         chatMessages.appendChild(listContainer);
     }
     listContainer.appendChild(container);
@@ -677,24 +724,22 @@ function showLoading() {
     container.className = "flex items-start gap-4";
 
     container.innerHTML = `
-        <div class="flex-shrink-0">
-            <div class="w-8 h-8 rounded-lg bg-white border border-slate-200 shadow-sm flex items-center justify-center">
-                <i class="ph-fill ph-robot text-blue-600"></i>
-            </div>
+        <div class="avatar avatar-agent">
+            <i class="ph-fill ph-robot text-lg" style="color: var(--accent-primary);"></i>
         </div>
-        <div class="bg-white rounded-xl rounded-tl-none p-4 shadow-sm ring-1 ring-slate-900/5">
-            <div class="flex space-x-1.5 items-center h-5">
-                <div class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></div>
-                <div class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-                <div class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+        <div class="message-agent" style="padding: 16px 24px;">
+            <div class="loading-dots">
+                <div class="loading-dot"></div>
+                <div class="loading-dot"></div>
+                <div class="loading-dot"></div>
             </div>
         </div>
     `;
 
-    let listContainer = chatMessages.querySelector('div.space-y-8');
+    let listContainer = chatMessages.querySelector('div.space-y-6');
     if (!listContainer) {
          listContainer = document.createElement('div');
-         listContainer.className = "max-w-3xl mx-auto space-y-8";
+         listContainer.className = "max-w-3xl mx-auto space-y-6";
          chatMessages.appendChild(listContainer);
     }
     listContainer.appendChild(container);
@@ -768,8 +813,8 @@ async function sendMessage(message, showInUI = true) {
             removeLoading(loadingId);
             addMessage(data.response, 'agent', data.usage);
 
-            // Refresh transcripts list in case a new one was created
-            if (transcriptsList && !transcriptsList.classList.contains('hidden')) {
+            // Refresh transcripts list if panel is open
+            if (transcriptsList && transcriptsList.classList.contains('open')) {
                 loadTranscripts();
             }
 
@@ -779,7 +824,6 @@ async function sendMessage(message, showInUI = true) {
         } catch (error) {
             lastError = error;
 
-            // Only retry network errors, not server errors
             if (attempt < MAX_RETRIES && error.name === 'TypeError') {
                 console.log(`Network error, retry ${attempt + 1}/${MAX_RETRIES}...`);
                 await sleep(RETRY_DELAY_MS * (attempt + 1));
@@ -802,7 +846,6 @@ async function sendMessage(message, showInUI = true) {
 // ============================================
 
 async function loadExistingSession() {
-    // Try to load existing messages from history storage
     try {
         const response = await fetch(`/history/${sessionId}`);
         if (!response.ok) return null;
@@ -815,32 +858,35 @@ async function loadExistingSession() {
 }
 
 async function initSession() {
-    // Clear any hardcoded placeholder if we want dynamic.
-    const listContainer = chatMessages.querySelector('div.space-y-8');
+    // Clear any placeholder content
+    const listContainer = chatMessages.querySelector('div.space-y-6');
     if (listContainer) {
-        listContainer.innerHTML = ''; // Clear hardcoded placeholder
+        listContainer.innerHTML = '';
     }
 
-    // First, check if this session has existing messages in storage
+    // Check for existing messages
     const existingMessages = await loadExistingSession();
 
     if (existingMessages && existingMessages.length > 0) {
-        // Display existing messages from history
+        // Restore existing messages
         for (const msg of existingMessages) {
             addMessage(msg.content, msg.role);
         }
-        // Add a visual indicator that this is a restored session
+
+        // Add restoration indicator
         const divider = document.createElement('div');
-        divider.className = 'text-center text-xs text-slate-400 py-4 border-t border-slate-200';
-        divider.innerHTML = '<span class="bg-slate-50 px-3 relative -top-2">Session restored from history</span>';
-        const container = chatMessages.querySelector('div.space-y-8');
+        divider.className = 'text-center text-xs py-4 border-t';
+        divider.style.borderColor = 'var(--divider)';
+        divider.style.color = 'var(--text-muted)';
+        divider.innerHTML = '<span class="px-3 relative -top-2" style="background: var(--content-bg);">Session restored from history</span>';
+        const container = chatMessages.querySelector('div.space-y-6');
         if (container) {
             container.appendChild(divider);
         }
-        return; // Session loaded from history
+        return;
     }
 
-    // No existing history - initialize new session
+    // Initialize new session
     const loadingId = showLoading();
 
     try {
@@ -859,7 +905,6 @@ async function initSession() {
     } catch (e) {
         console.error("Init failed", e);
         removeLoading(loadingId);
-        // Fallback or silent fail
         addMessage("Welcome! How can I help you with video transcription today?", 'agent');
     }
 }
@@ -868,13 +913,13 @@ async function initSession() {
 // Form Handlers
 // ============================================
 
-chatForm.addEventListener('submit', async (e) => {
+chatForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const message = userInput.value.trim();
     if (!message) return;
 
-    // Clear input immediately for better UX
+    // Clear input immediately
     userInput.value = '';
     userInput.style.height = '44px';
 
@@ -890,7 +935,7 @@ chatForm.addEventListener('submit', async (e) => {
     userInput.focus();
 });
 
-resetBtn.addEventListener('click', async () => {
+resetBtn?.addEventListener('click', async () => {
     if (isProcessing) {
         if (!confirm('A message is being processed. Reset anyway?')) {
             return;
@@ -899,17 +944,14 @@ resetBtn.addEventListener('click', async () => {
     }
 
     if (confirm('Start a new transcription session? Current chat will be cleared.')) {
-        // Stop status polling
         stopStatusPolling();
 
-        // Close current session on server
         try {
             await fetch(`/chat/${sessionId}`, { method: 'DELETE' });
         } catch (e) {
             console.warn('Failed to close session on server:', e);
         }
 
-        // Clear session storage and reload
         sessionStorage.removeItem('agent_session_id');
         window.location.reload();
     }
@@ -920,13 +962,9 @@ resetBtn.addEventListener('click', async () => {
 // ============================================
 
 function initEventListeners() {
-    // Sidebar toggles
-    if (historyToggle) {
-        historyToggle.addEventListener('click', toggleHistoryPanel);
-    }
-    if (transcriptsToggle) {
-        transcriptsToggle.addEventListener('click', toggleTranscriptsPanel);
-    }
+    // Sidebar panel toggles
+    historyToggle?.addEventListener('click', toggleHistoryPanel);
+    transcriptsToggle?.addEventListener('click', toggleTranscriptsPanel);
 }
 
 function initSidebarData() {
@@ -937,6 +975,8 @@ function initSidebarData() {
 
 // Run initialization when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
+    initMobileNav();
     initFileUpload();
     initEventListeners();
     initSidebarData();
