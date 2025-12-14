@@ -14,10 +14,12 @@ paths: app/static/**/*.*, app/templates/**/*.*
 - Generate UUID v4 client-side for new sessions
 - Poll `/status/{id}` for agent processing state
 
-## Security
-- Use DOMPurify for XSS sanitization on rendered content
-- Never trust user input in DOM manipulation
-- Escape all dynamic content in Jinja2: `{{ variable }}`
+## Security (CRITICAL)
+
+- ALWAYS use DOMPurify for XSS sanitization on rendered content
+- NEVER trust user input in DOM manipulation
+- ALWAYS escape dynamic content in Jinja2: `{{ variable }}`
+- NEVER use `innerHTML` with unsanitized content
 
 ## API Communication
 - Use `fetch()` for all API calls

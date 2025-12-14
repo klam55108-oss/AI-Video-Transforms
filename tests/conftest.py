@@ -88,3 +88,64 @@ def sample_transcript_content() -> str:
 [00:00:05] Today we'll be discussing testing strategies.
 [00:00:10] Let's get started with the basics.
 """
+
+
+# =============================================================================
+# FFmpeg and Transcription Tool Fixtures
+# =============================================================================
+
+
+@pytest.fixture
+def mock_ffmpeg_success() -> Generator[MagicMock, None, None]:
+    """Mock successful FFmpeg execution and availability check."""
+    from unittest.mock import Mock, patch
+
+    mock_result = Mock(returncode=0, stderr=b"", stdout=b"")
+    with patch("subprocess.run", return_value=mock_result) as mock_run:
+        with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
+            yield mock_run
+
+
+@pytest.fixture
+def mock_ffmpeg_not_installed() -> Generator[None, None, None]:
+    """Mock FFmpeg not being installed."""
+    from unittest.mock import patch
+
+    with patch("shutil.which", return_value=None):
+        yield
+
+
+@pytest.fixture
+def mock_openai_transcription() -> Generator[MagicMock, None, None]:
+    """Mock OpenAI transcription API for testing."""
+    from unittest.mock import MagicMock, patch
+
+    mock_client = MagicMock()
+    mock_client.audio.transcriptions.create.return_value = MagicMock(
+        text="This is a test transcription from the mock."
+    )
+    with patch("app.agent.transcribe_tool.OpenAI", return_value=mock_client):
+        yield mock_client
+
+
+@pytest.fixture
+def mock_audio_segment() -> Generator[MagicMock, None, None]:
+    """Mock pydub AudioSegment for testing without real audio files."""
+    from unittest.mock import MagicMock, patch
+
+    mock_segment = MagicMock()
+    mock_segment.__len__ = lambda self: 300000  # 5 minutes in ms
+    mock_segment.__getitem__ = lambda self, key: mock_segment
+
+    with patch(
+        "app.agent.transcribe_tool.AudioSegment.from_mp3", return_value=mock_segment
+    ):
+        yield mock_segment
+
+
+@pytest.fixture
+def temp_audio_file(temp_storage_dir: Path) -> Generator[Path, None, None]:
+    """Create a temporary fake audio file for testing."""
+    audio_file = temp_storage_dir / "test_audio.mp3"
+    audio_file.write_bytes(b"fake mp3 audio content")
+    yield audio_file

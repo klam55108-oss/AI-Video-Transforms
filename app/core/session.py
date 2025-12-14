@@ -279,6 +279,12 @@ class SessionActor:
                 get_default_permission_config()
             )
 
+            # Debug: Log system prompt info
+            logger.info(
+                f"Session {self.session_id}: System prompt length={len(SYSTEM_PROMPT)}, "
+                f"starts with: {SYSTEM_PROMPT[:100]!r}..."
+            )
+
             options = ClaudeAgentOptions(
                 model="claude-opus-4-5",
                 system_prompt=SYSTEM_PROMPT,
@@ -302,8 +308,13 @@ class SessionActor:
                 # Handle Initial Greeting
                 try:
                     initial_prompt = (
-                        "Start the conversation by greeting me and asking for a video "
-                        "to transcribe. Follow your workflow."
+                        "Start by greeting me following your <phase name=\"gathering_input\"> workflow. "
+                        "Your greeting MUST include: "
+                        "(1) mention you use gpt-4o-transcribe model, "
+                        "(2) list accepted formats (local files AND YouTube URLs), "
+                        "(3) ask about language with ISO code examples, "
+                        "(4) ask about quality preferences (domain terms, filler words, formatting). "
+                        "Be thorough - include ALL four points."
                     )
                     await client.query(initial_prompt)
 

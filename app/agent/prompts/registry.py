@@ -99,11 +99,12 @@ class PromptRegistry:
         if name not in cls._prompts:
             cls._prompts[name] = {}
 
+        # Allow re-registration during hot reload (development mode)
+        # In production, you'd typically use new version numbers
         if version in cls._prompts[name]:
-            raise ValueError(
-                f"Prompt '{name}' version '{version}' already exists. "
-                "Use a new version number for updates."
-            )
+            # Silently update the existing registration
+            # This enables hot reload to pick up prompt changes
+            pass
 
         prompt_version = PromptVersion(
             name=name,

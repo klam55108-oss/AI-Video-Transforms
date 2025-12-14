@@ -26,7 +26,9 @@ gemini --approval-mode yolo --model <model> <prompt>
   - `SessionStart`: Detects missing context
   - `PostToolUse`: Moves generated file to correct location
 
-## Error Handling
-- Wrap subprocess calls in try/except
-- Return structured error messages
-- Handle timeout scenarios gracefully
+## Error Handling (CRITICAL)
+
+- ALWAYS wrap subprocess calls in try/except
+- ALWAYS return structured error messages
+- ALWAYS handle timeout scenarios gracefully
+- NEVER let subprocess errors crash the server

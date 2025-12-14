@@ -5,11 +5,12 @@ paths: tests/**/*.py
 # Testing Conventions
 
 ## Framework
-- Use pytest with `pytest-asyncio` for async tests
-- Fixtures in `tests/conftest.py`
-- Run: `uv run pytest` (or `pytest -v` for verbose)
 
-## Test Organization (199 tests total)
+- Use pytest with `pytest-asyncio` for async tests
+- Fixtures defined in `tests/conftest.py`
+- Run: `uv run pytest` or `uv run pytest -v` for verbose
+
+## Test Organization (230 tests)
 - `test_api.py` — FastAPI endpoints, validation
 - `test_api_deps.py` — Dependency injection providers
 - `test_api_integration.py` — End-to-end API integration
@@ -43,14 +44,15 @@ try:
 finally:
     app.dependency_overrides.pop(get_session_service, None)
 
-# WRONG: patch() doesn't work for FastAPI Depends()
-# with patch("app.api.deps.get_session_service"):  # ← Won't work!
+# ❌ WRONG: patch() doesn't work with FastAPI Depends()
+# with patch("app.api.deps.get_session_service"):  # NEVER do this!
 ```
 
 ## Service Initialization
+
 Tests rely on conftest.py session-scoped fixture:
 - Services auto-initialized at test session start
-- Do NOT call `services_lifespan()` in individual tests
+- NEVER call `services_lifespan()` in individual tests
 - If testing lifespan, save/restore `_services` global
 
 ## Fixtures
