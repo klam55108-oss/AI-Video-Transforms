@@ -54,3 +54,47 @@ class InitRequest(BaseModel):
         if not UUID_PATTERN.match(v):
             raise ValueError("session_id must be a valid UUID v4 format")
         return v
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Knowledge Graph Request Models
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class CreateProjectRequest(BaseModel):
+    """Request model for creating a new KG project."""
+
+    name: str = Field(..., min_length=1, max_length=200, description="Project name")
+
+
+class BootstrapRequest(BaseModel):
+    """Request model for bootstrapping a project from a transcript."""
+
+    transcript: str = Field(..., min_length=1, description="Transcript content")
+    title: str = Field(..., min_length=1, max_length=500, description="Source title")
+    source_id: str = Field(..., min_length=1, max_length=50, description="Source ID")
+
+
+class ConfirmDiscoveryRequest(BaseModel):
+    """Request model for confirming or rejecting a discovery."""
+
+    discovery_id: str = Field(..., min_length=1, description="Discovery ID to confirm")
+    confirmed: bool = Field(..., description="True to confirm, False to reject")
+
+
+class ExtractRequest(BaseModel):
+    """Request model for extracting entities from a transcript."""
+
+    transcript: str = Field(..., min_length=1, description="Transcript content")
+    title: str = Field(..., min_length=1, max_length=500, description="Source title")
+    source_id: str = Field(..., min_length=1, max_length=50, description="Source ID")
+
+
+class ExportRequest(BaseModel):
+    """Request model for exporting the knowledge graph."""
+
+    format: str = Field(
+        default="graphml",
+        pattern="^(graphml|json)$",
+        description="Export format: 'graphml' or 'json'",
+    )

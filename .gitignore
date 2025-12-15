@@ -73,6 +73,9 @@ htmlcov/
 # Archive directory for deprecated/old files
 archive/
 
+# Runtime logs
+logs/
+
 # Gemini CLI configuration (user-level)
 .gemini/
 

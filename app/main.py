@@ -36,6 +36,7 @@ from app.api.routers import (  # noqa: E402
     chat_router,
     cost_router,
     history_router,
+    kg,
     status_router,
     transcripts_router,
     upload_router,
@@ -67,6 +68,7 @@ app.include_router(history_router)
 app.include_router(transcripts_router)
 app.include_router(cost_router)
 app.include_router(upload_router)
+app.include_router(kg.router)
 
 
 if __name__ == "__main__":

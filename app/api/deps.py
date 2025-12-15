@@ -11,6 +11,7 @@ from fastapi import HTTPException
 
 from app.core.validators import SHORT_ID_PATTERN, UUID_PATTERN
 from app.services import (
+    KnowledgeGraphService,
     SessionService,
     StorageService,
     TranscriptionService,
@@ -116,3 +117,13 @@ class ValidatedTranscriptId:
     def __call__(self, transcript_id: str) -> str:
         """Validate and return the transcript ID."""
         return validate_short_id(transcript_id, "transcript ID")
+
+
+def get_kg_service() -> KnowledgeGraphService:
+    """
+    Dependency provider for KnowledgeGraphService.
+
+    Returns:
+        KnowledgeGraphService instance from the global container
+    """
+    return get_services().kg
