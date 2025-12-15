@@ -258,8 +258,18 @@ function stopStatusPolling() {
 }
 
 async function updateStatus() {
+    if (!sessionId) return;
+
     try {
         const response = await fetch(`/status/${sessionId}`);
+
+        // Handle session expired
+        if (response.status === 410) {
+            renderStatus('expired');
+            sessionStorage.removeItem('agent_session_id');
+            return;
+        }
+
         if (!response.ok) return;
 
         const data = await response.json();
@@ -279,7 +289,8 @@ function renderStatus(status) {
         initializing: { class: 'initializing', text: 'Initializing...' },
         ready: { class: 'ready', text: 'Agent Ready' },
         processing: { class: 'processing', text: 'Processing...' },
-        error: { class: 'error', text: 'Error' }
+        error: { class: 'error', text: 'Error' },
+        expired: { class: 'expired', text: 'Session Expired' }
     };
 
     const state = states[status] || states.error;
@@ -522,8 +533,8 @@ async function handleFileSelect(e) {
             showToast('File uploaded successfully', 'success');
             addMessage(`File uploaded successfully. Starting transcription...`, 'agent');
 
-            // Trigger transcription request
-            const message = `Please transcribe this uploaded video file: ${data.file_path}`;
+            // Trigger transcription request using session-specific upload directory
+            const message = `Please transcribe this uploaded video file: uploads/${sessionId}/${data.file_id}_${file.name}`;
             await sendMessage(message, false);
         } else {
             showToast(data.error || 'Upload failed', 'error');
@@ -804,6 +815,26 @@ async function sendMessage(message, showInUI = true) {
                 return false;
             }
 
+            // Handle session expired (410 Gone)
+            if (response.status === 410) {
+                removeLoading(loadingId);
+                showToast('Session expired. Please start a new session.', 'warning');
+                addMessage('**Session Expired**\n\nYour session has ended. This can happen after server restarts or prolonged inactivity.\n\nClick **"New Chat"** in the sidebar to start a fresh conversation.', 'agent');
+
+                // Clear session state
+                sessionStorage.removeItem('agent_session_id');
+                isProcessing = false;
+
+                // Disable input until new session
+                const userInputEl = document.getElementById('user-input');
+                if (userInputEl) {
+                    userInputEl.disabled = true;
+                    userInputEl.placeholder = 'Session expired - start a new chat';
+                }
+
+                return false;
+            }
+
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.detail || `Server error: ${response.status}`);
@@ -858,6 +889,13 @@ async function loadExistingSession() {
 }
 
 async function initSession() {
+    // Re-enable input (in case it was disabled by session expiry)
+    const userInputEl = document.getElementById('user-input');
+    if (userInputEl) {
+        userInputEl.disabled = false;
+        userInputEl.placeholder = 'Type your message...';
+    }
+
     // Clear any placeholder content
     const listContainer = chatMessages.querySelector('div.space-y-6');
     if (listContainer) {

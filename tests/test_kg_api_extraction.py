@@ -426,9 +426,7 @@ async def test_list_nodes_endpoint_all() -> None:
     app.dependency_overrides[get_kg_service] = lambda: mock_service
 
     # Mock load_knowledge_base to return our test KB
-    with patch(
-        "app.api.routers.kg.load_knowledge_base", return_value=kb
-    ):
+    with patch("app.api.routers.kg.load_knowledge_base", return_value=kb):
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(
@@ -464,9 +462,7 @@ async def test_list_nodes_endpoint_filtered_by_type() -> None:
 
     app.dependency_overrides[get_kg_service] = lambda: mock_service
 
-    with patch(
-        "app.api.routers.kg.load_knowledge_base", return_value=kb
-    ):
+    with patch("app.api.routers.kg.load_knowledge_base", return_value=kb):
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(
@@ -530,9 +526,7 @@ async def test_get_neighbors_endpoint_success() -> None:
 
     app.dependency_overrides[get_kg_service] = lambda: mock_service
 
-    with patch(
-        "app.api.routers.kg.load_knowledge_base", return_value=kb
-    ):
+    with patch("app.api.routers.kg.load_knowledge_base", return_value=kb):
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(
@@ -575,9 +569,7 @@ async def test_get_neighbors_endpoint_isolated_node() -> None:
 
     app.dependency_overrides[get_kg_service] = lambda: mock_service
 
-    with patch(
-        "app.api.routers.kg.load_knowledge_base", return_value=kb
-    ):
+    with patch("app.api.routers.kg.load_knowledge_base", return_value=kb):
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(

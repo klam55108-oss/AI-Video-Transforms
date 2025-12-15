@@ -12,10 +12,12 @@ Follows existing service patterns (SessionService, StorageService).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
 import tempfile
+from collections import OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -27,6 +29,7 @@ from claude_agent_sdk import (
     ResultMessage,
 )
 
+from app.core.config import get_settings
 from app.kg.domain import (
     ConnectionType,
     Discovery,
@@ -89,8 +92,14 @@ class KnowledgeGraphService:
         self.kb_path = data_path / "knowledge_bases"
         self.kb_path.mkdir(parents=True, exist_ok=True)
 
-        # In-memory project cache for fast retrieval
-        self._projects: dict[str, KGProject] = {}
+        # In-memory project cache for fast retrieval with LRU eviction
+        self._projects: OrderedDict[str, KGProject] = OrderedDict()
+        self._max_cache_size = get_settings().kg_project_cache_max_size
+
+        # Concurrency control for Claude API calls
+        self._claude_semaphore = asyncio.Semaphore(
+            get_settings().claude_api_max_concurrent
+        )
 
         # Bootstrap MCP server (created once, reused)
         self._bootstrap_server = create_bootstrap_mcp_server()
@@ -98,7 +107,11 @@ class KnowledgeGraphService:
         # Extraction MCP server (created once, reused)
         self._extraction_server = create_extraction_mcp_server()
 
-        logger.info(f"KnowledgeGraphService initialized with data_path={data_path}")
+        logger.info(
+            f"KnowledgeGraphService initialized with data_path={data_path}, "
+            f"max_concurrent_claude={get_settings().claude_api_max_concurrent}, "
+            f"max_cache_size={self._max_cache_size}"
+        )
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # PROJECT LIFECYCLE
@@ -119,6 +132,8 @@ class KnowledgeGraphService:
         """
         project = KGProject(name=name, state=ProjectState.CREATED)
 
+        # Enforce cache limit before adding
+        self._enforce_cache_limit()
         self._projects[project.id] = project
         await self._save_project(project)
 
@@ -139,6 +154,8 @@ class KnowledgeGraphService:
         """
         # Check cache first
         if project_id in self._projects:
+            # Move to end (LRU update)
+            self._projects.move_to_end(project_id)
             return self._projects[project_id]
 
         # Try loading from disk
@@ -147,6 +164,8 @@ class KnowledgeGraphService:
             try:
                 data = json.loads(project_file.read_text(encoding="utf-8"))
                 project = KGProject.model_validate(data)
+                # Enforce cache limit before adding
+                self._enforce_cache_limit()
                 self._projects[project_id] = project
                 return project
             except (json.JSONDecodeError, ValueError) as e:
@@ -229,7 +248,7 @@ class KnowledgeGraphService:
 
             # Configure Claude with bootstrap tools
             options = ClaudeAgentOptions(
-                model="claude-opus-4-5",
+                model=get_settings().claude_model,
                 system_prompt=BOOTSTRAP_SYSTEM_PROMPT,
                 mcp_servers={"kg-bootstrap": self._bootstrap_server},
                 allowed_tools=BOOTSTRAP_TOOL_NAMES,
@@ -237,24 +256,25 @@ class KnowledgeGraphService:
                 permission_mode="bypassPermissions",  # Tools are safe, no user approval needed
             )
 
-            # Run Claude to perform bootstrap analysis
-            async with ClaudeSDKClient(options) as client:
-                await client.query(prompt)
+            # Run Claude to perform bootstrap analysis (with concurrency limit)
+            async with self._claude_semaphore:
+                async with ClaudeSDKClient(options) as client:
+                    await client.query(prompt)
 
-                # Consume all messages (tools execute and store data in collector)
-                async for message in client.receive_response():
-                    if isinstance(message, ResultMessage):
-                        if message.is_error:
-                            raise RuntimeError(
-                                f"Bootstrap agent error: {message.result}"
+                    # Consume all messages (tools execute and store data in collector)
+                    async for message in client.receive_response():
+                        if isinstance(message, ResultMessage):
+                            if message.is_error:
+                                raise RuntimeError(
+                                    f"Bootstrap agent error: {message.result}"
+                                )
+                            logger.info(
+                                f"Bootstrap completed in {message.num_turns} turns, "
+                                f"cost: ${message.total_cost_usd or 0:.4f}"
                             )
-                        logger.info(
-                            f"Bootstrap completed in {message.num_turns} turns, "
-                            f"cost: ${message.total_cost_usd or 0:.4f}"
-                        )
-                    elif isinstance(message, AssistantMessage):
-                        # Log progress (optional)
-                        pass
+                        elif isinstance(message, AssistantMessage):
+                            # Log progress (optional)
+                            pass
 
             # Collect bootstrap data from tools
             bootstrap_data = get_bootstrap_data()
@@ -557,7 +577,7 @@ Call all bootstrap tools in order to build a complete domain profile.
 
         # Configure Claude with extraction tools
         options = ClaudeAgentOptions(
-            model="claude-opus-4-5",
+            model=get_settings().claude_model,
             system_prompt=(
                 "You are a knowledge extraction specialist. Analyze the content "
                 "and call the extract_knowledge tool with your findings. Extract "
@@ -572,63 +592,70 @@ Call all bootstrap tools in order to build a complete domain profile.
         extraction_result: ExtractionResult | None = None
 
         try:
-            async with ClaudeSDKClient(options) as client:
-                await client.query(prompt)
+            # Run extraction with concurrency limit
+            async with self._claude_semaphore:
+                async with ClaudeSDKClient(options) as client:
+                    await client.query(prompt)
 
-                # Process messages to find extraction result
-                async for message in client.receive_response():
-                    if isinstance(message, ResultMessage):
-                        if message.is_error:
-                            raise RuntimeError(
-                                f"Extraction agent error: {message.result}"
+                    # Process messages to find extraction result
+                    async for message in client.receive_response():
+                        if isinstance(message, ResultMessage):
+                            if message.is_error:
+                                raise RuntimeError(
+                                    f"Extraction agent error: {message.result}"
+                                )
+                            logger.info(
+                                f"Extraction completed in {message.num_turns} turns, "
+                                f"cost: ${message.total_cost_usd or 0:.4f}"
                             )
-                        logger.info(
-                            f"Extraction completed in {message.num_turns} turns, "
-                            f"cost: ${message.total_cost_usd or 0:.4f}"
-                        )
 
-                        # Check for extraction result in tool results
-                        logger.debug(
-                            f"Checking ResultMessage for extraction result "
-                            f"(has tool_results: {hasattr(message, 'tool_results')})"
-                        )
-                        if hasattr(message, "tool_results") and message.tool_results:
+                            # Check for extraction result in tool results
                             logger.debug(
-                                f"Found {len(message.tool_results)} tool results to check"
+                                f"Checking ResultMessage for extraction result "
+                                f"(has tool_results: {hasattr(message, 'tool_results')})"
                             )
-                            for i, result in enumerate(message.tool_results):
-                                if (
-                                    isinstance(result, dict)
-                                    and "_extraction_result" in result
-                                ):
-                                    logger.info(
-                                        f"Found extraction result in tool_results[{i}]"
-                                    )
-                                    extraction_result = ExtractionResult.model_validate(
-                                        result["_extraction_result"]
-                                    )
-                    elif isinstance(message, AssistantMessage):
-                        # Check tool use blocks for extraction results
-                        logger.debug(
-                            f"Checking AssistantMessage for extraction result "
-                            f"(has content: {hasattr(message, 'content')})"
-                        )
-                        if hasattr(message, "content"):
-                            for i, block in enumerate(message.content):
-                                if hasattr(block, "tool_result"):
-                                    tool_result = block.tool_result
+                            if (
+                                hasattr(message, "tool_results")
+                                and message.tool_results
+                            ):
+                                logger.debug(
+                                    f"Found {len(message.tool_results)} tool results to check"
+                                )
+                                for i, result in enumerate(message.tool_results):
                                     if (
-                                        isinstance(tool_result, dict)
-                                        and "_extraction_result" in tool_result
+                                        isinstance(result, dict)
+                                        and "_extraction_result" in result
                                     ):
                                         logger.info(
-                                            f"Found extraction result in content[{i}].tool_result"
+                                            f"Found extraction result in tool_results[{i}]"
                                         )
                                         extraction_result = (
                                             ExtractionResult.model_validate(
-                                                tool_result["_extraction_result"]
+                                                result["_extraction_result"]
                                             )
                                         )
+                        elif isinstance(message, AssistantMessage):
+                            # Check tool use blocks for extraction results
+                            logger.debug(
+                                f"Checking AssistantMessage for extraction result "
+                                f"(has content: {hasattr(message, 'content')})"
+                            )
+                            if hasattr(message, "content"):
+                                for i, block in enumerate(message.content):
+                                    if hasattr(block, "tool_result"):
+                                        tool_result = block.tool_result
+                                        if (
+                                            isinstance(tool_result, dict)
+                                            and "_extraction_result" in tool_result
+                                        ):
+                                            logger.info(
+                                                f"Found extraction result in content[{i}].tool_result"
+                                            )
+                                            extraction_result = (
+                                                ExtractionResult.model_validate(
+                                                    tool_result["_extraction_result"]
+                                                )
+                                            )
 
         except Exception as e:
             logger.error(f"Extraction failed for project {project_id}: {e}")
@@ -855,6 +882,21 @@ Call all bootstrap tools in order to build a complete domain profile.
             return None
 
         return kb.stats()
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # CACHE MANAGEMENT
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    def _enforce_cache_limit(self) -> None:
+        """
+        Evict oldest entries if cache exceeds limit.
+
+        Uses LRU (Least Recently Used) eviction policy via OrderedDict.
+        Evicts oldest projects until cache size is below the limit.
+        """
+        while len(self._projects) >= self._max_cache_size:
+            evicted_id, _ = self._projects.popitem(last=False)
+            logger.info(f"Cache eviction: removed project {evicted_id}")
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # PERSISTENCE

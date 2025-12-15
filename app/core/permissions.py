@@ -34,6 +34,34 @@ BLOCKED_SYSTEM_PATHS = [
 ]
 
 
+def validate_file_path(file_path: str) -> tuple[bool, str]:
+    """
+    Validate file path for safety.
+
+    Args:
+        file_path: The path to validate.
+
+    Returns:
+        Tuple of (is_valid, error_message). If valid, error_message is empty.
+    """
+    try:
+        path = Path(file_path).resolve()
+    except (OSError, ValueError) as e:
+        return False, f"Invalid path format: {e}"
+
+    path_str = str(path)
+    for prefix in BLOCKED_SYSTEM_PATHS:
+        if path_str.startswith(prefix):
+            return False, f"Cannot write to system directory: {prefix}"
+
+    if path.name.startswith(".") and not any(
+        p.startswith(".") for p in path.parent.parts
+    ):
+        return False, "Cannot write to hidden files in non-hidden directories"
+
+    return True, ""
+
+
 @dataclass
 class PermissionConfig:
     """
@@ -101,6 +129,26 @@ def create_permission_handler(
                         message=f"Cannot write to system directory: {blocked}",
                         interrupt=True,
                     )
+
+        # Check transcribe_video's optional output_file parameter
+        if tool_name == "mcp__video-tools__transcribe_video":
+            raw_path = input_data.get("output_file", "")
+            if raw_path:
+                try:
+                    normalized_path = str(Path(raw_path).resolve())
+                except (OSError, ValueError):
+                    normalized_path = raw_path
+
+                for blocked in config.global_blocked_paths:
+                    if normalized_path.startswith(blocked):
+                        if config.log_decisions:
+                            logger.warning(
+                                f"DENIED: {tool_name} output_file to {normalized_path} (blocked path: {blocked})"
+                            )
+                        return PermissionResultDeny(
+                            message=f"Cannot write to system directory: {blocked}",
+                            interrupt=True,
+                        )
 
         # Log allowed operations
         if config.log_decisions:

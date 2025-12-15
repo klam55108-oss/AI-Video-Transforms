@@ -139,6 +139,55 @@ class TestPermissionHandler:
 
         assert isinstance(result, PermissionResultAllow)
 
+    @pytest.mark.asyncio
+    async def test_transcribe_video_output_file_blocked(self):
+        """Test that transcribe_video with blocked output_file is denied."""
+        from claude_agent_sdk.types import PermissionResultDeny
+
+        from app.core.permissions import (
+            create_permission_handler,
+            get_default_permission_config,
+        )
+
+        config = get_default_permission_config()
+        handler = create_permission_handler(config)
+
+        # Try to transcribe with output_file to /etc (blocked)
+        result = await handler(
+            tool_name="mcp__video-tools__transcribe_video",
+            input_data={"video_source": "test.mp4", "output_file": "/etc/passwd"},
+            context={},
+        )
+
+        assert isinstance(result, PermissionResultDeny)
+        assert "etc" in result.message.lower() or "cannot" in result.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_transcribe_video_output_file_allowed(self):
+        """Test that transcribe_video with safe output_file is allowed."""
+        from claude_agent_sdk.types import PermissionResultAllow
+
+        from app.core.permissions import (
+            create_permission_handler,
+            get_default_permission_config,
+        )
+
+        config = get_default_permission_config()
+        handler = create_permission_handler(config)
+
+        # Try to transcribe with output_file to safe location
+        result = await handler(
+            tool_name="mcp__video-tools__transcribe_video",
+            input_data={
+                "video_source": "test.mp4",
+                "output_file": "/tmp/transcript.txt",
+            },
+            context={},
+        )
+
+        assert isinstance(result, PermissionResultAllow)
+        assert result.updated_input["output_file"] == "/tmp/transcript.txt"
+
 
 class TestPermissionFactory:
     """Test permission handler factory functions."""
@@ -161,3 +210,62 @@ class TestPermissionFactory:
         handler = create_permission_handler(config)
 
         assert callable(handler)
+
+
+class TestValidateFilePath:
+    """Test validate_file_path function."""
+
+    def test_blocked_system_paths(self):
+        """Test that system paths are blocked."""
+        from app.core.permissions import validate_file_path
+
+        # Test various system paths
+        is_valid, error = validate_file_path("/etc/passwd")
+        assert not is_valid
+        assert "system directory" in error.lower()
+
+        is_valid, error = validate_file_path("/usr/bin/test")
+        assert not is_valid
+        assert "system directory" in error.lower()
+
+        is_valid, error = validate_file_path("/var/log/test.log")
+        assert not is_valid
+        assert "system directory" in error.lower()
+
+    def test_valid_path_allowed(self):
+        """Test that valid paths are allowed."""
+        from app.core.permissions import validate_file_path
+
+        is_valid, error = validate_file_path("/tmp/test.txt")
+        assert is_valid
+        assert error == ""
+
+        is_valid, error = validate_file_path("/home/user/documents/file.txt")
+        assert is_valid
+        assert error == ""
+
+    def test_hidden_file_blocked(self):
+        """Test that hidden files in non-hidden dirs are blocked."""
+        from app.core.permissions import validate_file_path
+
+        is_valid, error = validate_file_path("/home/user/.secret")
+        assert not is_valid
+        assert "hidden" in error.lower()
+
+    def test_invalid_path_format(self):
+        """Test that malformed paths are rejected."""
+        from app.core.permissions import validate_file_path
+
+        # Test with null bytes (common attack vector)
+        is_valid, error = validate_file_path("/tmp/test\x00.txt")
+        assert not is_valid
+        assert "invalid" in error.lower() or "format" in error.lower()
+
+    def test_path_traversal_normalized(self):
+        """Test that path traversal attempts are normalized and blocked."""
+        from app.core.permissions import validate_file_path
+
+        # Attempt to traverse to /etc via /tmp/../etc/passwd
+        is_valid, error = validate_file_path("/tmp/../etc/passwd")
+        assert not is_valid
+        assert "system directory" in error.lower()

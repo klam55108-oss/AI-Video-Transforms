@@ -465,7 +465,9 @@ async def test_get_kg_stats_project_not_found(mock_kg_service: MagicMock) -> Non
 @pytest.mark.asyncio
 async def test_tool_handles_service_exception(mock_kg_service: MagicMock) -> None:
     """Test that tools gracefully handle service exceptions."""
-    mock_kg_service.list_projects.side_effect = RuntimeError("Database connection failed")
+    mock_kg_service.list_projects.side_effect = RuntimeError(
+        "Database connection failed"
+    )
 
     with patch("app.agent.kg_tool._get_kg_service", return_value=mock_kg_service):
         result = await _list_kg_projects({})

@@ -298,7 +298,6 @@ class TestUploadEndpoint:
             result = response.json()
             assert result["success"] is True
             assert result["file_id"] is not None
-            assert result["file_path"] is not None
 
     @pytest.mark.asyncio
     async def test_upload_accepts_all_allowed_extensions(self, temp_upload_dir: Path):

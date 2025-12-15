@@ -14,38 +14,7 @@ from typing import Any
 
 from claude_agent_sdk import tool
 
-from app.core.permissions import BLOCKED_SYSTEM_PATHS  # noqa: E402
-
-
-def _validate_path(file_path: str) -> tuple[bool, str]:
-    """
-    Validate the file path for safety and accessibility.
-
-    Args:
-        file_path: The path to validate.
-
-    Returns:
-        Tuple of (is_valid, error_message). If valid, error_message is empty.
-    """
-    # Normalize and resolve the path
-    try:
-        path = Path(file_path).resolve()
-    except (OSError, ValueError) as e:
-        return False, f"Invalid path format: {e}"
-
-    # Prevent writing to sensitive system directories
-    path_str = str(path)
-    for prefix in BLOCKED_SYSTEM_PATHS:
-        if path_str.startswith(prefix):
-            return False, f"Cannot write to system directory: {prefix}"
-
-    # Prevent overwriting hidden files unless explicitly in a hidden directory
-    if path.name.startswith(".") and not any(
-        p.startswith(".") for p in path.parent.parts
-    ):
-        return False, "Cannot write to hidden files in non-hidden directories"
-
-    return True, ""
+from app.core.permissions import validate_file_path
 
 
 def _ensure_parent_directory(file_path: Path) -> tuple[bool, str]:
@@ -166,7 +135,7 @@ async def write_file(args: dict[str, Any]) -> dict[str, Any]:
         }
 
     # Validate path safety
-    is_valid, error_msg = _validate_path(str(path))
+    is_valid, error_msg = validate_file_path(str(path))
     if not is_valid:
         return {
             "content": [

@@ -21,6 +21,7 @@ from claude_agent_sdk import (
 
 from app.agent import video_tools_server
 from app.agent.prompts import SYSTEM_PROMPT
+from app.core.config import get_settings
 from app.core.cost_tracking import SessionCost
 from app.core.permissions import (
     create_permission_handler,
@@ -35,13 +36,15 @@ from app.models.structured import (
 # Logging configuration
 logger = logging.getLogger(__name__)
 
-# Configuration constants
-RESPONSE_TIMEOUT_SECONDS: float = 300.0  # 5 minutes for transcription
-GREETING_TIMEOUT_SECONDS: float = 30.0  # 30 seconds for initial greeting
-SESSION_TTL_SECONDS: float = 3600.0  # 1 hour session lifetime
-CLEANUP_INTERVAL_SECONDS: float = 300.0  # 5 minutes between cleanup runs
-QUEUE_MAX_SIZE: int = 10  # Maximum pending messages per queue
-GRACEFUL_SHUTDOWN_TIMEOUT: float = 5.0  # Seconds to wait before force-cancel
+# Configuration constants (backward compatibility)
+# NOTE: These are now loaded from Settings but kept as module-level
+# accessors for backward compatibility with existing code
+RESPONSE_TIMEOUT_SECONDS: float = get_settings().response_timeout
+GREETING_TIMEOUT_SECONDS: float = get_settings().greeting_timeout
+SESSION_TTL_SECONDS: float = get_settings().session_ttl
+CLEANUP_INTERVAL_SECONDS: float = get_settings().cleanup_interval
+QUEUE_MAX_SIZE: int = get_settings().queue_max_size
+GRACEFUL_SHUTDOWN_TIMEOUT: float = get_settings().graceful_shutdown_timeout
 
 
 # --------------------------------------------------------------------------
@@ -283,7 +286,7 @@ class SessionActor:
             )
 
             options = ClaudeAgentOptions(
-                model="claude-opus-4-5",
+                model=get_settings().claude_model,
                 system_prompt=SYSTEM_PROMPT,
                 mcp_servers={"video-tools": video_tools_server},
                 allowed_tools=[
@@ -312,7 +315,7 @@ class SessionActor:
                 # Handle Initial Greeting
                 try:
                     initial_prompt = (
-                        "Start by greeting me following your <phase name=\"gathering_input\"> workflow. "
+                        'Start by greeting me following your <phase name="gathering_input"> workflow. '
                         "Your greeting MUST include: "
                         "(1) mention you use gpt-4o-transcribe model, "
                         "(2) list accepted formats (local files AND YouTube URLs), "

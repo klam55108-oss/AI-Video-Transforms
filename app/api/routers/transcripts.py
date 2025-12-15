@@ -53,16 +53,21 @@ async def download_transcript(
     Raises:
         HTTPException: If transcript or file not found
     """
-    metadata = storage_svc.get_transcript_metadata(transcript_id)
-    if not metadata:
+    # Get raw metadata from storage (includes internal file_path)
+    from app.core.storage import storage as raw_storage
+
+    metadata_dict = raw_storage.get_transcript(transcript_id)
+    if not metadata_dict:
         raise HTTPException(status_code=404, detail="Transcript not found")
 
-    file_path = Path(metadata.file_path)
+    file_path = Path(metadata_dict["file_path"])
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found on disk")
 
     return FileResponse(
-        path=str(file_path), filename=metadata.filename, media_type="text/plain"
+        path=str(file_path),
+        filename=metadata_dict["filename"],
+        media_type="text/plain",
     )
 
 

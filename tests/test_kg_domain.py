@@ -13,7 +13,6 @@ This module tests the Pydantic models used for the KG bootstrap system:
 from __future__ import annotations
 
 
-
 class TestThingType:
     """Test ThingType model."""
 
@@ -70,7 +69,10 @@ class TestConnectionType:
 
         assert connection_type.name == "worked_for"
         assert connection_type.display_name == "worked for"
-        assert connection_type.description == "Employment relationship between person and organization"
+        assert (
+            connection_type.description
+            == "Employment relationship between person and organization"
+        )
         assert connection_type.examples == []
 
     def test_connection_type_directional_default(self):
@@ -154,7 +156,9 @@ class TestDomainProfile:
         )
 
         assert profile.name == "CIA Mind Control Research"
-        assert profile.description == "Knowledge graph about MKUltra and related programs"
+        assert (
+            profile.description == "Knowledge graph about MKUltra and related programs"
+        )
         # Check defaults
         assert profile.thing_types == []
         assert profile.connection_types == []
@@ -245,8 +249,14 @@ class TestDomainProfile:
             name="Test Domain",
             description="Test description",
             connection_types=[
-                ConnectionType(name="worked_for", display_name="worked for", description="Employment"),
-                ConnectionType(name="funded_by", display_name="funded by", description="Funding"),
+                ConnectionType(
+                    name="worked_for",
+                    display_name="worked for",
+                    description="Employment",
+                ),
+                ConnectionType(
+                    name="funded_by", display_name="funded by", description="Funding"
+                ),
             ],
         )
 
@@ -269,7 +279,9 @@ class TestDomainProfile:
         assert profile.refinement_count == 2
 
         profile.add_connection_type(
-            ConnectionType(name="conn1", display_name="conn 1", description="First connection")
+            ConnectionType(
+                name="conn1", display_name="conn 1", description="First connection"
+            )
         )
         assert profile.refinement_count == 3
 

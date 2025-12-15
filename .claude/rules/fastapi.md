@@ -72,10 +72,13 @@ from app.core.session import SessionActor  # NEVER do this in routers
 ## Error Responses
 
 ```python
-raise HTTPException(status_code=404, detail="Session not found")
 raise HTTPException(status_code=400, detail="Invalid video format")
+raise HTTPException(status_code=404, detail="Session not found")
+raise HTTPException(status_code=410, detail="Session expired")  # Frontend handles gracefully
 raise HTTPException(status_code=503, detail="Service unavailable")
 ```
+
+**Note**: HTTP 410 (Gone) indicates session expiry. Frontend shows user-friendly message and clears session state.
 
 ## ServiceContainer Pattern
 

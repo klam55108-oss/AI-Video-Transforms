@@ -445,6 +445,14 @@ code, pre, .font-mono {
     background: var(--status-warning);
 }
 
+.status-dot.expired {
+    background: var(--status-warning);
+}
+
+.status-dot.expired::before {
+    background: var(--status-warning);
+}
+
 /* ==============================================
    CHAT MESSAGES
    ============================================== */

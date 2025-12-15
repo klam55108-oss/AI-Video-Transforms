@@ -10,7 +10,7 @@ paths: tests/**/*.py
 - Fixtures defined in `tests/conftest.py`
 - Run: `uv run pytest` or `uv run pytest -v` for verbose
 
-## Test Organization (522 tests across 26 modules)
+## Test Organization (534 tests across 27 modules)
 
 ### Core Tests
 | File | Description |
@@ -18,12 +18,13 @@ paths: tests/**/*.py
 | `test_api.py` | FastAPI endpoints, validation |
 | `test_api_deps.py` | Dependency injection providers |
 | `test_api_integration.py` | End-to-end API integration |
+| `test_config.py` | Settings, env overrides, singleton caching |
 | `test_services.py` | Service layer (SessionService, StorageService) |
 | `test_storage.py` | File persistence, atomicity |
 | `test_concurrency.py` | Race conditions, TTL |
 | `test_async.py` | Timeouts, queue behavior |
 | `test_cost.py` | Usage tracking |
-| `test_permissions.py` | Access controls |
+| `test_permissions.py` | Access controls, path validation |
 | `test_structured.py` | Schema validation |
 | `test_transcribe_tool.py` | Transcription logic |
 

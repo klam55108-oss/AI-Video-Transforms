@@ -3,7 +3,7 @@
 > Transform videos into searchable transcripts and knowledge graphs through an intelligent AI chat interface.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-522%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-534%20passing-brightgreen.svg)](#testing)
 [![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#development)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -90,6 +90,7 @@ app/
 │   ├── transcription_service.py
 │   └── kg_service.py       # Knowledge graph orchestration
 ├── core/                   # Infrastructure
+│   ├── config.py           # Centralized configuration (pydantic-settings)
 │   ├── session.py          # SessionActor (critical)
 │   ├── storage.py          # Atomic file persistence
 │   ├── cost_tracking.py    # Token usage aggregation
@@ -113,7 +114,7 @@ mcp_servers/                # External MCP servers (for Claude Code)
 ├── codex/                  # GPT-5.1-Codex-Max
 └── gemini/                 # Gemini CLI
 
-tests/                      # 522 tests across 26 modules
+tests/                      # 534 tests across 27 modules
 data/                       # Runtime storage (sessions, transcripts, kg_projects)
 ```
 
@@ -225,7 +226,7 @@ uv run mypy . && uv run ruff check . && uv run ruff format . && uv run pytest
 
 ### Testing
 
-**522 tests** across 26 modules:
+**534 tests** across 27 modules:
 
 | Category | Coverage |
 |----------|----------|
@@ -239,21 +240,32 @@ uv run mypy . && uv run ruff check . && uv run ruff format . && uv run pytest
 
 ## Configuration
 
-### Environment Variables
+### Required Environment Variables
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...    # Claude Agent SDK (required)
 OPENAI_API_KEY=sk-...            # Whisper API (required)
 ```
 
+### Optional Configuration
+
+All settings have sensible defaults. Override via environment variables with `APP_` prefix:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APP_CLAUDE_MODEL` | `claude-opus-4-5` | Claude model ID |
+| `APP_CLAUDE_API_MAX_CONCURRENT` | `2` | Max concurrent Claude API calls |
+| `APP_RESPONSE_TIMEOUT` | `300.0` | Agent response timeout (seconds) |
+| `APP_SESSION_TTL` | `3600.0` | Session expiry (1 hour) |
+| `APP_CLEANUP_INTERVAL` | `300.0` | Cleanup task interval (5 min) |
+| `APP_QUEUE_MAX_SIZE` | `10` | Max pending messages per session |
+| `APP_KG_PROJECT_CACHE_MAX_SIZE` | `100` | LRU cache size for KG projects |
+
 ### Defaults
 
 | Setting | Value |
 |---------|-------|
 | Upload max size | 500MB |
-| Session TTL | 1 hour |
-| Response timeout | 5 minutes |
-| Cleanup interval | 5 minutes |
 | Video formats | mp4, mkv, avi, mov, webm, m4v |
 
 ---
@@ -282,6 +294,7 @@ OPENAI_API_KEY=sk-...            # Whisper API (required)
 | **Frontend** | DOMPurify XSS sanitization |
 | **Storage** | Atomic writes (write-to-temp-then-rename) |
 | **Sessions** | 1-hour TTL with auto-cleanup |
+| **API Calls** | Concurrency limits prevent cost blowouts (default: 2) |
 
 ---
 

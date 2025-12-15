@@ -84,16 +84,18 @@ class TranscriptionService:
         Returns:
             TranscriptContent model or None if not found
         """
-        metadata = self._storage.get_transcript_metadata(transcript_id)
-        if not metadata:
+        # Get raw metadata from storage (includes internal file_path)
+        from app.core.storage import storage as raw_storage
+
+        metadata_dict = raw_storage.get_transcript(transcript_id)
+        if not metadata_dict:
             logger.warning(f"Transcript not found: {transcript_id}")
             return None
 
-        content = self._storage.get_transcript_content(metadata.file_path)
+        file_path = metadata_dict["file_path"]
+        content = self._storage.get_transcript_content(file_path)
         if not content:
-            logger.error(
-                f"Transcript metadata exists but file missing: {metadata.file_path}"
-            )
+            logger.error(f"Transcript metadata exists but file missing: {file_path}")
             return None
 
         return content

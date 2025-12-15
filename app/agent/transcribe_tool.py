@@ -126,13 +126,18 @@ def _extract_audio_from_video(video_path: str, output_dir: str) -> str:
 
     cmd = [
         "ffmpeg",
-        "-i", video_path,
-        "-vn",                    # No video
-        "-acodec", "libmp3lame",  # MP3 codec
-        "-ar", "44100",           # Sample rate
-        "-ac", "2",               # Stereo
-        "-q:a", "2",              # Quality (VBR, 0-9 where lower is better)
-        "-y",                     # Overwrite output
+        "-i",
+        video_path,
+        "-vn",  # No video
+        "-acodec",
+        "libmp3lame",  # MP3 codec
+        "-ar",
+        "44100",  # Sample rate
+        "-ac",
+        "2",  # Stereo
+        "-q:a",
+        "2",  # Quality (VBR, 0-9 where lower is better)
+        "-y",  # Overwrite output
         output_audio_path,
     ]
 
@@ -231,12 +236,16 @@ def _transcribe_segment(
             if prompt:
                 transcription_args["prompt"] = prompt
 
-            logger.info(f"Segment {segment_num}: calling OpenAI API with model=gpt-4o-transcribe")
+            logger.info(
+                f"Segment {segment_num}: calling OpenAI API with model=gpt-4o-transcribe"
+            )
             transcription = client.audio.transcriptions.create(**transcription_args)
 
         # response_format="text" returns a string directly, not an object
         result = transcription if isinstance(transcription, str) else transcription.text
-        logger.info(f"Segment {segment_num}: transcription complete, length={len(result)} chars")
+        logger.info(
+            f"Segment {segment_num}: transcription complete, length={len(result)} chars"
+        )
         return result
 
     except Exception as e:
@@ -341,8 +350,15 @@ def _perform_transcription(
             full_transcription = " ".join(transcription_parts)
 
             if output_file:
-                with open(output_file, "w", encoding="utf-8") as f:
-                    f.write(full_transcription)
+                from app.core.permissions import validate_file_path
+
+                is_valid, error_msg = validate_file_path(output_file)
+                if not is_valid:
+                    logger.warning(f"Blocked write to: {output_file} - {error_msg}")
+                    # Continue transcription, just skip the file write
+                else:
+                    with open(output_file, "w", encoding="utf-8") as f:
+                        f.write(full_transcription)
 
             return {
                 "success": True,

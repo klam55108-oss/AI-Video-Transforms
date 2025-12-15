@@ -179,7 +179,9 @@ def sample_domain_profile() -> DomainProfile:
 # =============================================================================
 
 
-def test_save_creates_files(tmp_path: Path, sample_knowledge_base: KnowledgeBase) -> None:
+def test_save_creates_files(
+    tmp_path: Path, sample_knowledge_base: KnowledgeBase
+) -> None:
     """Test that save_knowledge_base creates the expected directory structure."""
     save_knowledge_base(sample_knowledge_base, tmp_path)
 
@@ -399,7 +401,9 @@ def test_save_load_roundtrip_with_domain_profile(
     assert loaded_person_type.icon == "👤"
 
     # Verify connection types
-    assert len(loaded_dp.connection_types) == len(sample_domain_profile.connection_types)
+    assert len(loaded_dp.connection_types) == len(
+        sample_domain_profile.connection_types
+    )
     loaded_conn_type = loaded_dp.connection_types[0]
     assert loaded_conn_type.name == "worked_for"
     assert loaded_conn_type.directional is True
