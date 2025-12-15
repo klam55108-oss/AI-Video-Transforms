@@ -8,11 +8,8 @@ managing session lifecycle.
 
 import asyncio
 import logging
-import os
 import time
 from dataclasses import dataclass
-
-from fastapi import HTTPException
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -290,11 +287,18 @@ class SessionActor:
                 system_prompt=SYSTEM_PROMPT,
                 mcp_servers={"video-tools": video_tools_server},
                 allowed_tools=[
+                    # Transcription tools
                     "mcp__video-tools__transcribe_video",
                     "mcp__video-tools__write_file",
                     "mcp__video-tools__save_transcript",
                     "mcp__video-tools__get_transcript",
                     "mcp__video-tools__list_transcripts",
+                    # Knowledge Graph tools
+                    "mcp__video-tools__extract_to_kg",
+                    "mcp__video-tools__list_kg_projects",
+                    "mcp__video-tools__create_kg_project",
+                    "mcp__video-tools__bootstrap_kg_project",
+                    "mcp__video-tools__get_kg_stats",
                 ],
                 can_use_tool=permission_handler,
                 output_format={
@@ -413,81 +417,3 @@ class SessionActor:
 
             self._running_event.clear()
             logger.info(f"Session {self.session_id}: Worker shutdown")
-
-
-# In-memory storage for active sessions
-active_sessions: dict[str, SessionActor] = {}
-sessions_lock = asyncio.Lock()  # Protects active_sessions access
-
-
-async def cleanup_expired_sessions() -> None:
-    """Periodically remove expired sessions."""
-    while True:
-        await asyncio.sleep(CLEANUP_INTERVAL_SECONDS)
-
-        # Collect and remove expired sessions while holding the lock
-        # to prevent race conditions with session creation
-        actors_to_stop: list[SessionActor] = []
-        async with sessions_lock:
-            expired_ids = [
-                sid
-                for sid, actor in active_sessions.items()
-                if actor.is_expired() or not actor.is_running
-            ]
-            for sid in expired_ids:
-                logger.info(f"Cleaning up expired session: {sid}")
-                actors_to_stop.append(active_sessions.pop(sid))
-
-        # Stop actors outside the lock to avoid blocking other operations
-        for actor in actors_to_stop:
-            await actor.stop()
-
-
-async def get_or_create_session(session_id: str) -> SessionActor:
-    """
-    Retrieves an existing session or spawns a new actor.
-
-    Uses double-checked locking pattern to minimize lock contention:
-    1. First check with lock to see if session exists
-    2. If not, create and start actor outside lock (slow operation)
-    3. Re-acquire lock to add to dict, handling race if another created it
-    """
-    # First check: see if session already exists
-    async with sessions_lock:
-        if session_id in active_sessions:
-            actor = active_sessions[session_id]
-            if actor.is_running:
-                return actor
-            else:
-                del active_sessions[session_id]
-                logger.warning(f"Cleaned up dead session: {session_id}")
-
-    # Create and start new actor outside the lock (slow operation)
-    logger.info(f"Initializing new session actor: {session_id}")
-
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        raise HTTPException(
-            status_code=503, detail="Service unavailable: API not configured"
-        )
-
-    new_actor = SessionActor(session_id)
-    await new_actor.start()
-
-    # Second check: add to dict, handling race condition
-    async with sessions_lock:
-        if session_id in active_sessions:
-            # Another request created the session while we were starting
-            # Stop our actor and use theirs
-            existing = active_sessions[session_id]
-            if existing.is_running:
-                await new_actor.stop()
-                logger.info(
-                    f"Session {session_id[:8]} created by another request, reusing"
-                )
-                return existing
-            else:
-                # Existing one died, use ours
-                del active_sessions[session_id]
-
-        active_sessions[session_id] = new_actor
-        return new_actor

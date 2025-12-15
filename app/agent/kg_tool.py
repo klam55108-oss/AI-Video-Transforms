@@ -20,12 +20,37 @@ from claude_agent_sdk import tool
 if TYPE_CHECKING:
     from app.services.kg_service import KnowledgeGraphService
 
+# Module-level cache for fallback singleton
+_kg_service_singleton: "KnowledgeGraphService | None" = None
+
 
 def _get_kg_service() -> "KnowledgeGraphService":
-    """Lazy import to avoid circular dependency."""
-    from app.api.deps import get_kg_service
+    """
+    Get KnowledgeGraphService instance.
 
-    return get_kg_service()
+    Resolution order:
+    1. Try FastAPI ServiceContainer (works in request context)
+    2. Fall back to lazy-initialized singleton (works in MCP agent context)
+    """
+    global _kg_service_singleton
+
+    # First, try FastAPI container (works during HTTP requests)
+    try:
+        from app.services import get_services
+
+        return get_services().kg
+    except RuntimeError:
+        # Services not initialized - we're outside FastAPI context
+        pass
+
+    # Fallback: create singleton for MCP agent context
+    if _kg_service_singleton is None:
+        from pathlib import Path
+        from app.services.kg_service import KnowledgeGraphService
+
+        _kg_service_singleton = KnowledgeGraphService(data_path=Path("data"))
+
+    return _kg_service_singleton
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
