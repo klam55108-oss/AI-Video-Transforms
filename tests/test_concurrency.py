@@ -13,6 +13,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.services.session_service import SessionService
+
 
 class TestConcurrentSessionCreation:
     """Test that concurrent session creation with same ID creates only one worker."""
@@ -23,16 +25,8 @@ class TestConcurrentSessionCreation:
         When multiple coroutines try to create a session with the same ID
         concurrently, only one worker should be created.
         """
-        # Import inside test to allow patching
-        from app.core.session import (
-            get_or_create_session,
-            active_sessions,
-            sessions_lock,
-        )
-
-        # Clear any existing sessions
-        async with sessions_lock:
-            active_sessions.clear()
+        # Create service instance
+        service = SessionService()
 
         # Mock the ClaudeSDKClient to avoid real API calls
         mock_client_instance = AsyncMock()
@@ -52,9 +46,9 @@ class TestConcurrentSessionCreation:
 
                 # Launch multiple concurrent requests for the same session
                 results = await asyncio.gather(
-                    get_or_create_session(session_id),
-                    get_or_create_session(session_id),
-                    get_or_create_session(session_id),
+                    service.get_or_create(session_id),
+                    service.get_or_create(session_id),
+                    service.get_or_create(session_id),
                 )
 
                 # All results should be the same SessionActor instance
@@ -63,16 +57,16 @@ class TestConcurrentSessionCreation:
                 )
 
                 # Verify only one session exists
-                async with sessions_lock:
-                    assert len(active_sessions) == 1
-                    assert session_id in active_sessions
+                async with service._sessions_lock:
+                    assert len(service._active_sessions) == 1
+                    assert session_id in service._active_sessions
 
                 # Cleanup
                 actor = results[0]
                 await actor.stop()
-                async with sessions_lock:
-                    if session_id in active_sessions:
-                        del active_sessions[session_id]
+                async with service._sessions_lock:
+                    if session_id in service._active_sessions:
+                        del service._active_sessions[session_id]
 
 
 class TestSessionTTLCleanup:
@@ -116,29 +110,23 @@ class TestSessionTTLCleanup:
     async def test_cleanup_removes_expired_sessions(self):
         """Test that cleanup_expired_sessions removes expired sessions."""
         import time
-        from app.core.session import (
-            SessionActor,
-            active_sessions,
-            sessions_lock,
-            cleanup_expired_sessions,
-        )
+        from app.core.session import SessionActor
 
-        # Clear existing sessions
-        async with sessions_lock:
-            active_sessions.clear()
+        # Create service instance
+        service = SessionService()
 
         # Create a mock expired session
         actor = SessionActor("expired-session")
         actor.last_activity = time.time() - 7200  # 2 hours ago
         actor._running_event.clear()  # Mark as not running
 
-        async with sessions_lock:
-            active_sessions["expired-session"] = actor
+        async with service._sessions_lock:
+            service._active_sessions["expired-session"] = actor
 
         # Create cleanup task with short interval for testing
-        with patch("app.core.session.CLEANUP_INTERVAL_SECONDS", 0.01):
+        with patch("app.services.session_service.CLEANUP_INTERVAL_SECONDS", 0.01):
             # Run one cleanup iteration
-            cleanup_task = asyncio.create_task(cleanup_expired_sessions())
+            cleanup_task = asyncio.create_task(service.run_cleanup_loop())
             await asyncio.sleep(0.05)  # Wait for cleanup to run
             cleanup_task.cancel()
             try:
@@ -147,8 +135,8 @@ class TestSessionTTLCleanup:
                 pass
 
         # Verify session was cleaned up
-        async with sessions_lock:
-            assert "expired-session" not in active_sessions
+        async with service._sessions_lock:
+            assert "expired-session" not in service._active_sessions
 
 
 class TestWorkerCancellation:
@@ -210,60 +198,62 @@ class TestRaceConditions:
     @pytest.mark.asyncio
     async def test_concurrent_session_access_is_safe(self):
         """Test that multiple concurrent accesses to active_sessions are safe."""
-        from app.core.session import SessionActor, active_sessions, sessions_lock
+        from app.core.session import SessionActor
 
-        # Clear existing sessions
-        async with sessions_lock:
-            active_sessions.clear()
+        # Create service instance
+        service = SessionService()
 
         async def create_and_delete_session(session_id: str):
             """Create a session, verify it exists, then delete it."""
             actor = SessionActor(session_id)
             actor._running_event.set()
 
-            async with sessions_lock:
-                active_sessions[session_id] = actor
+            async with service._sessions_lock:
+                service._active_sessions[session_id] = actor
 
             # Small delay to increase chance of race conditions
             await asyncio.sleep(0.001)
 
-            async with sessions_lock:
-                if session_id in active_sessions:
-                    del active_sessions[session_id]
+            async with service._sessions_lock:
+                if session_id in service._active_sessions:
+                    del service._active_sessions[session_id]
 
         # Run many concurrent operations
         tasks = [create_and_delete_session(f"session-{i}") for i in range(50)]
         await asyncio.gather(*tasks)
 
         # All sessions should be cleaned up
-        async with sessions_lock:
-            assert len(active_sessions) == 0
+        async with service._sessions_lock:
+            assert len(service._active_sessions) == 0
 
     @pytest.mark.asyncio
     async def test_lock_prevents_dict_modification_during_iteration(self):
         """Test that the lock prevents modification during iteration."""
-        from app.core.session import SessionActor, active_sessions, sessions_lock
+        from app.core.session import SessionActor
+
+        # Create service instance
+        service = SessionService()
 
         # Clear and populate with test sessions
-        async with sessions_lock:
-            active_sessions.clear()
+        async with service._sessions_lock:
+            service._active_sessions.clear()
             for i in range(10):
                 actor = SessionActor(f"iter-session-{i}")
-                active_sessions[f"iter-session-{i}"] = actor
+                service._active_sessions[f"iter-session-{i}"] = actor
 
         errors = []
 
         async def iterate_sessions():
             """Iterate over sessions while holding lock."""
-            async with sessions_lock:
-                for session_id in list(active_sessions.keys()):
+            async with service._sessions_lock:
+                for session_id in list(service._active_sessions.keys()):
                     await asyncio.sleep(0.001)
 
         async def modify_sessions():
             """Try to modify sessions."""
             for i in range(10, 20):
-                async with sessions_lock:
-                    active_sessions[f"iter-session-{i}"] = SessionActor(
+                async with service._sessions_lock:
+                    service._active_sessions[f"iter-session-{i}"] = SessionActor(
                         f"iter-session-{i}"
                     )
                 await asyncio.sleep(0.001)
@@ -280,5 +270,5 @@ class TestRaceConditions:
         assert len(errors) == 0, f"Race condition detected: {errors}"
 
         # Cleanup
-        async with sessions_lock:
-            active_sessions.clear()
+        async with service._sessions_lock:
+            service._active_sessions.clear()

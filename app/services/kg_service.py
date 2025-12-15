@@ -557,7 +557,7 @@ Call all bootstrap tools in order to build a complete domain profile.
 
         # Configure Claude with extraction tools
         options = ClaudeAgentOptions(
-            model="claude-opus-4-5-20251101",
+            model="claude-opus-4-5",
             system_prompt=(
                 "You are a knowledge extraction specialist. Analyze the content "
                 "and call the extract_knowledge tool with your findings. Extract "
