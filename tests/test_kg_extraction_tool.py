@@ -184,7 +184,10 @@ class TestExtractKnowledgeReturnsResult:
         assert rel["confidence"] == 0.99
 
         # Validate summary
-        assert extraction_result["summary"] == "Core entities of MKULTRA program identified."
+        assert (
+            extraction_result["summary"]
+            == "Core entities of MKULTRA program identified."
+        )
 
     @pytest.mark.asyncio
     async def test_extract_knowledge_returns_result_with_discoveries(self):

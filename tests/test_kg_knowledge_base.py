@@ -76,35 +76,41 @@ def kb_with_edges(kb_with_nodes: KnowledgeBase) -> KnowledgeBase:
     edge1 = Edge(
         id="edge_1",
         source_node_id="node_person_1",  # Sidney Gottlieb
-        target_node_id="node_org_1",      # CIA
+        target_node_id="node_org_1",  # CIA
     )
-    edge1.add_relationship(RelationshipDetail(
-        relationship_type="worked_for",
-        source_id="source_video_1",
-        confidence=1.0,
-    ))
+    edge1.add_relationship(
+        RelationshipDetail(
+            relationship_type="worked_for",
+            source_id="source_video_1",
+            confidence=1.0,
+        )
+    )
 
     edge2 = Edge(
         id="edge_2",
         source_node_id="node_person_1",  # Sidney Gottlieb
         target_node_id="node_project_1",  # MKUltra
     )
-    edge2.add_relationship(RelationshipDetail(
-        relationship_type="directed",
-        source_id="source_video_1",
-        confidence=0.95,
-    ))
+    edge2.add_relationship(
+        RelationshipDetail(
+            relationship_type="directed",
+            source_id="source_video_1",
+            confidence=0.95,
+        )
+    )
 
     edge3 = Edge(
         id="edge_3",
-        source_node_id="node_org_1",      # CIA
+        source_node_id="node_org_1",  # CIA
         target_node_id="node_project_1",  # MKUltra
     )
-    edge3.add_relationship(RelationshipDetail(
-        relationship_type="funded",
-        source_id="source_video_1",
-        confidence=1.0,
-    ))
+    edge3.add_relationship(
+        RelationshipDetail(
+            relationship_type="funded",
+            source_id="source_video_1",
+            confidence=1.0,
+        )
+    )
 
     kb.add_edge(edge1)
     kb.add_edge(edge2)
@@ -409,10 +415,12 @@ def test_add_edge(kb_with_nodes: KnowledgeBase) -> None:
         source_node_id="node_person_1",
         target_node_id="node_org_1",
     )
-    edge.add_relationship(RelationshipDetail(
-        relationship_type="worked_for",
-        source_id="src_1",
-    ))
+    edge.add_relationship(
+        RelationshipDetail(
+            relationship_type="worked_for",
+            source_id="src_1",
+        )
+    )
 
     result = kb_with_nodes.add_edge(edge)
 

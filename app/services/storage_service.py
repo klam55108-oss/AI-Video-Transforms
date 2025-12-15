@@ -147,7 +147,6 @@ class StorageService:
         return TranscriptMetadata(
             id=entry["id"],
             filename=entry["filename"],
-            file_path=entry["file_path"],
             original_source=entry["original_source"],
             source_type=entry["source_type"],
             created_at=datetime.fromisoformat(entry["created_at"]),
@@ -168,7 +167,6 @@ class StorageService:
             TranscriptMetadata(
                 id=t["id"],
                 filename=t["filename"],
-                file_path=t["file_path"],
                 original_source=t["original_source"],
                 source_type=t["source_type"],
                 created_at=datetime.fromisoformat(t["created_at"]),
@@ -195,7 +193,6 @@ class StorageService:
         return TranscriptMetadata(
             id=data["id"],
             filename=data["filename"],
-            file_path=data["file_path"],
             original_source=data["original_source"],
             source_type=data["source_type"],
             created_at=datetime.fromisoformat(data["created_at"]),

@@ -81,16 +81,7 @@ async def upload_video(
                     )
                 buffer.write(chunk)
 
-        # Return relative path to avoid exposing server filesystem structure
-        # The agent can access files from the project root
-        try:
-            relative_path = file_path.relative_to(Path.cwd())
-            path_to_return = str(relative_path)
-        except ValueError:
-            # If file_path is not under cwd (e.g., in tests), return path from UPLOAD_DIR
-            path_to_return = str(UPLOAD_DIR / session_id / safe_filename)
-
-        return UploadResponse(success=True, file_id=file_id, file_path=path_to_return)
+        return UploadResponse(success=True, file_id=file_id)
     except Exception as e:
         logger.error(f"Upload failed: {e}")
         # Clean up partial file on error

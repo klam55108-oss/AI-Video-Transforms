@@ -8,7 +8,7 @@ AI-powered video transcription and knowledge graph extraction.
 
 ```bash
 uv run python -m app.main              # Dev server → http://127.0.0.1:8000
-uv run pytest                          # 522 tests
+uv run pytest                          # 534 tests
 uv run mypy .                          # Type check (strict)
 uv run ruff check . && ruff format .   # Lint + format
 ```
@@ -28,7 +28,7 @@ OPENAI_API_KEY=sk-...            # gpt-4o-transcribe + Codex MCP (required)
 |-------|----------|----------------|
 | **API** | `app/api/` | 7 routers, deps, error handlers |
 | **Services** | `app/services/` | Session, Storage, Transcription, KnowledgeGraph |
-| **Core** | `app/core/` | SessionActor, StorageManager, cost tracking |
+| **Core** | `app/core/` | SessionActor, StorageManager, cost tracking, config |
 | **Agent** | `app/agent/` | MCP tools + system prompts |
 | **KG** | `app/kg/` | Domain models, graph storage, extraction |
 
@@ -64,6 +64,13 @@ OPENAI_API_KEY=sk-...            # gpt-4o-transcribe + Codex MCP (required)
 - Projects stored in `data/kg_projects/`
 - **Rule**: Always use DomainProfile for extraction context
 
+### Configuration (`app/core/config.py`)
+
+- All settings via `get_settings()` singleton
+- Environment variables with `APP_` prefix (e.g., `APP_CLAUDE_MODEL`)
+- Concurrency control: `APP_CLAUDE_API_MAX_CONCURRENT=2` (prevents cost blowouts)
+- **Rule**: NEVER hardcode configurable values — use `get_settings()`
+
 ## Code Standards
 
 See `.claude/rules/` for detailed guidelines:
@@ -71,6 +78,7 @@ See `.claude/rules/` for detailed guidelines:
 | Rule File | Scope |
 |-----------|-------|
 | @.claude/rules/code-style.md | Type hints, formatting, imports |
+| @.claude/rules/config.md | Centralized configuration, concurrency |
 | @.claude/rules/fastapi.md | Router patterns, dependency injection |
 | @.claude/rules/testing.md | Pytest patterns, mocking |
 | @.claude/rules/mcp-tools.md | MCP tool development |

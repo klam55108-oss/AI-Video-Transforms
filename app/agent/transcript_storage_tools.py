@@ -228,7 +228,7 @@ async def save_transcript(args: dict[str, Any]) -> dict[str, Any]:
                     "type": "text",
                     "text": f"Transcript saved successfully!\n\n"
                     f"**Transcript ID:** `{transcript_id}`\n"
-                    f"**File:** {file_path}\n"
+                    f"**Filename:** {filename}\n"
                     f"**Size:** {file_size:,} bytes ({line_count:,} lines, "
                     f"{char_count:,} characters)\n"
                     f"**Source:** {source_type} - {original_source}\n\n"

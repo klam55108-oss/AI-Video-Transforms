@@ -61,11 +61,13 @@ mcp_server.add_tool("save_transcript", save_transcript_handler)
 
 | Tool | Description |
 |------|-------------|
-| `transcribe_video` | Video/audio → text via gpt-4o-transcribe |
+| `transcribe_video` | Video/audio → text via gpt-4o-transcribe (validates output_file path) |
 | `save_transcript` | Persist with unique 8-char ID |
 | `get_transcript` | Retrieve by ID (lazy loading) |
 | `list_transcripts` | List all saved transcripts |
 | `write_file` | Save content with path validation |
+
+**Security**: Both `transcribe_video` and `write_file` validate paths using `validate_file_path()` from `app/core/permissions.py`. System paths (`/etc`, `/usr`, `/bin`, etc.) are blocked.
 
 ## Knowledge Graph Tools
 

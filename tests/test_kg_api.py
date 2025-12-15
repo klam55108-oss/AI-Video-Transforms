@@ -71,12 +71,14 @@ class MockKGService:
         source_id: str,
     ) -> DomainProfile:
         """Track bootstrap call and return mock profile."""
-        self.bootstrap_calls.append({
-            "project_id": project_id,
-            "transcript": transcript,
-            "title": title,
-            "source_id": source_id,
-        })
+        self.bootstrap_calls.append(
+            {
+                "project_id": project_id,
+                "transcript": transcript,
+                "title": title,
+                "source_id": source_id,
+            }
+        )
         # Return a minimal domain profile
         return DomainProfile(
             name="Mock Domain",
@@ -458,7 +460,10 @@ class TestGetConfirmations:
             assert data[0]["display_name"] == "Subproject"
             assert data[0]["description"] == "A CIA subproject within MKUltra"
             assert len(data[0]["examples"]) == 3
-            assert data[0]["user_question"] == "Track Subprojects as a separate entity type?"
+            assert (
+                data[0]["user_question"]
+                == "Track Subprojects as a separate entity type?"
+            )
         finally:
             app.dependency_overrides.pop(get_kg_service, None)
 

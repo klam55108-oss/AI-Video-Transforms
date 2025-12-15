@@ -71,7 +71,6 @@ class TranscriptMetadata(BaseModel):
 
     id: str
     filename: str
-    file_path: str
     original_source: str
     source_type: str  # "youtube" | "upload" | "local"
     created_at: datetime
@@ -91,7 +90,6 @@ class UploadResponse(BaseModel):
 
     success: bool
     file_id: str | None = None
-    file_path: str | None = None
     error: str | None = None
 
 
