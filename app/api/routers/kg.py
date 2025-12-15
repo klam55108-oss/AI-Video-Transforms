@@ -18,7 +18,7 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
-from app.api.deps import get_kg_service
+from app.api.deps import ValidatedProjectId, get_kg_service
 from app.kg.domain import ProjectState
 from app.kg.persistence import load_knowledge_base
 from app.models.api import (
@@ -72,7 +72,7 @@ async def create_project(
 
 @router.get("/projects/{project_id}", response_model=ProjectStatusResponse)
 async def get_project_status(
-    project_id: str,
+    project_id: str = Depends(ValidatedProjectId()),
     kg_service: KnowledgeGraphService = Depends(get_kg_service),
 ) -> ProjectStatusResponse:
     """
@@ -112,9 +112,9 @@ async def get_project_status(
 
 @router.post("/projects/{project_id}/bootstrap")
 async def bootstrap_project(
-    project_id: str,
     request: BootstrapRequest,
     background_tasks: BackgroundTasks,
+    project_id: str = Depends(ValidatedProjectId()),
     kg_service: KnowledgeGraphService = Depends(get_kg_service),
 ) -> dict[str, str]:
     """
@@ -159,7 +159,7 @@ async def bootstrap_project(
     "/projects/{project_id}/confirmations", response_model=list[DiscoveryResponse]
 )
 async def get_pending_confirmations(
-    project_id: str,
+    project_id: str = Depends(ValidatedProjectId()),
     kg_service: KnowledgeGraphService = Depends(get_kg_service),
 ) -> list[DiscoveryResponse]:
     """
@@ -192,8 +192,8 @@ async def get_pending_confirmations(
 
 @router.post("/projects/{project_id}/confirm")
 async def confirm_discovery(
-    project_id: str,
     request: ConfirmDiscoveryRequest,
+    project_id: str = Depends(ValidatedProjectId()),
     kg_service: KnowledgeGraphService = Depends(get_kg_service),
 ) -> dict[str, str]:
     """
@@ -232,9 +232,9 @@ async def confirm_discovery(
 
 @router.post("/projects/{project_id}/extract")
 async def extract_from_transcript(
-    project_id: str,
     request: ExtractRequest,
     background_tasks: BackgroundTasks,
+    project_id: str = Depends(ValidatedProjectId()),
     kg_service: KnowledgeGraphService = Depends(get_kg_service),
 ) -> dict[str, str]:
     """
@@ -278,7 +278,7 @@ async def extract_from_transcript(
 
 @router.get("/projects/{project_id}/graph")
 async def get_graph_stats(
-    project_id: str,
+    project_id: str = Depends(ValidatedProjectId()),
     kg_service: KnowledgeGraphService = Depends(get_kg_service),
 ) -> dict[str, Any]:
     """
@@ -306,8 +306,8 @@ async def get_graph_stats(
 
 @router.post("/projects/{project_id}/export")
 async def export_graph(
-    project_id: str,
     request: ExportRequest,
+    project_id: str = Depends(ValidatedProjectId()),
     kg_service: KnowledgeGraphService = Depends(get_kg_service),
 ) -> dict[str, str]:
     """
@@ -340,8 +340,8 @@ async def export_graph(
 
 @router.get("/projects/{project_id}/nodes")
 async def list_nodes(
-    project_id: str,
     entity_type: str | None = None,
+    project_id: str = Depends(ValidatedProjectId()),
     kg_service: KnowledgeGraphService = Depends(get_kg_service),
 ) -> list[dict[str, Any]]:
     """
@@ -374,8 +374,8 @@ async def list_nodes(
 
 @router.get("/projects/{project_id}/nodes/{node_id}/neighbors")
 async def get_neighbors(
-    project_id: str,
     node_id: str,
+    project_id: str = Depends(ValidatedProjectId()),
     kg_service: KnowledgeGraphService = Depends(get_kg_service),
 ) -> list[dict[str, Any]]:
     """

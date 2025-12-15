@@ -588,25 +588,42 @@ Call all bootstrap tools in order to build a complete domain profile.
                         )
 
                         # Check for extraction result in tool results
+                        logger.debug(
+                            f"Checking ResultMessage for extraction result "
+                            f"(has tool_results: {hasattr(message, 'tool_results')})"
+                        )
                         if hasattr(message, "tool_results") and message.tool_results:
-                            for result in message.tool_results:
+                            logger.debug(
+                                f"Found {len(message.tool_results)} tool results to check"
+                            )
+                            for i, result in enumerate(message.tool_results):
                                 if (
                                     isinstance(result, dict)
                                     and "_extraction_result" in result
                                 ):
+                                    logger.info(
+                                        f"Found extraction result in tool_results[{i}]"
+                                    )
                                     extraction_result = ExtractionResult.model_validate(
                                         result["_extraction_result"]
                                     )
                     elif isinstance(message, AssistantMessage):
                         # Check tool use blocks for extraction results
+                        logger.debug(
+                            f"Checking AssistantMessage for extraction result "
+                            f"(has content: {hasattr(message, 'content')})"
+                        )
                         if hasattr(message, "content"):
-                            for block in message.content:
+                            for i, block in enumerate(message.content):
                                 if hasattr(block, "tool_result"):
                                     tool_result = block.tool_result
                                     if (
                                         isinstance(tool_result, dict)
                                         and "_extraction_result" in tool_result
                                     ):
+                                        logger.info(
+                                            f"Found extraction result in content[{i}].tool_result"
+                                        )
                                         extraction_result = (
                                             ExtractionResult.model_validate(
                                                 tool_result["_extraction_result"]
@@ -618,6 +635,10 @@ Call all bootstrap tools in order to build a complete domain profile.
             raise RuntimeError(f"Extraction failed: {e}") from e
 
         if not extraction_result:
+            logger.error(
+                f"No extraction result found for project {project_id}. "
+                f"Check that the extraction tool returned _extraction_result in its response."
+            )
             raise ValueError("Extraction failed - no results returned from agent")
 
         # Add source to KB
@@ -724,9 +745,15 @@ Call all bootstrap tools in order to build a complete domain profile.
             KnowledgeBase instance (existing or newly created)
         """
         if project.kb_id:
-            kb = load_knowledge_base(self.kb_path / project.kb_id)
+            kb_path = self.kb_path / project.kb_id
+            kb = load_knowledge_base(kb_path)
             if kb:
                 return kb
+            # Existing KB failed to load - log warning for investigation
+            logger.warning(
+                f"Failed to load existing KB at {kb_path} for project {project.id}. "
+                f"Creating new KB. This may indicate data corruption."
+            )
 
         # Create new KB linked to project
         kb = KnowledgeBase(

@@ -174,7 +174,7 @@ class TestExtractFromTranscript:
         """Test that extraction raises ValueError for non-existent project."""
         with pytest.raises(ValueError, match="not found"):
             await kg_service.extract_from_transcript(
-                project_id="nonexistent12",
+                project_id="000000000000",
                 transcript="Some transcript content",
                 title="Test Video",
                 source_id="source123",
@@ -732,7 +732,7 @@ class TestExportGraph:
         self, kg_service: KnowledgeGraphService
     ) -> None:
         """Test that export_graph returns None for non-existent project."""
-        result = await kg_service.export_graph("nonexistent12")
+        result = await kg_service.export_graph("000000000000")
         assert result is None
 
     @pytest.mark.asyncio
@@ -849,7 +849,7 @@ class TestGetGraphStats:
         self, kg_service: KnowledgeGraphService
     ) -> None:
         """Test that get_graph_stats returns None for non-existent project."""
-        result = await kg_service.get_graph_stats("nonexistent12")
+        result = await kg_service.get_graph_stats("000000000000")
         assert result is None
 
     @pytest.mark.asyncio

@@ -233,7 +233,7 @@ class TestGetProjectStatus:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                response = await client.get("/kg/projects/nonexistent12")
+                response = await client.get("/kg/projects/000000000000")
 
             assert response.status_code == 404
             assert response.json()["detail"] == "Project not found"
@@ -252,7 +252,7 @@ class TestGetProjectStatus:
             thing_types=[ThingType(name="Person", description="A person")],
         )
         project = KGProject(
-            id="domain123456",
+            id="d0a1c2123456",
             name="Domain Test",
             state=ProjectState.ACTIVE,
             domain_profile=profile,
@@ -265,7 +265,7 @@ class TestGetProjectStatus:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                response = await client.get("/kg/projects/domain123456")
+                response = await client.get("/kg/projects/d0a1c2123456")
 
             assert response.status_code == 200
             data = response.json()
@@ -290,7 +290,7 @@ class TestBootstrapProject:
 
         mock_service = MockKGService()
         project = KGProject(
-            id="boot12345678",
+            id="b00112345678",
             name="Bootstrap Test",
             state=ProjectState.CREATED,
         )
@@ -303,7 +303,7 @@ class TestBootstrapProject:
                 transport=transport, base_url="http://test"
             ) as client:
                 response = await client.post(
-                    "/kg/projects/boot12345678/bootstrap",
+                    "/kg/projects/b00112345678/bootstrap",
                     json={
                         "transcript": "This is a test transcript about MKUltra...",
                         "title": "Test Video Title",
@@ -314,7 +314,7 @@ class TestBootstrapProject:
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "bootstrapping"
-            assert data["project_id"] == "boot12345678"
+            assert data["project_id"] == "b00112345678"
         finally:
             app.dependency_overrides.pop(get_kg_service, None)
 
@@ -332,7 +332,7 @@ class TestBootstrapProject:
                 transport=transport, base_url="http://test"
             ) as client:
                 response = await client.post(
-                    "/kg/projects/nonexistent12/bootstrap",
+                    "/kg/projects/000000000000/bootstrap",
                     json={
                         "transcript": "Test transcript",
                         "title": "Test Title",
@@ -353,7 +353,7 @@ class TestBootstrapProject:
         mock_service = MockKGService()
         # Project is in ACTIVE state (already bootstrapped)
         project = KGProject(
-            id="active123456",
+            id="ac11e1234567",
             name="Already Active",
             state=ProjectState.ACTIVE,
         )
@@ -366,7 +366,7 @@ class TestBootstrapProject:
                 transport=transport, base_url="http://test"
             ) as client:
                 response = await client.post(
-                    "/kg/projects/active123456/bootstrap",
+                    "/kg/projects/ac11e1234567/bootstrap",
                     json={
                         "transcript": "Trying to bootstrap again",
                         "title": "Second Bootstrap",
@@ -395,7 +395,7 @@ class TestGetConfirmations:
 
         mock_service = MockKGService()
         project = KGProject(
-            id="nodisc123456",
+            id="00d15c123456",
             name="No Discoveries",
             state=ProjectState.ACTIVE,
         )
@@ -407,7 +407,7 @@ class TestGetConfirmations:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                response = await client.get("/kg/projects/nodisc123456/confirmations")
+                response = await client.get("/kg/projects/00d15c123456/confirmations")
 
             assert response.status_code == 200
             data = response.json()
@@ -422,7 +422,7 @@ class TestGetConfirmations:
 
         mock_service = MockKGService()
         project = KGProject(
-            id="pending123456",
+            id="0e0d10123456",
             name="Has Discoveries",
             state=ProjectState.ACTIVE,
         )
@@ -439,7 +439,7 @@ class TestGetConfirmations:
             user_question="Track Subprojects as a separate entity type?",
             status=DiscoveryStatus.PENDING,
         )
-        mock_service.add_discovery("pending123456", discovery)
+        mock_service.add_discovery("0e0d10123456", discovery)
         app.dependency_overrides[get_kg_service] = lambda: mock_service
 
         try:
@@ -447,7 +447,7 @@ class TestGetConfirmations:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                response = await client.get("/kg/projects/pending123456/confirmations")
+                response = await client.get("/kg/projects/0e0d10123456/confirmations")
 
             assert response.status_code == 200
             data = response.json()
@@ -478,7 +478,7 @@ class TestConfirmDiscovery:
 
         mock_service = MockKGService()
         project = KGProject(
-            id="confirm123456",
+            id="c00f11123456",
             name="Confirm Test",
             state=ProjectState.ACTIVE,
         )
@@ -494,7 +494,7 @@ class TestConfirmDiscovery:
             user_question="Track Researchers?",
             status=DiscoveryStatus.PENDING,
         )
-        mock_service.add_discovery("confirm123456", discovery)
+        mock_service.add_discovery("c00f11123456", discovery)
         app.dependency_overrides[get_kg_service] = lambda: mock_service
 
         try:
@@ -503,7 +503,7 @@ class TestConfirmDiscovery:
                 transport=transport, base_url="http://test"
             ) as client:
                 response = await client.post(
-                    "/kg/projects/confirm123456/confirm",
+                    "/kg/projects/c00f11123456/confirm",
                     json={
                         "discovery_id": "toconfirm",
                         "confirmed": True,
@@ -523,7 +523,7 @@ class TestConfirmDiscovery:
 
         mock_service = MockKGService()
         project = KGProject(
-            id="reject123456",
+            id="e3ec11234567",
             name="Reject Test",
             state=ProjectState.ACTIVE,
         )
@@ -539,7 +539,7 @@ class TestConfirmDiscovery:
             user_question="Track funding relationships?",
             status=DiscoveryStatus.PENDING,
         )
-        mock_service.add_discovery("reject123456", discovery)
+        mock_service.add_discovery("e3ec11234567", discovery)
         app.dependency_overrides[get_kg_service] = lambda: mock_service
 
         try:
@@ -548,7 +548,7 @@ class TestConfirmDiscovery:
                 transport=transport, base_url="http://test"
             ) as client:
                 response = await client.post(
-                    "/kg/projects/reject123456/confirm",
+                    "/kg/projects/e3ec11234567/confirm",
                     json={
                         "discovery_id": "toreject1",
                         "confirmed": False,
@@ -568,7 +568,7 @@ class TestConfirmDiscovery:
 
         mock_service = MockKGService()
         project = KGProject(
-            id="nodisc654321",
+            id="00d15c654321",
             name="No Discovery",
             state=ProjectState.ACTIVE,
         )
@@ -581,7 +581,7 @@ class TestConfirmDiscovery:
                 transport=transport, base_url="http://test"
             ) as client:
                 response = await client.post(
-                    "/kg/projects/nodisc654321/confirm",
+                    "/kg/projects/00d15c654321/confirm",
                     json={
                         "discovery_id": "doesnotex",
                         "confirmed": True,

@@ -83,7 +83,7 @@ class MockKnowledgeGraphService:
 
 
 def _create_test_project(
-    project_id: str = "testproj1234",
+    project_id: str = "1e5101234567",
     name: str = "Test Project",
     state: ProjectState = ProjectState.ACTIVE,
     with_profile: bool = True,
@@ -156,7 +156,7 @@ async def test_extract_endpoint_success() -> None:
     from app.api.deps import get_kg_service
     from app.main import app
 
-    project_id = "testproj1234"
+    project_id = "1e5101234567"
     project = _create_test_project(project_id=project_id)
     mock_service = MockKnowledgeGraphService(project=project)
 
@@ -195,7 +195,7 @@ async def test_extract_endpoint_project_not_found() -> None:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.post(
-                "/kg/projects/nonexistent12/extract",
+                "/kg/projects/000000000000/extract",
                 json={
                     "transcript": "Test transcript",
                     "title": "Test Video",
@@ -215,7 +215,7 @@ async def test_extract_endpoint_not_bootstrapped() -> None:
     from app.api.deps import get_kg_service
     from app.main import app
 
-    project_id = "testproj1234"
+    project_id = "1e5101234567"
     project = _create_test_project(
         project_id=project_id,
         state=ProjectState.CREATED,
@@ -255,7 +255,7 @@ async def test_get_graph_stats_endpoint_success() -> None:
     from app.api.deps import get_kg_service
     from app.main import app
 
-    project_id = "testproj1234"
+    project_id = "1e5101234567"
     project = _create_test_project(project_id=project_id)
     kb = _create_test_kb()
     mock_service = MockKnowledgeGraphService(project=project, kb=kb)
@@ -284,7 +284,7 @@ async def test_get_graph_stats_endpoint_no_data() -> None:
     from app.api.deps import get_kg_service
     from app.main import app
 
-    project_id = "testproj1234"
+    project_id = "1e5101234567"
     project = _create_test_project(project_id=project_id, kb_id=None)
     mock_service = MockKnowledgeGraphService(project=project, kb=None)
 
@@ -312,7 +312,7 @@ async def test_export_endpoint_graphml() -> None:
     from app.api.deps import get_kg_service
     from app.main import app
 
-    project_id = "testproj1234"
+    project_id = "1e5101234567"
     project = _create_test_project(project_id=project_id)
     kb = _create_test_kb()
     mock_service = MockKnowledgeGraphService(project=project, kb=kb)
@@ -343,7 +343,7 @@ async def test_export_endpoint_json() -> None:
     from app.api.deps import get_kg_service
     from app.main import app
 
-    project_id = "testproj1234"
+    project_id = "1e5101234567"
     project = _create_test_project(project_id=project_id)
     kb = _create_test_kb()
     mock_service = MockKnowledgeGraphService(project=project, kb=kb)
@@ -372,7 +372,7 @@ async def test_export_endpoint_no_data() -> None:
     from app.api.deps import get_kg_service
     from app.main import app
 
-    project_id = "testproj1234"
+    project_id = "1e5101234567"
     project = _create_test_project(project_id=project_id, kb_id=None)
     mock_service = MockKnowledgeGraphService(project=project, kb=None)
 
@@ -418,7 +418,7 @@ async def test_list_nodes_endpoint_all() -> None:
     from app.api.deps import get_kg_service
     from app.main import app
 
-    project_id = "testproj1234"
+    project_id = "1e5101234567"
     project = _create_test_project(project_id=project_id)
     kb = _create_test_kb()
     mock_service = MockKGServiceWithPersistence(project=project, kb=kb)
@@ -457,7 +457,7 @@ async def test_list_nodes_endpoint_filtered_by_type() -> None:
     from app.api.deps import get_kg_service
     from app.main import app
 
-    project_id = "testproj1234"
+    project_id = "1e5101234567"
     project = _create_test_project(project_id=project_id)
     kb = _create_test_kb()
     mock_service = MockKGServiceWithPersistence(project=project, kb=kb)
@@ -493,7 +493,7 @@ async def test_list_nodes_endpoint_no_graph() -> None:
     from app.api.deps import get_kg_service
     from app.main import app
 
-    project_id = "testproj1234"
+    project_id = "1e5101234567"
     project = _create_test_project(project_id=project_id, kb_id=None)
     mock_service = MockKGServiceWithPersistence(project=project, kb=None)
 
@@ -523,7 +523,7 @@ async def test_get_neighbors_endpoint_success() -> None:
     from app.api.deps import get_kg_service
     from app.main import app
 
-    project_id = "testproj1234"
+    project_id = "1e5101234567"
     project = _create_test_project(project_id=project_id)
     kb = _create_test_kb()
     mock_service = MockKGServiceWithPersistence(project=project, kb=kb)
@@ -563,7 +563,7 @@ async def test_get_neighbors_endpoint_isolated_node() -> None:
     from app.api.deps import get_kg_service
     from app.main import app
 
-    project_id = "testproj1234"
+    project_id = "1e5101234567"
     project = _create_test_project(project_id=project_id)
     kb = _create_test_kb()
 
@@ -600,7 +600,7 @@ async def test_get_neighbors_endpoint_no_graph() -> None:
     from app.api.deps import get_kg_service
     from app.main import app
 
-    project_id = "testproj1234"
+    project_id = "1e5101234567"
     project = _create_test_project(project_id=project_id, kb_id=None)
     mock_service = MockKGServiceWithPersistence(project=project, kb=None)
 

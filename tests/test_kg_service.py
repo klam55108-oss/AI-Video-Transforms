@@ -168,7 +168,7 @@ class TestGetProject:
         self, kg_service: KnowledgeGraphService
     ) -> None:
         """Test that getting a non-existent project returns None."""
-        result = await kg_service.get_project("nonexistent12")
+        result = await kg_service.get_project("000000000000")
 
         assert result is None
 
@@ -546,7 +546,7 @@ class TestConfirmDiscovery:
         self, kg_service: KnowledgeGraphService
     ) -> None:
         """Test that confirming discovery on non-existent project returns False."""
-        result = await kg_service.confirm_discovery("nonexistent12", "any_id", True)
+        result = await kg_service.confirm_discovery("000000000000", "any_id", True)
 
         assert result is False
 
@@ -566,7 +566,7 @@ class TestBootstrapFromTranscript:
         """Test that bootstrap raises ValueError for non-existent project."""
         with pytest.raises(ValueError, match="not found"):
             await kg_service.bootstrap_from_transcript(
-                project_id="nonexistent12",
+                project_id="000000000000",
                 transcript="Some transcript content",
                 title="Test Video",
                 source_id="source123",

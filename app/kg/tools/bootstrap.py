@@ -23,40 +23,40 @@ collects to build the final DomainProfile.
 
 from __future__ import annotations
 
-import threading
+from contextvars import ContextVar
 from typing import Any
 
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# BOOTSTRAP DATA COLLECTOR
+# BOOTSTRAP DATA COLLECTOR (Request-Scoped via ContextVar)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# Thread-local storage for bootstrap data collection.
-# Each bootstrap operation should call clear_bootstrap_collector() before starting
-# and get_bootstrap_data() after completion to retrieve collected tool results.
-_bootstrap_collector: dict[str, Any] = {}
-_collector_lock = threading.Lock()
+# Context variable for request-scoped bootstrap data collection.
+# Each async context (request/task) gets its own isolated collector,
+# preventing interference between concurrent bootstrap operations.
+_bootstrap_collector: ContextVar[dict[str, Any]] = ContextVar(
+    "bootstrap_collector", default={}
+)
 
 
 def clear_bootstrap_collector() -> None:
     """Clear the bootstrap data collector before starting a new bootstrap."""
-    global _bootstrap_collector
-    with _collector_lock:
-        _bootstrap_collector = {}
+    _bootstrap_collector.set({})
 
 
 def get_bootstrap_data() -> dict[str, Any]:
     """Get all collected bootstrap data from tool invocations."""
-    with _collector_lock:
-        return _bootstrap_collector.copy()
+    return _bootstrap_collector.get().copy()
 
 
 def _store_bootstrap_data(step: str, data: Any) -> None:
     """Store data from a bootstrap tool invocation."""
-    with _collector_lock:
-        _bootstrap_collector[step] = data
+    collector = _bootstrap_collector.get()
+    # Create a new dict to avoid mutation issues with ContextVar
+    updated = {**collector, step: data}
+    _bootstrap_collector.set(updated)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

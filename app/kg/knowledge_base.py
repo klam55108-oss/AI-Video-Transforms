@@ -17,7 +17,7 @@ Design Decisions:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -33,8 +33,8 @@ def _generate_id() -> str:
 
 
 def _utc_now() -> datetime:
-    """Get current UTC datetime."""
-    return datetime.utcnow()
+    """Get current UTC datetime (timezone-aware)."""
+    return datetime.now(timezone.utc)
 
 
 class KnowledgeBase:
