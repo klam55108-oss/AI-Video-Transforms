@@ -149,3 +149,134 @@ def temp_audio_file(temp_storage_dir: Path) -> Generator[Path, None, None]:
     audio_file = temp_storage_dir / "test_audio.mp3"
     audio_file.write_bytes(b"fake mp3 audio content")
     yield audio_file
+
+
+# =============================================================================
+# Knowledge Graph Fixtures
+# =============================================================================
+
+
+@pytest.fixture
+def kg_service(tmp_path: Path):
+    """Create a KnowledgeGraphService with isolated tmp_path directory.
+
+    This fixture provides a fresh KG service for each test with an isolated
+    storage directory that is automatically cleaned up after the test.
+    """
+    from app.services.kg_service import KnowledgeGraphService
+
+    return KnowledgeGraphService(data_path=tmp_path)
+
+
+@pytest.fixture
+def sample_domain_profile():
+    """Create a standard DomainProfile for testing.
+
+    Provides a realistic domain profile with entity types (Person, Organization,
+    Program, Location), connection types, and seed entities suitable for
+    MK-Ultra style documentary content testing.
+    """
+    from app.kg.domain import (
+        ConnectionType,
+        DomainProfile,
+        SeedEntity,
+        ThingType,
+    )
+
+    return DomainProfile(
+        name="CIA Mind Control Programs",
+        description="Domain covering CIA psychological research programs and key personnel",
+        thing_types=[
+            ThingType(
+                name="Person",
+                description="Individuals involved in the programs",
+                examples=["Sidney Gottlieb", "Allen Dulles"],
+                priority=1,
+            ),
+            ThingType(
+                name="Organization",
+                description="Government agencies and institutions",
+                examples=["CIA", "US Army"],
+                priority=1,
+            ),
+            ThingType(
+                name="Program",
+                description="Covert operations and research projects",
+                examples=["MK-Ultra", "Operation Midnight Climax"],
+                priority=1,
+            ),
+            ThingType(
+                name="Location",
+                description="Places where operations occurred",
+                examples=["San Francisco", "Fort Detrick"],
+                priority=2,
+            ),
+        ],
+        connection_types=[
+            ConnectionType(
+                name="directed",
+                display_name="directed",
+                description="Person directed a program or operation",
+                examples=[("Sidney Gottlieb", "MK-Ultra")],
+            ),
+            ConnectionType(
+                name="reported_to",
+                display_name="reported to",
+                description="Reporting relationship between people",
+                examples=[("Sidney Gottlieb", "Allen Dulles")],
+            ),
+            ConnectionType(
+                name="funded_by",
+                display_name="funded by",
+                description="Financial support relationship",
+                examples=[("MK-Ultra", "CIA")],
+            ),
+            ConnectionType(
+                name="located_in",
+                display_name="located in",
+                description="Geographic location of operations",
+                examples=[("Operation Midnight Climax", "San Francisco")],
+            ),
+        ],
+        seed_entities=[
+            SeedEntity(
+                label="Sidney Gottlieb",
+                thing_type="Person",
+                aliases=["Dr. Gottlieb", "Joseph Scheider"],
+            ),
+            SeedEntity(
+                label="CIA",
+                thing_type="Organization",
+                aliases=["Central Intelligence Agency"],
+            ),
+            SeedEntity(
+                label="MK-Ultra",
+                thing_type="Program",
+                aliases=["Project MK-Ultra", "MKULTRA"],
+            ),
+        ],
+        extraction_context="Focus on CIA personnel, programs, and their relationships.",
+        bootstrap_confidence=0.9,
+        bootstrapped_from="ep1_source",
+    )
+
+
+@pytest.fixture
+def sample_transcript() -> str:
+    """Realistic transcript content for KG testing.
+
+    Contains content about CIA programs, personnel, and relationships
+    suitable for bootstrap and extraction testing.
+    """
+    return """
+    In this documentary, we explore the history of MK-Ultra, one of the CIA's
+    most controversial programs. Dr. Sidney Gottlieb, who headed the program,
+    reported directly to Allen Dulles, the Director of Central Intelligence.
+
+    The program operated from 1953 to 1973 and involved numerous subprojects
+    focused on mind control research. Operation Midnight Climax was one such
+    subproject, run by George White in San Francisco.
+
+    Key documents reveal the involvement of multiple institutions, including
+    universities and hospitals, often without the subjects' knowledge or consent.
+    """

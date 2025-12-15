@@ -131,3 +131,43 @@ class ChatResponse(BaseModel):
     response: str
     session_id: str
     usage: UsageStats | None = None  # Optional usage statistics
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Knowledge Graph Response Models
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class CreateProjectResponse(BaseModel):
+    """Response model for project creation."""
+
+    project_id: str
+    name: str
+    state: str
+
+
+class ProjectStatusResponse(BaseModel):
+    """Response model for project status and statistics."""
+
+    project_id: str
+    name: str
+    state: str
+    source_count: int
+    thing_count: int
+    connection_count: int
+    pending_confirmations: int
+    domain_name: str | None = None
+    domain_description: str | None = None
+    error: str | None = None
+
+
+class DiscoveryResponse(BaseModel):
+    """Response model for a pending discovery."""
+
+    id: str
+    discovery_type: str
+    name: str
+    display_name: str
+    description: str
+    examples: list[str]
+    user_question: str

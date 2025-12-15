@@ -14,6 +14,7 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI
 
+from app.services.kg_service import KnowledgeGraphService
 from app.services.session_service import SessionService
 from app.services.storage_service import StorageService
 from app.services.transcription_service import TranscriptionService
@@ -34,6 +35,7 @@ class ServiceContainer:
         self._storage: StorageService | None = None
         self._session: SessionService | None = None
         self._transcription: TranscriptionService | None = None
+        self._kg: KnowledgeGraphService | None = None
         self._cleanup_task: asyncio.Task[None] | None = None
 
     @property
@@ -63,6 +65,15 @@ class ServiceContainer:
             )
         return self._transcription
 
+    @property
+    def kg(self) -> KnowledgeGraphService:
+        """Get knowledge graph service instance."""
+        if self._kg is None:
+            raise RuntimeError(
+                "ServiceContainer not initialized - call startup() first"
+            )
+        return self._kg
+
     async def startup(self) -> None:
         """
         Initialize all services and start background tasks.
@@ -70,12 +81,15 @@ class ServiceContainer:
         Creates service instances in dependency order and starts the
         session cleanup loop as a background task.
         """
+        from pathlib import Path
+
         logger.info("Starting service container")
 
         # Initialize services in dependency order
         self._storage = StorageService()
         self._session = SessionService()
         self._transcription = TranscriptionService(self._storage)
+        self._kg = KnowledgeGraphService(data_path=Path("data"))
 
         # Start background cleanup task
         self._cleanup_task = asyncio.create_task(self._session.run_cleanup_loop())
@@ -107,6 +121,7 @@ class ServiceContainer:
         self._storage = None
         self._session = None
         self._transcription = None
+        self._kg = None
 
         logger.info("Service container shutdown complete")
 
@@ -171,6 +186,7 @@ __all__ = [
     "ServiceContainer",
     "get_services",
     "services_lifespan",
+    "KnowledgeGraphService",
     "SessionService",
     "StorageService",
     "TranscriptionService",

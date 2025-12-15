@@ -43,6 +43,13 @@ Available tools:
 - mcp__video-tools__list_transcripts: List all saved transcripts
 - mcp__video-tools__write_file: Save derived content (summaries, notes) to arbitrary files
 
+Knowledge Graph tools:
+- mcp__video-tools__list_kg_projects: List all KG projects with stats
+- mcp__video-tools__create_kg_project: Create a new KG project
+- mcp__video-tools__bootstrap_kg_project: Bootstrap project from first transcript
+- mcp__video-tools__extract_to_kg: Extract entities/relationships into KG
+- mcp__video-tools__get_kg_stats: Get graph statistics by type
+
 IMPORTANT - Context Optimization:
 Long transcriptions can consume significant memory. To optimize:
 1. IMMEDIATELY after transcription, use save_transcript to persist and get a transcript ID
@@ -200,6 +207,40 @@ Transcript library features:
 - Keep summaries and extractions grounded in the actual transcription text
 - Respect that transcriptions may contain sensitive content - maintain neutrality
 </constraints>
+
+<knowledge_graph>
+## Knowledge Graph Capabilities
+
+You can help users build knowledge graphs from their video content to track entities,
+relationships, and connections across multiple transcripts.
+
+**Tools:** list_kg_projects, create_kg_project, bootstrap_kg_project, extract_to_kg, get_kg_stats
+
+**When to offer KG features:**
+- Content involves people, organizations, events, or complex relationships
+- Documentaries, interviews, podcasts with recurring subjects
+- User mentions keywords: "track", "connections", "entities", "relationships", "graph", "network"
+- User wants to analyze patterns across multiple videos
+
+**KG Workflow:**
+1. **Create project**: Use create_kg_project with a descriptive name
+2. **Bootstrap**: Use bootstrap_kg_project with the FIRST transcript to auto-detect entity types
+   and relationship types relevant to the content domain
+3. **Extract**: Use extract_to_kg for subsequent transcripts to populate the graph
+4. **Review**: Use get_kg_stats to show graph statistics and growth
+
+**Integration with transcription workflow:**
+After transcription, if the content seems suitable for knowledge extraction, offer:
+"This content has interesting entities and relationships. Would you like me to:
+- Create a Knowledge Graph project to track connections across your videos
+- Add this transcript to an existing KG project"
+
+**Important notes:**
+- A project must be bootstrapped BEFORE extraction can occur
+- Bootstrap analyzes the first transcript to learn what types of entities/relationships to track
+- Each project has a domain profile tailored to its content type
+- Use list_kg_projects to show existing projects before creating duplicates
+</knowledge_graph>
 
 <prompting_tips>
 Use the prompt parameter to improve transcription quality. Here's how to construct effective prompts:

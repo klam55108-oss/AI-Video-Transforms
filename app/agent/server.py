@@ -1,15 +1,23 @@
 """
-MCP Server configuration for video transcription tools.
+MCP Server configuration for video transcription and knowledge graph tools.
 
 This module provides a pre-configured MCP server that can be used
 directly with the Claude Agent SDK.
 
 Available tools:
+    Transcription:
     - transcribe_video: Transcribe video/audio to text using Whisper
     - write_file: Save arbitrary content to files (summaries, notes, etc.)
     - save_transcript: Save raw transcription to library with ID reference
     - get_transcript: Retrieve transcript content by ID (lazy loading)
     - list_transcripts: List all transcripts in the library
+
+    Knowledge Graph:
+    - extract_to_kg: Extract entities/relationships from transcript into KG
+    - list_kg_projects: List all KG projects with stats
+    - create_kg_project: Create a new KG project
+    - bootstrap_kg_project: Bootstrap project from first transcript
+    - get_kg_stats: Get graph statistics by type
 
 Example usage:
     from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
@@ -23,6 +31,11 @@ Example usage:
             "mcp__video-tools__save_transcript",
             "mcp__video-tools__get_transcript",
             "mcp__video-tools__list_transcripts",
+            "mcp__video-tools__extract_to_kg",
+            "mcp__video-tools__list_kg_projects",
+            "mcp__video-tools__create_kg_project",
+            "mcp__video-tools__bootstrap_kg_project",
+            "mcp__video-tools__get_kg_stats",
         ],
     )
 
@@ -35,6 +48,7 @@ Example usage:
 from claude_agent_sdk import create_sdk_mcp_server
 
 from .file_tool import write_file
+from .kg_tool import KG_TOOLS
 from .transcribe_tool import transcribe_video
 from .transcript_storage_tools import get_transcript, list_transcripts, save_transcript
 
@@ -48,5 +62,6 @@ video_tools_server = create_sdk_mcp_server(
         save_transcript,
         get_transcript,
         list_transcripts,
+        *KG_TOOLS,
     ],
 )

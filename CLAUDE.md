@@ -1,14 +1,14 @@
 # Agent Video to Data
 
-AI-powered video transcription web application using Claude Agent SDK + OpenAI gpt-4o-transcribe.
+AI-powered video transcription and knowledge graph extraction.
 
-@README.md for full overview, API endpoints, and architecture diagram.
+@README.md for full overview, API endpoints, and architecture.
 
 ## Quick Commands
 
 ```bash
 uv run python -m app.main              # Dev server → http://127.0.0.1:8000
-uv run pytest                          # 230 tests
+uv run pytest                          # 522 tests
 uv run mypy .                          # Type check (strict)
 uv run ruff check . && ruff format .   # Lint + format
 ```
@@ -16,66 +16,75 @@ uv run ruff check . && ruff format .   # Lint + format
 ## Environment
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-...    # Claude Agent SDK
-OPENAI_API_KEY=sk-...            # gpt-4o-transcribe + Codex MCP
+ANTHROPIC_API_KEY=sk-ant-...    # Claude Agent SDK (required)
+OPENAI_API_KEY=sk-...            # gpt-4o-transcribe + Codex MCP (required)
 ```
 
 ## Architecture
 
-**3-tier modular monolith**: API Layer → Services Layer → Core Layer
+**3-tier modular monolith**: API → Services → Core
 
-```
-app/api/          # Routers, deps, error handlers
-app/services/     # SessionService, StorageService, TranscriptionService
-app/core/         # SessionActor, StorageManager, cost tracking
-app/agent/        # MCP tools + system prompts
-```
+| Layer | Location | Responsibility |
+|-------|----------|----------------|
+| **API** | `app/api/` | 7 routers, deps, error handlers |
+| **Services** | `app/services/` | Session, Storage, Transcription, KnowledgeGraph |
+| **Core** | `app/core/` | SessionActor, StorageManager, cost tracking |
+| **Agent** | `app/agent/` | MCP tools + system prompts |
+| **KG** | `app/kg/` | Domain models, graph storage, extraction |
 
-## Critical Patterns ⚠️
+## Critical Patterns
 
 ### SessionActor (`app/core/session.py`)
 
-- **Problem**: ClaudeSDKClient fails with cancel scope errors when accessed from multiple asyncio tasks
+- **Problem**: Claude SDK fails with cancel scope errors when accessed from multiple asyncio tasks
 - **Solution**: Queue-based actor model — one dedicated task per session
 - **Rule**: NEVER access ClaudeSDKClient from concurrent tasks
 
 ### Dependency Injection (`app/api/deps.py`)
 
-- Access services: `Depends(get_session_service)`
+- Access services via: `Depends(get_session_service)`, `Depends(get_kg_service)`
 - Test mocking: `app.dependency_overrides[get_session_service] = mock`
 - **Rule**: NEVER use `patch()` for FastAPI dependencies — it doesn't work
 
-### MCP Tool Returns (`app/agent/`)
+### MCP Tool Returns (`app/agent/`, `app/kg/tools/`)
 
 ```python
 # Success
 {"content": [{"type": "text", "text": "..."}]}
 
-# Error (never raise exceptions)
+# Error (NEVER raise exceptions)
 {"success": False, "error": "message"}
 ```
 
 - **Rule**: NEVER raise exceptions that escape tools — they crash the agent loop
 
-## Code Rules
+### Knowledge Graph Service (`app/services/kg_service.py`)
 
-See @.claude/rules/ for detailed guidelines:
-- @.claude/rules/code-style.md — Type hints, formatting, imports
-- @.claude/rules/fastapi.md — Router patterns, dependency injection
-- @.claude/rules/testing.md — Pytest patterns, mocking
-- @.claude/rules/mcp-tools.md — Tool development patterns
+- Accessed via `get_services().kg` from ServiceContainer
+- Projects stored in `data/kg_projects/`
+- **Rule**: Always use DomainProfile for extraction context
 
-**Key conventions**:
-- Type hints on ALL signatures (args + return types)
-- `str | None` not `Optional[str]`
-- `pathlib.Path` over `os.path`
-- Google-style docstrings for public functions
+## Code Standards
+
+See `.claude/rules/` for detailed guidelines:
+
+| Rule File | Scope |
+|-----------|-------|
+| @.claude/rules/code-style.md | Type hints, formatting, imports |
+| @.claude/rules/fastapi.md | Router patterns, dependency injection |
+| @.claude/rules/testing.md | Pytest patterns, mocking |
+| @.claude/rules/mcp-tools.md | MCP tool development |
+| @.claude/rules/kg.md | Knowledge graph patterns |
+| @.claude/rules/frontend.md | Tailwind, vanilla JS, security |
 
 ## External MCP Servers
 
-Two servers in `mcp_servers/`:
-- **gemini/** — Gemini CLI wrapper (@.claude/rules/gemini-mcp.md)
-- **codex/** — GPT-5.1-Codex-Max via OpenAI Responses API (@.claude/rules/codex-mcp.md)
+Two servers in `mcp_servers/` (for Claude Code, not the app agent):
+
+| Server | Purpose | Rule File |
+|--------|---------|-----------|
+| **codex/** | GPT-5.1-Codex-Max via OpenAI Responses API | @.claude/rules/codex-mcp.md |
+| **gemini/** | Gemini CLI wrapper | @.claude/rules/gemini-mcp.md |
 
 ## Git Workflow
 

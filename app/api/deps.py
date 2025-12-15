@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
-from app.core.validators import SHORT_ID_PATTERN, UUID_PATTERN
+from app.core.validators import PROJECT_ID_PATTERN, SHORT_ID_PATTERN, UUID_PATTERN
 from app.services import (
+    KnowledgeGraphService,
     SessionService,
     StorageService,
     TranscriptionService,
@@ -88,6 +89,28 @@ def validate_short_id(value: str, field_name: str = "ID") -> str:
     return value
 
 
+def validate_project_id(value: str, field_name: str = "project ID") -> str:
+    """
+    Validate that a string is a valid project ID (12 hex characters).
+
+    Args:
+        value: The string to validate
+        field_name: Name of the field for error messages
+
+    Returns:
+        The validated value
+
+    Raises:
+        HTTPException: If the value is not a valid project ID
+    """
+    if not PROJECT_ID_PATTERN.match(value):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid {field_name} format (must be 12 hex characters)",
+        )
+    return value
+
+
 class ValidatedSessionId:
     """
     Dependency class for validated session ID path parameters.
@@ -116,3 +139,28 @@ class ValidatedTranscriptId:
     def __call__(self, transcript_id: str) -> str:
         """Validate and return the transcript ID."""
         return validate_short_id(transcript_id, "transcript ID")
+
+
+class ValidatedProjectId:
+    """
+    Dependency class for validated KG project ID path parameters.
+
+    Usage:
+        @router.get("/projects/{project_id}")
+        async def endpoint(project_id: str = Depends(ValidatedProjectId())):
+            ...
+    """
+
+    def __call__(self, project_id: str) -> str:
+        """Validate and return the project ID."""
+        return validate_project_id(project_id, "project ID")
+
+
+def get_kg_service() -> KnowledgeGraphService:
+    """
+    Dependency provider for KnowledgeGraphService.
+
+    Returns:
+        KnowledgeGraphService instance from the global container
+    """
+    return get_services().kg
