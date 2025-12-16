@@ -85,7 +85,8 @@ let fileInput = null;
 
 // KG State
 const KG_PROJECT_STORAGE_KEY = 'kg_current_project';
-const KG_POLL_INTERVAL_MS = 5000;
+// Poll interval from server config (fallback to default)
+const KG_POLL_INTERVAL_MS = window.APP_CONFIG?.KG_POLL_INTERVAL_MS || 5000;
 let kgCurrentProjectId = sessionStorage.getItem(KG_PROJECT_STORAGE_KEY) || null;
 let kgCurrentProject = null;
 let kgPollInterval = null;
@@ -97,7 +98,8 @@ let kgDropdownFocusedIndex = -1;
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1000;
-const STATUS_POLL_INTERVAL_MS = 3000;
+// Status poll interval from server config (fallback to default)
+const STATUS_POLL_INTERVAL_MS = window.APP_CONFIG?.STATUS_POLL_INTERVAL_MS || 3000;
 const THEME_STORAGE_KEY = 'videoagent-theme';
 
 // DOMPurify configuration for safe markdown rendering
@@ -506,75 +508,172 @@ async function deleteTranscript(id) {
 // Knowledge Graph API Client
 // ============================================
 
+/**
+ * Handle KG API errors consistently.
+ * Distinguishes network errors from server errors for better user feedback.
+ */
+async function handleKGApiError(response, defaultMessage) {
+    // Network error or server unavailable
+    if (!response) {
+        throw new Error('Network error. Please check your connection and try again.');
+    }
+
+    // Try to parse error details from response
+    let errorMessage = defaultMessage;
+    try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+            errorMessage = errorData.detail;
+        }
+    } catch {
+        // Response wasn't JSON, use default message
+    }
+
+    // Add status code context for debugging
+    if (response.status === 503) {
+        errorMessage = 'Server is busy. Please try again in a moment.';
+    } else if (response.status === 500) {
+        errorMessage = 'Server error. Please try again later.';
+    }
+
+    throw new Error(errorMessage);
+}
+
 const kgClient = {
     async listProjects() {
-        const response = await fetch('/kg/projects');
-        if (!response.ok) throw new Error('Failed to list projects');
-        return response.json();
+        try {
+            const response = await fetch('/kg/projects');
+            if (!response.ok) {
+                await handleKGApiError(response, 'Failed to load projects');
+            }
+            return response.json();
+        } catch (e) {
+            if (e.name === 'TypeError') {
+                throw new Error('Network error. Please check your connection.');
+            }
+            throw e;
+        }
     },
 
     async createProject(name) {
-        const response = await fetch('/kg/projects', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-        });
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error.detail || 'Failed to create project');
+        try {
+            const response = await fetch('/kg/projects', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            if (!response.ok) {
+                await handleKGApiError(response, 'Failed to create project');
+            }
+            return response.json();
+        } catch (e) {
+            if (e.name === 'TypeError') {
+                throw new Error('Network error. Could not create project.');
+            }
+            throw e;
         }
-        return response.json();
     },
 
     async getProject(projectId) {
-        const response = await fetch(`/kg/projects/${projectId}`);
-        if (response.status === 404) return null;
-        if (!response.ok) throw new Error('Failed to get project');
-        return response.json();
+        try {
+            const response = await fetch(`/kg/projects/${projectId}`);
+            if (response.status === 404) return null;
+            if (!response.ok) {
+                await handleKGApiError(response, 'Failed to load project');
+            }
+            return response.json();
+        } catch (e) {
+            if (e.name === 'TypeError') {
+                throw new Error('Network error. Could not load project.');
+            }
+            throw e;
+        }
     },
 
     async getConfirmations(projectId) {
-        const response = await fetch(`/kg/projects/${projectId}/confirmations`);
-        if (!response.ok) throw new Error('Failed to get confirmations');
-        return response.json();
+        try {
+            const response = await fetch(`/kg/projects/${projectId}/confirmations`);
+            if (!response.ok) {
+                await handleKGApiError(response, 'Failed to load confirmations');
+            }
+            return response.json();
+        } catch (e) {
+            if (e.name === 'TypeError') {
+                throw new Error('Network error. Could not load confirmations.');
+            }
+            throw e;
+        }
     },
 
     async confirmDiscovery(projectId, discoveryId, confirmed) {
-        const response = await fetch(`/kg/projects/${projectId}/confirm`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ discovery_id: discoveryId, confirmed })
-        });
-        if (!response.ok) throw new Error('Confirmation failed');
-        return response.json();
+        try {
+            const response = await fetch(`/kg/projects/${projectId}/confirm`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ discovery_id: discoveryId, confirmed })
+            });
+            if (!response.ok) {
+                await handleKGApiError(response, 'Confirmation failed');
+            }
+            return response.json();
+        } catch (e) {
+            if (e.name === 'TypeError') {
+                throw new Error('Network error. Could not confirm discovery.');
+            }
+            throw e;
+        }
     },
 
     async getGraphStats(projectId) {
-        const response = await fetch(`/kg/projects/${projectId}/graph`);
-        if (response.status === 404) return null;
-        if (!response.ok) throw new Error('Failed to get stats');
-        return response.json();
+        try {
+            const response = await fetch(`/kg/projects/${projectId}/graph`);
+            if (response.status === 404) return null;
+            if (!response.ok) {
+                await handleKGApiError(response, 'Failed to load graph statistics');
+            }
+            return response.json();
+        } catch (e) {
+            if (e.name === 'TypeError') {
+                throw new Error('Network error. Could not load statistics.');
+            }
+            throw e;
+        }
     },
 
     async exportGraph(projectId, format) {
-        const response = await fetch(`/kg/projects/${projectId}/export`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ format })
-        });
-        if (!response.ok) throw new Error('Export failed');
-        return response.json();
+        try {
+            const response = await fetch(`/kg/projects/${projectId}/export`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ format })
+            });
+            if (!response.ok) {
+                await handleKGApiError(response, 'Export failed');
+            }
+            return response.json();
+        } catch (e) {
+            if (e.name === 'TypeError') {
+                throw new Error('Network error. Could not export graph.');
+            }
+            throw e;
+        }
     },
 
     async deleteProject(projectId) {
-        const response = await fetch(`/kg/projects/${projectId}`, {
-            method: 'DELETE'
-        });
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error.detail || 'Failed to delete project');
+        try {
+            const response = await fetch(`/kg/projects/${projectId}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) {
+                await handleKGApiError(response, 'Failed to delete project');
+            }
+            return response.json();
+        } catch (e) {
+            if (e.name === 'TypeError') {
+                throw new Error('Network error. Could not delete project.');
+            }
+            throw e;
         }
-        return response.json();
     }
 };
 

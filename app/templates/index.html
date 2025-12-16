@@ -23,6 +23,13 @@
             document.documentElement.setAttribute('data-theme', theme);
         })();
     </script>
+    <!-- Server-injected configuration -->
+    <script>
+        window.APP_CONFIG = {
+            KG_POLL_INTERVAL_MS: {{ kg_poll_interval_ms }},
+            STATUS_POLL_INTERVAL_MS: {{ status_poll_interval_ms }}
+        };
+    </script>
 </head>
 <body class="h-full overflow-hidden flex transition-theme">
 
@@ -40,8 +47,8 @@
                 <span class="font-display text-base font-semibold text-[var(--sidebar-text-primary)] tracking-tight">VideoAgent</span>
             </div>
             <!-- Mobile close button -->
-            <button id="sidebar-close" class="lg:hidden p-2 rounded-lg text-[var(--sidebar-text-secondary)] hover:text-[var(--sidebar-text-primary)] hover:bg-[var(--sidebar-hover)] transition-all">
-                <i class="ph-bold ph-x text-lg"></i>
+            <button type="button" id="sidebar-close" aria-label="Close sidebar" class="lg:hidden p-2 rounded-lg text-[var(--sidebar-text-secondary)] hover:text-[var(--sidebar-text-primary)] hover:bg-[var(--sidebar-hover)] transition-all">
+                <i class="ph-bold ph-x text-lg" aria-hidden="true"></i>
             </button>
         </div>
 
@@ -237,8 +244,8 @@
         <header class="content-header h-14 flex items-center justify-between px-6 z-10">
             <div class="flex items-center gap-3">
                 <!-- Mobile menu button -->
-                <button id="mobile-menu-btn" class="lg:hidden p-2 -ml-2 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all">
-                    <i class="ph-bold ph-list text-xl"></i>
+                <button type="button" id="mobile-menu-btn" aria-label="Open menu" class="lg:hidden p-2 -ml-2 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all">
+                    <i class="ph-bold ph-list text-xl" aria-hidden="true"></i>
                 </button>
                 <div class="flex items-center gap-2">
                     <i class="ph-regular ph-hash text-[var(--text-tertiary)]"></i>

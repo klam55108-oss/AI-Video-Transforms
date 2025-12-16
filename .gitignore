@@ -68,6 +68,12 @@ htmlcov/
 *.py,cover
 
 # =============================================================================
+# Transient Documentation
+# =============================================================================
+# CHANGELOG.md is auto-generated/maintained for internal tracking
+CHANGELOG.md
+
+# =============================================================================
 # Project-Specific
 # =============================================================================
 # Archive directory for deprecated/old files

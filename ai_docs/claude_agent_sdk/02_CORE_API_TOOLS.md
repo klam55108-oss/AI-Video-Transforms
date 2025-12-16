@@ -1,6 +1,6 @@
 # Claude Agent SDK - Core API & Custom Tools
 
-> **Reference:** Python SDK v0.1.0+
+> **Reference:** Python SDK v0.1.0+ (Docs v0.5.0)
 > **Focus:** query(), ClaudeSDKClient, Custom Tools, MCP, Multi-Agent Systems
 
 ---
@@ -80,9 +80,14 @@ asyncio.run(one_shot_task())
 from claude_agent_sdk import query, ClaudeAgentOptions
 from pydantic import BaseModel
 
+class Issue(BaseModel):
+    severity: str  # 'low', 'medium', 'high'
+    description: str
+    file: str
+
 class AnalysisResult(BaseModel):
     summary: str
-    issues: list[dict]
+    issues: list[Issue]
     score: int
 
 async for message in query(
@@ -94,10 +99,22 @@ async for message in query(
         }
     )
 ):
-    if hasattr(message, 'structured_output'):
-        result = AnalysisResult.model_validate(message.structured_output)
-        print(f"Score: {result.score}")
+    # Check for successful structured output
+    if message.type == "result" and message.subtype == "success":
+        if hasattr(message, 'structured_output') and message.structured_output:
+            result = AnalysisResult.model_validate(message.structured_output)
+            print(f"Score: {result.score}")
+            for issue in result.issues:
+                print(f"[{issue.severity}] {issue.file}: {issue.description}")
+
+    # Handle structured output failures
+    elif message.type == "result" and message.subtype == "error_max_structured_output_retries":
+        print("Error: Could not produce valid structured output")
 ```
+
+**When to Use Structured Outputs:**
+- Use when you need validated JSON after an agent completes a multi-turn workflow with tools
+- For single API calls without tool use, use the standard Anthropic API structured outputs
 
 ---
 
@@ -404,16 +421,77 @@ options = ClaudeAgentOptions(
         # Python module server
         "filesystem": {
             "command": "python",
-            "args": ["-m", "mcp_server_filesystem"]
+            "args": ["-m", "mcp_server_filesystem"],
+            "env": {
+                "ALLOWED_PATHS": "/Users/me/projects"
+            }
         },
         # SSE-based remote server
         "remote_api": {
             "type": "sse",
             "url": "https://api.example.com/mcp",
             "headers": {"Authorization": "Bearer ${API_TOKEN}"}
+        },
+        # HTTP-based remote server
+        "http_service": {
+            "type": "http",
+            "url": "https://api.example.com/mcp",
+            "headers": {"X-API-Key": "${API_KEY}"}
         }
     }
 )
+```
+
+### MCP Resource Management
+
+MCP servers can expose resources that Claude can list and read:
+
+```python
+from claude_agent_sdk import query, ClaudeAgentOptions
+
+async for message in query(
+    prompt="What resources are available from the database server?",
+    options=ClaudeAgentOptions(
+        mcp_servers={
+            "database": {
+                "command": "python",
+                "args": ["-m", "mcp_server_database"]
+            }
+        },
+        allowed_tools=["mcp__list_resources", "mcp__read_resource"]
+    )
+):
+    if hasattr(message, 'type') and message.type == "result":
+        print(message.result)
+```
+
+### MCP Error Handling
+
+Handle MCP connection failures gracefully:
+
+```python
+from claude_agent_sdk import query, ClaudeAgentOptions
+
+async for message in query(
+    prompt="Process data",
+    options=ClaudeAgentOptions(
+        mcp_servers={"data-processor": data_server}
+    )
+):
+    # Check MCP server status on init
+    if message.type == "system" and message.subtype == "init":
+        mcp_servers = message.data.get("mcp_servers", [])
+        failed_servers = [
+            s for s in mcp_servers
+            if s.get("status") != "connected"
+        ]
+
+        if failed_servers:
+            print(f"Warning: Failed to connect to MCP servers: {failed_servers}")
+
+    # Handle execution errors
+    if message.type == "result" and message.subtype == "error_during_execution":
+        print("Execution failed")
 ```
 
 ---

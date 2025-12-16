@@ -1,6 +1,6 @@
 # Claude Agent SDK - API Reference
 
-> **Reference:** Python SDK v0.1.0+
+> **Reference:** Python SDK v0.1.0+ (Docs v0.5.0)
 > **Focus:** Complete type definitions, message types, errors, skills, plugins, cost tracking
 
 ---
@@ -205,6 +205,60 @@ class SandboxSettings(TypedDict, total=False):
     ignoreViolations: SandboxIgnoreViolations
 ```
 
+### OutputFormat
+
+```python
+from typing import TypedDict, Literal, Any
+
+class OutputFormat(TypedDict):
+    type: Literal["json_schema"]
+    schema: dict[str, Any]  # JSON Schema definition
+```
+
+**Usage with Pydantic:**
+```python
+from pydantic import BaseModel
+from claude_agent_sdk import ClaudeAgentOptions
+
+class MyOutput(BaseModel):
+    field1: str
+    field2: int
+
+options = ClaudeAgentOptions(
+    output_format={
+        "type": "json_schema",
+        "schema": MyOutput.model_json_schema()
+    }
+)
+```
+
+### McpServerConfig
+
+```python
+from typing import TypedDict, Literal
+
+# Stdio-based MCP server
+class StdioMcpServer(TypedDict, total=False):
+    command: str           # Required: command to run
+    args: list[str]        # Command arguments
+    env: dict[str, str]    # Environment variables (supports ${VAR} syntax)
+
+# SSE-based MCP server
+class SseMcpServer(TypedDict, total=False):
+    type: Literal["sse"]   # Required
+    url: str               # Required: SSE endpoint URL
+    headers: dict[str, str]  # HTTP headers (supports ${VAR} syntax)
+
+# HTTP-based MCP server
+class HttpMcpServer(TypedDict, total=False):
+    type: Literal["http"]  # Required
+    url: str               # Required: HTTP endpoint URL
+    headers: dict[str, str]  # HTTP headers (supports ${VAR} syntax)
+
+# Union type
+McpServerConfig = StdioMcpServer | SseMcpServer | HttpMcpServer
+```
+
 ---
 
 ## Message Types
@@ -275,7 +329,7 @@ from typing import Any
 @dataclass
 class ResultMessage:
     type: str = "result"
-    subtype: str  # 'success', 'error', 'interrupted'
+    subtype: str  # See subtypes below
     session_id: str
     duration_ms: int
     duration_api_ms: int
@@ -284,7 +338,18 @@ class ResultMessage:
     result: str | None = None
     total_cost_usd: float | None = None
     usage: dict[str, Any] | None = None
+    structured_output: dict[str, Any] | None = None  # When using output_format
 ```
+
+#### Result Subtypes
+
+| Subtype | Description |
+|---------|-------------|
+| `success` | Completed successfully |
+| `error` | General error occurred |
+| `interrupted` | User interrupted execution |
+| `error_during_execution` | Error during tool execution |
+| `error_max_structured_output_retries` | Failed to produce valid structured output |
 
 ---
 
@@ -734,4 +799,5 @@ ClaudeAgentOptions(
 
 ---
 
-*Documentation based on Claude Agent SDK v0.1.0+ (December 2025)*
+*Documentation based on Claude Agent SDK v0.1.0+ (Docs v0.5.0, December 2025)*
+*Official Docs: https://docs.anthropic.com/en/docs/agent-sdk/overview*

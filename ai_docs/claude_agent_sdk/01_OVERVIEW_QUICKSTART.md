@@ -1,8 +1,8 @@
 # Claude Agent SDK - Overview & Quickstart
 
-> **Version:** v0.1.0+ (December 2025)
+> **Version:** v0.1.0+ (Docs v0.5.0, December 2025)
 > **Package:** `claude-agent-sdk` (migrated from `claude-code-sdk`)
-> **Official Docs:** https://docs.anthropic.com/en/docs/agent-sdk
+> **Official Docs:** https://docs.anthropic.com/en/docs/agent-sdk/overview
 > **Python GitHub:** https://github.com/anthropics/claude-agent-sdk-python
 
 ---
@@ -323,11 +323,16 @@ ClaudeAgentOptions(...)
 
 ## Official Resources
 
-- **Documentation**: https://docs.anthropic.com/en/docs/agent-sdk
-- **Python SDK GitHub**: https://github.com/anthropics/claude-agent-sdk-python
-- **TypeScript SDK GitHub**: https://github.com/anthropics/claude-agent-sdk-typescript
-- **Bug Reports**: https://github.com/anthropics/claude-agent-sdk-python/issues
-- **Example Agents**: https://github.com/anthropics/claude-agent-sdk-demos
+- **Overview**: https://docs.anthropic.com/en/docs/agent-sdk/overview
+- **Python SDK**: https://docs.anthropic.com/en/docs/agent-sdk/python
+- **Custom Tools**: https://docs.anthropic.com/en/docs/agent-sdk/custom-tools
+- **MCP Integration**: https://docs.anthropic.com/en/docs/agent-sdk/mcp
+- **Sessions**: https://docs.anthropic.com/en/docs/agent-sdk/sessions
+- **Permissions**: https://docs.anthropic.com/en/docs/agent-sdk/permissions
+- **Hosting**: https://docs.anthropic.com/en/docs/agent-sdk/hosting
+- **Secure Deployment**: https://docs.anthropic.com/en/docs/agent-sdk/secure-deployment
+- **Cost Tracking**: https://docs.anthropic.com/en/docs/agent-sdk/cost-tracking
+- **Migration Guide**: https://docs.anthropic.com/en/docs/agent-sdk/migration-guide
 
 ---
 

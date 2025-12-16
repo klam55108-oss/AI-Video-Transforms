@@ -177,6 +177,8 @@ OPENAI_API_KEY=sk-...            # gpt-4o-transcribe
 | `APP_RESPONSE_TIMEOUT` | `300.0` | Agent timeout (seconds) |
 | `APP_SESSION_TTL` | `3600.0` | Session expiry (1 hour) |
 | `APP_CLEANUP_INTERVAL` | `300.0` | Cleanup interval (5 min) |
+| `APP_KG_POLL_INTERVAL_MS` | `5000` | KG status poll interval (ms) |
+| `APP_STATUS_POLL_INTERVAL_MS` | `3000` | Agent status poll interval (ms) |
 
 ---
 

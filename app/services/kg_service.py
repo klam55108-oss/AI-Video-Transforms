@@ -16,6 +16,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import tempfile
 from collections import OrderedDict
 from datetime import datetime, timezone
@@ -58,6 +59,71 @@ from app.kg.tools.extraction import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_marked_content(
+    content: str | list[Any] | None,
+    marker: str,
+    source: str = "",
+) -> dict[str, Any] | None:
+    """
+    Extract JSON data from tool result content marked with a prefix.
+
+    This generic helper is used by both bootstrap and extraction phases to parse
+    data embedded in Claude Agent SDK tool result content blocks. Data is embedded
+    with a marker prefix because the SDK strips custom top-level keys.
+
+    Args:
+        content: ToolResultBlock.content - can be string or list of blocks
+        marker: The prefix marker to look for (e.g., BOOTSTRAP_DATA_MARKER)
+        source: Debug label for logging
+
+    Returns:
+        Parsed JSON dict if found, None otherwise
+    """
+    if content is None:
+        return None
+
+    # ToolResultBlock.content can be string or list[dict]
+    if isinstance(content, str):
+        # Single string content - check for marker
+        if content.startswith(marker):
+            try:
+                json_str = content[len(marker) :]
+                payload = json.loads(json_str)
+                logger.debug(f"Extracted marked content ({source})")
+                return payload
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse marked JSON: {e}")
+        return None
+
+    # List of content blocks
+    if not isinstance(content, list):
+        logger.debug(f"Unexpected content type: {type(content)}")
+        return None
+
+    for i, block in enumerate(content):
+        text = None
+        # Handle dict block
+        if isinstance(block, dict):
+            if block.get("type") == "text":
+                text = block.get("text", "")
+        # Handle object block
+        elif hasattr(block, "type"):
+            block_type = getattr(block, "type", None)
+            if block_type == "text":
+                text = getattr(block, "text", "")
+
+        if text and text.startswith(marker):
+            try:
+                json_str = text[len(marker) :]
+                payload = json.loads(json_str)
+                logger.debug(f"Extracted marked content ({source}[{i}])")
+                return payload
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse marked JSON: {e}")
+
+    return None
 
 
 def _utc_now() -> datetime:
@@ -230,13 +296,11 @@ class KnowledgeGraphService:
             project_file.unlink()
             logger.info(f"Deleted project file: {project_file}")
 
-        # Delete associated KnowledgeBase if exists
+        # Delete associated KnowledgeBase if exists (async to avoid blocking)
         if project.kb_id:
             kb_dir = self.kb_path / project.kb_id
             if kb_dir.exists() and kb_dir.is_dir():
-                import shutil
-
-                shutil.rmtree(kb_dir)
+                await asyncio.to_thread(shutil.rmtree, kb_dir)
                 logger.info(f"Deleted knowledge base: {kb_dir}")
 
         logger.info(f"Deleted KG project: {project_id} ({project.name})")
@@ -308,66 +372,17 @@ class KnowledgeGraphService:
             # - ToolResultBlock.content contains the actual tool output
             bootstrap_data: dict[str, Any] = {}
 
-            def _extract_bootstrap_from_content(
+            def _collect_bootstrap_step(
                 content: str | list[Any] | None, source: str = ""
             ) -> None:
-                """Extract bootstrap data from tool result content.
-
-                Args:
-                    content: ToolResultBlock.content - can be string or list of blocks
-                    source: Debug label for logging
-                """
-                if content is None:
-                    return
-
-                # ToolResultBlock.content can be string or list[dict]
-                if isinstance(content, str):
-                    # Single string content - check for marker
-                    if content.startswith(BOOTSTRAP_DATA_MARKER):
-                        try:
-                            json_str = content[len(BOOTSTRAP_DATA_MARKER) :]
-                            payload = json.loads(json_str)
-                            step = payload.get("step")
-                            data = payload.get("data")
-                            if step and data is not None:
-                                bootstrap_data[step] = data
-                                logger.info(
-                                    f"Collected bootstrap step: {step} ({source})"
-                                )
-                        except json.JSONDecodeError as e:
-                            logger.warning(f"Failed to parse bootstrap JSON: {e}")
-                    return
-
-                # List of content blocks
-                if not isinstance(content, list):
-                    logger.debug(f"Unexpected content type: {type(content)}")
-                    return
-
-                for i, block in enumerate(content):
-                    text = None
-                    # Handle dict block
-                    if isinstance(block, dict):
-                        if block.get("type") == "text":
-                            text = block.get("text", "")
-                    # Handle object block
-                    elif hasattr(block, "type"):
-                        block_type = getattr(block, "type", None)
-                        if block_type == "text":
-                            text = getattr(block, "text", "")
-
-                    if text and text.startswith(BOOTSTRAP_DATA_MARKER):
-                        try:
-                            json_str = text[len(BOOTSTRAP_DATA_MARKER) :]
-                            payload = json.loads(json_str)
-                            step = payload.get("step")
-                            data = payload.get("data")
-                            if step and data is not None:
-                                bootstrap_data[step] = data
-                                logger.info(
-                                    f"Collected bootstrap step: {step} ({source}[{i}])"
-                                )
-                        except json.JSONDecodeError as e:
-                            logger.warning(f"Failed to parse bootstrap JSON: {e}")
+                """Extract bootstrap step data from tool result content."""
+                payload = _extract_marked_content(content, BOOTSTRAP_DATA_MARKER, source)
+                if payload:
+                    step = payload.get("step")
+                    data = payload.get("data")
+                    if step and data is not None:
+                        bootstrap_data[step] = data
+                        logger.info(f"Collected bootstrap step: {step} ({source})")
 
             # Run Claude to perform bootstrap analysis (with concurrency limit)
             async with self._claude_semaphore:
@@ -418,7 +433,7 @@ class KnowledgeGraphService:
                                         f"    ToolResult content type: {type(tool_content)}, "
                                         f"preview: {str(tool_content)[:200] if tool_content else 'None'}..."
                                     )
-                                    _extract_bootstrap_from_content(
+                                    _collect_bootstrap_step(
                                         tool_content, f"UserMsg.block[{idx}]"
                                     )
 
@@ -739,56 +754,18 @@ Call all bootstrap tools in order to build a complete domain profile.
 
         extraction_result: ExtractionResult | None = None
 
-        def _extract_extraction_from_content(
+        def _collect_extraction_result(
             content: str | list[Any] | None, source: str = ""
         ) -> None:
-            """Extract extraction result from tool result content.
-
-            Args:
-                content: ToolResultBlock.content - can be string or list of blocks
-                source: Debug label for logging
-            """
+            """Extract and validate extraction result from tool result content."""
             nonlocal extraction_result
-            if content is None:
-                return
-
-            # ToolResultBlock.content can be string or list[dict]
-            if isinstance(content, str):
-                if content.startswith(EXTRACTION_DATA_MARKER):
-                    try:
-                        json_str = content[len(EXTRACTION_DATA_MARKER) :]
-                        payload = json.loads(json_str)
-                        extraction_result = ExtractionResult.model_validate(payload)
-                        logger.info(f"Extracted extraction result ({source})")
-                    except json.JSONDecodeError as e:
-                        logger.warning(f"Failed to parse extraction JSON: {e}")
-                    except Exception as e:
-                        logger.warning(f"Failed to validate extraction result: {e}")
-                return
-
-            # List of content blocks
-            if not isinstance(content, list):
-                return
-
-            for i, block in enumerate(content):
-                text = None
-                if isinstance(block, dict):
-                    if block.get("type") == "text":
-                        text = block.get("text", "")
-                elif hasattr(block, "type"):
-                    if getattr(block, "type", None) == "text":
-                        text = getattr(block, "text", "")
-
-                if text and text.startswith(EXTRACTION_DATA_MARKER):
-                    try:
-                        json_str = text[len(EXTRACTION_DATA_MARKER) :]
-                        payload = json.loads(json_str)
-                        extraction_result = ExtractionResult.model_validate(payload)
-                        logger.info(f"Extracted extraction result ({source}[{i}])")
-                    except json.JSONDecodeError as e:
-                        logger.warning(f"Failed to parse extraction JSON: {e}")
-                    except Exception as e:
-                        logger.warning(f"Failed to validate extraction result: {e}")
+            payload = _extract_marked_content(content, EXTRACTION_DATA_MARKER, source)
+            if payload:
+                try:
+                    extraction_result = ExtractionResult.model_validate(payload)
+                    logger.info(f"Extracted extraction result ({source})")
+                except Exception as e:
+                    logger.warning(f"Failed to validate extraction result: {e}")
 
         try:
             # Run extraction with concurrency limit
@@ -819,7 +796,7 @@ Call all bootstrap tools in order to build a complete domain profile.
                                 block_class = type(block).__name__
                                 if block_class == "ToolResultBlock":
                                     tool_content = getattr(block, "content", None)
-                                    _extract_extraction_from_content(
+                                    _collect_extraction_result(
                                         tool_content, f"UserMsg.block[{idx}]"
                                     )
 

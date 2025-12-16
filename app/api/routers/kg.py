@@ -24,6 +24,7 @@ from app.kg.persistence import load_knowledge_base
 from app.models.api import (
     CreateProjectResponse,
     DiscoveryResponse,
+    ListProjectsResponse,
     ProjectStatusResponse,
 )
 from app.models.requests import (
@@ -70,14 +71,14 @@ async def create_project(
     )
 
 
-@router.get("/projects")
+@router.get("/projects", response_model=ListProjectsResponse)
 async def list_projects(
     kg_service: KnowledgeGraphService = Depends(get_kg_service),
-) -> dict[str, Any]:
+) -> ListProjectsResponse:
     """List all KG projects sorted by creation date (newest first)."""
     projects = await kg_service.list_projects()
-    return {
-        "projects": [
+    return ListProjectsResponse(
+        projects=[
             ProjectStatusResponse(
                 project_id=p.id,
                 name=p.name,
@@ -100,7 +101,7 @@ async def list_projects(
             )
             for p in projects
         ]
-    }
+    )
 
 
 @router.delete("/projects/{project_id}")

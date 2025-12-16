@@ -1,7 +1,8 @@
 # Claude Agent SDK - Sessions, Permissions & Production Hosting
 
-> **Reference:** Python SDK v0.1.0+
+> **Reference:** Python SDK v0.1.0+ (Docs v0.5.0)
 > **Focus:** Session lifecycle, permissions, security, sandbox, production deployment
+> **See Also:** [Secure Deployment](https://docs.anthropic.com/en/docs/agent-sdk/secure-deployment) for network controls, credential management, and isolation
 
 ---
 
@@ -572,10 +573,13 @@ spec:
 | Provider | Type | Best For |
 |----------|------|----------|
 | [Cloudflare Sandboxes](https://github.com/cloudflare/sandbox-sdk) | Edge | Low latency, global |
-| [Modal](https://modal.com/docs/guide/sandbox) | Serverless | Python workloads |
+| [Modal Sandboxes](https://modal.com/docs/guide/sandbox) | Serverless | Python workloads |
+| [Daytona](https://www.daytona.io/) | Dev environments | Full IDE |
 | [E2B](https://e2b.dev/) | Cloud | Code execution |
 | [Fly Machines](https://fly.io/docs/machines/) | Containers | Long-running |
-| [Daytona](https://www.daytona.io/) | Dev environments | Full IDE |
+| [Vercel Sandbox](https://vercel.com/docs/functions/sandbox) | Serverless | Next.js/Vercel integration |
+
+For self-hosted options (Docker, gVisor, Firecracker) and detailed isolation configuration, see [Isolation Technologies](https://docs.anthropic.com/en/docs/agent-sdk/secure-deployment#isolation-technologies).
 
 ### Security Checklist
 
@@ -603,6 +607,28 @@ options = ClaudeAgentOptions(
     resume=previous_session_id
 )
 ```
+
+---
+
+## Production FAQ
+
+### How do I communicate with my sandboxes?
+When hosting in containers, expose ports to communicate with your SDK instances. Your application can expose HTTP/WebSocket endpoints for external clients while the SDK runs internally within the container.
+
+### What is the cost of hosting a container?
+The dominant cost of serving agents is the tokens. Container costs vary based on provisioning, but a minimum cost is roughly 5 cents per hour running.
+
+### When should I shut down idle containers vs. keeping them warm?
+This is provider-dependent. Different sandbox providers allow different criteria for idle timeouts. Tune this timeout based on how frequent user responses might be.
+
+### How often should I update the Claude Code CLI?
+The Claude Code CLI uses semver. Breaking changes will be versioned. Check for updates regularly but breaking changes are documented.
+
+### How do I monitor container health and agent performance?
+Since containers are just servers, the same logging infrastructure you use for the backend will work for containers. Log all tool usage for auditing.
+
+### How long can an agent session run before timing out?
+An agent session will not timeout, but set a `max_turns` property to prevent Claude from getting stuck in a loop.
 
 ---
 

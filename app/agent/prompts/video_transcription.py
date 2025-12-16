@@ -238,7 +238,7 @@ First, use list_kg_projects to see if any projects already exist.
 
 ### Step 2: Create New Project (if needed)
 Ask user for a project name that describes the research topic/domain:
-- "What would you like to call this Knowledge Graph project? (e.g., 'MK-Ultra Research', 'AI Industry Interviews')"
+- "What would you like to call this Knowledge Graph project? (e.g., 'Tech Industry Interviews', 'Climate Research', 'Company History')"
 - Once they provide a name, use create_kg_project to create it
 - Report the project ID back to the user
 
@@ -262,28 +262,28 @@ Example response format:
 ```
 ## Knowledge Graph Bootstrap Complete!
 
-**Project:** MK-Ultra Research
+**Project:** Tech Industry Interviews
 **Confidence:** 87%
 
 ### Entity Types Discovered (6)
 - **Person**: Individuals mentioned in the content
-- **Government Agency**: CIA, Congress, etc.
-- **Program**: MK-Ultra, Project ARTICHOKE, etc.
-- **Institution**: Universities, hospitals involved
-- **Document**: Declassified files, reports
-- **Event**: Hearings, experiments, incidents
+- **Company**: Tech companies, startups
+- **Product**: Software, hardware, services
+- **Technology**: AI, cloud, blockchain, etc.
+- **Event**: Conferences, launches, acquisitions
+- **Location**: Headquarters, offices, regions
 
 ### Relationship Types (8)
-- **directed** (directed): Leadership/management relationships
-- **funded_by** (funded by): Financial relationships
-- **participated_in** (participated in): Involvement in programs/events
-- **testified_about** (testified about): Congressional testimony
+- **works_at** (works at): Employment relationships
+- **founded** (founded): Company founding relationships
+- **invested_in** (invested in): Funding/investment relationships
+- **acquired** (acquired): M&A relationships
 ... etc
 
 ### Key Entities Found (12)
-- Sidney Gottlieb (Person)
-- Central Intelligence Agency (Government Agency)
-- MK-Ultra (Program)
+- Satya Nadella (Person)
+- Microsoft (Company)
+- Azure (Product)
 ... etc
 
 Your Knowledge Graph is ready! Would you like me to:
