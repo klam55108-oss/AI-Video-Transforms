@@ -14,19 +14,26 @@ Tool Order (must be called sequentially):
     6. finalize_domain_profile - Finalize with name and confidence
 
 Response Format:
-    - Success: {"content": [{"type": "text", "text": "..."}], "_bootstrap_data": {...}}
+    - Success: {"content": [{"type": "text", "text": "..."}, {"type": "text", "text": JSON}]}
     - Error: {"success": False, "error": "message"}
 
-The _bootstrap_data field contains structured data that the service layer
-collects to build the final DomainProfile.
+NOTE: Bootstrap data is embedded as JSON in the second content block because
+the Claude Agent SDK strips custom top-level keys (like _bootstrap_data).
+Only standard fields (content, isError) survive MCP/SDK serialization.
+The service layer parses JSON from content blocks to collect tool results.
 """
 
 from __future__ import annotations
 
+import json
 from contextvars import ContextVar
 from typing import Any
 
 from claude_agent_sdk import create_sdk_mcp_server, tool
+
+
+# Marker prefix for bootstrap data in content blocks
+BOOTSTRAP_DATA_MARKER = "__BOOTSTRAP_DATA__:"
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -57,6 +64,34 @@ def _store_bootstrap_data(step: str, data: Any) -> None:
     # Create a new dict to avoid mutation issues with ContextVar
     updated = {**collector, step: data}
     _bootstrap_collector.set(updated)
+
+
+def _make_bootstrap_response(message: str, step: str, data: Any) -> dict[str, Any]:
+    """
+    Create a tool response with bootstrap data embedded in content.
+
+    The Claude Agent SDK strips custom top-level keys from tool responses,
+    keeping only 'content' and 'isError'. To pass structured data back to
+    the service layer, we embed it as JSON in a marked content block.
+
+    Args:
+        message: Human-readable message for the assistant
+        step: Bootstrap step name (e.g., "analyze_content_domain")
+        data: Structured data to pass to service layer
+
+    Returns:
+        MCP-compliant tool response with embedded bootstrap data
+    """
+    bootstrap_payload = {"step": step, "data": data}
+    return {
+        "content": [
+            {"type": "text", "text": message},
+            {
+                "type": "text",
+                "text": f"{BOOTSTRAP_DATA_MARKER}{json.dumps(bootstrap_payload)}",
+            },
+        ]
+    }
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -150,19 +185,13 @@ async def analyze_content_domain(args: dict[str, Any]) -> dict[str, Any]:
             "complexity": args["complexity"],
         }
 
-        # Store data in collector for service layer
-        _store_bootstrap_data("analyze_content_domain", data)
-
         summary_preview = args["topic_summary"][:100]
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": f"Domain analysis recorded: {args['domain']} / "
-                    f"{args['content_type']} — {summary_preview}...",
-                }
-            ],
-        }
+        return _make_bootstrap_response(
+            message=f"Domain analysis recorded: {args['domain']} / "
+            f"{args['content_type']} — {summary_preview}...",
+            step="analyze_content_domain",
+            data=data,
+        )
     except Exception as e:
         return {"success": False, "error": f"analyze_content_domain failed: {e}"}
 
@@ -266,18 +295,12 @@ async def identify_thing_types(args: dict[str, Any]) -> dict[str, Any]:
                 }
             )
 
-        # Store data in collector for service layer
-        _store_bootstrap_data("identify_thing_types", normalized_types)
-
         type_names = [t["name"] for t in normalized_types]
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": f"Identified {len(normalized_types)} thing types: {', '.join(type_names)}",
-                }
-            ],
-        }
+        return _make_bootstrap_response(
+            message=f"Identified {len(normalized_types)} thing types: {', '.join(type_names)}",
+            step="identify_thing_types",
+            data=normalized_types,
+        )
     except Exception as e:
         return {"success": False, "error": f"identify_thing_types failed: {e}"}
 
@@ -400,19 +423,13 @@ async def identify_connection_types(args: dict[str, Any]) -> dict[str, Any]:
                 }
             )
 
-        # Store data in collector for service layer
-        _store_bootstrap_data("identify_connection_types", normalized_types)
-
         display_names = [c["display_name"] for c in normalized_types]
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": f"Identified {len(normalized_types)} connection types: "
-                    f"{', '.join(display_names)}",
-                }
-            ],
-        }
+        return _make_bootstrap_response(
+            message=f"Identified {len(normalized_types)} connection types: "
+            f"{', '.join(display_names)}",
+            step="identify_connection_types",
+            data=normalized_types,
+        )
     except Exception as e:
         return {"success": False, "error": f"identify_connection_types failed: {e}"}
 
@@ -511,22 +528,16 @@ async def identify_seed_entities(args: dict[str, Any]) -> dict[str, Any]:
                 }
             )
 
-        # Store data in collector for service layer
-        _store_bootstrap_data("identify_seed_entities", normalized_entities)
-
         # Show preview of first 5 entities
         labels = [e["label"] for e in normalized_entities]
         preview = ", ".join(labels[:5])
         suffix = "..." if len(labels) > 5 else ""
 
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": f"Identified {len(normalized_entities)} seed entities: {preview}{suffix}",
-                }
-            ],
-        }
+        return _make_bootstrap_response(
+            message=f"Identified {len(normalized_entities)} seed entities: {preview}{suffix}",
+            step="identify_seed_entities",
+            data=normalized_entities,
+        )
     except Exception as e:
         return {"success": False, "error": f"identify_seed_entities failed: {e}"}
 
@@ -578,17 +589,11 @@ async def generate_extraction_context(args: dict[str, Any]) -> dict[str, Any]:
                 "error": "context should be at least 50 characters for useful guidance",
             }
 
-        # Store data in collector for service layer
-        _store_bootstrap_data("generate_extraction_context", context)
-
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": f"Extraction context generated ({len(context)} chars)",
-                }
-            ],
-        }
+        return _make_bootstrap_response(
+            message=f"Extraction context generated ({len(context)} chars)",
+            step="generate_extraction_context",
+            data=context,
+        )
     except Exception as e:
         return {"success": False, "error": f"generate_extraction_context failed: {e}"}
 
@@ -666,17 +671,11 @@ async def finalize_domain_profile(args: dict[str, Any]) -> dict[str, Any]:
             "confidence": float(confidence),
         }
 
-        # Store data in collector for service layer
-        _store_bootstrap_data("finalize_domain_profile", data)
-
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": f"Domain profile finalized: '{name}' (confidence: {confidence:.0%})",
-                }
-            ],
-        }
+        return _make_bootstrap_response(
+            message=f"Domain profile finalized: '{name}' (confidence: {confidence:.0%})",
+            step="finalize_domain_profile",
+            data=data,
+        )
     except Exception as e:
         return {"success": False, "error": f"finalize_domain_profile failed: {e}"}
 

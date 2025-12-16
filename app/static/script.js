@@ -37,6 +37,27 @@ const transcriptsToggle = document.getElementById('transcripts-toggle');
 const transcriptsList = document.getElementById('transcripts-list');
 const transcriptsCaret = document.getElementById('transcripts-caret');
 
+// KG Elements
+const kgToggle = document.getElementById('kg-toggle');
+const kgContent = document.getElementById('kg-content');
+const kgCaret = document.getElementById('kg-caret');
+const kgPendingBadge = document.getElementById('kg-pending-badge');
+const kgDropdownToggle = document.getElementById('kg-dropdown-toggle');
+const kgDropdownList = document.getElementById('kg-dropdown-list');
+const kgDropdownLabel = document.getElementById('kg-dropdown-label');
+const kgNewProjectBtn = document.getElementById('kg-new-project-btn');
+const kgStateBadge = document.getElementById('kg-state-badge');
+const kgStateLabel = document.getElementById('kg-state-label');
+const kgWorkflow = document.getElementById('kg-workflow');
+const kgActionBtn = document.getElementById('kg-action-btn');
+const kgProgress = document.getElementById('kg-progress');
+const kgProgressText = document.getElementById('kg-progress-text');
+const kgConfirmations = document.getElementById('kg-confirmations');
+const kgConfirmationsList = document.getElementById('kg-confirmations-list');
+const kgStats = document.getElementById('kg-stats');
+const kgExport = document.getElementById('kg-export');
+const kgEmptyState = document.getElementById('kg-empty-state');
+
 // Theme toggle
 const themeToggle = document.getElementById('theme-toggle');
 
@@ -61,6 +82,14 @@ if (!toastContainer) {
 let isProcessing = false;
 let statusInterval = null;
 let fileInput = null;
+
+// KG State
+const KG_PROJECT_STORAGE_KEY = 'kg_current_project';
+const KG_POLL_INTERVAL_MS = 5000;
+let kgCurrentProjectId = sessionStorage.getItem(KG_PROJECT_STORAGE_KEY) || null;
+let kgCurrentProject = null;
+let kgPollInterval = null;
+let kgDropdownFocusedIndex = -1;
 
 // ============================================
 // Configuration
@@ -474,6 +503,587 @@ async function deleteTranscript(id) {
 }
 
 // ============================================
+// Knowledge Graph API Client
+// ============================================
+
+const kgClient = {
+    async listProjects() {
+        const response = await fetch('/kg/projects');
+        if (!response.ok) throw new Error('Failed to list projects');
+        return response.json();
+    },
+
+    async createProject(name) {
+        const response = await fetch('/kg/projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.detail || 'Failed to create project');
+        }
+        return response.json();
+    },
+
+    async getProject(projectId) {
+        const response = await fetch(`/kg/projects/${projectId}`);
+        if (response.status === 404) return null;
+        if (!response.ok) throw new Error('Failed to get project');
+        return response.json();
+    },
+
+    async getConfirmations(projectId) {
+        const response = await fetch(`/kg/projects/${projectId}/confirmations`);
+        if (!response.ok) throw new Error('Failed to get confirmations');
+        return response.json();
+    },
+
+    async confirmDiscovery(projectId, discoveryId, confirmed) {
+        const response = await fetch(`/kg/projects/${projectId}/confirm`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ discovery_id: discoveryId, confirmed })
+        });
+        if (!response.ok) throw new Error('Confirmation failed');
+        return response.json();
+    },
+
+    async getGraphStats(projectId) {
+        const response = await fetch(`/kg/projects/${projectId}/graph`);
+        if (response.status === 404) return null;
+        if (!response.ok) throw new Error('Failed to get stats');
+        return response.json();
+    },
+
+    async exportGraph(projectId, format) {
+        const response = await fetch(`/kg/projects/${projectId}/export`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ format })
+        });
+        if (!response.ok) throw new Error('Export failed');
+        return response.json();
+    },
+
+    async deleteProject(projectId) {
+        const response = await fetch(`/kg/projects/${projectId}`, {
+            method: 'DELETE'
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.detail || 'Failed to delete project');
+        }
+        return response.json();
+    }
+};
+
+// ============================================
+// KG Panel Toggle & Project Management
+// ============================================
+
+function toggleKGPanel() {
+    if (!kgContent || !kgCaret) return;
+
+    const isOpen = kgContent.classList.contains('open');
+
+    if (isOpen) {
+        kgContent.classList.remove('open');
+        kgCaret.classList.remove('open');
+        stopKGPolling();
+    } else {
+        kgContent.classList.add('open');
+        kgCaret.classList.add('open');
+        loadKGProjects();
+        if (kgCurrentProjectId) startKGPolling();
+    }
+
+    kgToggle?.setAttribute('aria-expanded', !isOpen);
+}
+
+async function loadKGProjects() {
+    try {
+        const data = await kgClient.listProjects();
+        renderKGProjectList(data.projects || []);
+    } catch (e) {
+        console.error('Failed to load KG projects:', e);
+        kgEmptyState?.classList.remove('hidden');
+    }
+}
+
+async function deleteKGProject(projectId, projectName) {
+    if (!confirm(`Delete project "${projectName}"? All data will be permanently removed.`)) {
+        return;
+    }
+
+    try {
+        await kgClient.deleteProject(projectId);
+
+        // If we deleted the currently selected project, clear selection
+        if (kgCurrentProjectId === projectId) {
+            kgCurrentProjectId = null;
+            kgCurrentProject = null;
+            sessionStorage.removeItem(KG_PROJECT_STORAGE_KEY);
+            kgDropdownLabel.textContent = '-- Select Project --';
+            kgWorkflow?.classList.add('hidden');
+            stopKGPolling();
+        }
+
+        // Refresh the project list
+        loadKGProjects();
+        showToast('Project deleted', 'success');
+    } catch (e) {
+        console.error('Delete project failed:', e);
+        showToast('Failed to delete project', 'error');
+    }
+}
+
+function renderKGProjectList(projects) {
+    if (!kgDropdownList || !kgDropdownLabel) return;
+
+    // Clear existing options
+    kgDropdownList.innerHTML = '';
+
+    if (projects.length === 0) {
+        kgEmptyState?.classList.remove('hidden');
+        kgWorkflow?.classList.add('hidden');
+
+        // Add empty placeholder option
+        const emptyOption = document.createElement('li');
+        emptyOption.className = 'kg-dropdown-option';
+        emptyOption.setAttribute('data-empty', 'true');
+        emptyOption.textContent = 'No projects yet';
+        kgDropdownList.appendChild(emptyOption);
+
+        kgDropdownLabel.textContent = '-- Select Project --';
+        return;
+    }
+
+    kgEmptyState?.classList.add('hidden');
+
+    // Add project options directly (no placeholder needed - toggle button shows current selection)
+    // Add project options (styled like History items)
+    projects.forEach((p, index) => {
+        const option = document.createElement('li');
+        option.className = 'kg-dropdown-option group';
+        option.setAttribute('role', 'option');
+        option.setAttribute('data-value', p.project_id);
+        option.setAttribute('aria-selected', p.project_id === kgCurrentProjectId ? 'true' : 'false');
+        option.innerHTML = `
+            <div class="option-content" onclick="handleDropdownSelect('${p.project_id}', '${escapeHtml(p.name).replace(/'/g, "\\'")}')">
+                <span class="option-name truncate">${escapeHtml(p.name)}</span>
+                <span class="option-state">${p.state}</span>
+            </div>
+            <button class="kg-delete-btn opacity-0 group-hover:opacity-100 transition-opacity"
+                    onclick="event.stopPropagation(); deleteKGProject('${p.project_id}', '${escapeHtml(p.name).replace(/'/g, "\\'")}')"
+                    title="Delete project">
+                <i class="ph-bold ph-trash text-xs"></i>
+            </button>
+        `;
+        kgDropdownList.appendChild(option);
+    });
+
+    // Update label if current project is selected
+    if (kgCurrentProjectId) {
+        const currentProject = projects.find(p => p.project_id === kgCurrentProjectId);
+        if (currentProject) {
+            kgDropdownLabel.textContent = currentProject.name;
+        }
+        refreshKGProjectStatus();
+    }
+}
+
+function handleDropdownSelect(projectId, projectName) {
+    kgDropdownLabel.textContent = projectName || '-- Select Project --';
+    closeKGDropdown();
+    selectKGProject(projectId);
+
+    // Update aria-selected on all options
+    const options = kgDropdownList?.querySelectorAll('.kg-dropdown-option[role="option"]');
+    options?.forEach(opt => {
+        opt.setAttribute('aria-selected', opt.getAttribute('data-value') === projectId ? 'true' : 'false');
+    });
+}
+
+function toggleKGDropdown() {
+    const isOpen = kgDropdownToggle?.getAttribute('aria-expanded') === 'true';
+    if (isOpen) {
+        closeKGDropdown();
+    } else {
+        openKGDropdown();
+    }
+}
+
+function openKGDropdown() {
+    kgDropdownToggle?.setAttribute('aria-expanded', 'true');
+    kgDropdownList?.classList.remove('hidden');
+    kgDropdownList?.classList.add('open');
+    kgDropdownFocusedIndex = -1;
+
+    // Focus on currently selected option
+    const selectedOption = kgDropdownList?.querySelector('[aria-selected="true"]');
+    if (selectedOption) {
+        const options = Array.from(kgDropdownList?.querySelectorAll('.kg-dropdown-option[role="option"]') || []);
+        kgDropdownFocusedIndex = options.indexOf(selectedOption);
+        updateDropdownFocus();
+    }
+}
+
+function closeKGDropdown() {
+    kgDropdownToggle?.setAttribute('aria-expanded', 'false');
+    kgDropdownList?.classList.remove('open');
+    kgDropdownList?.classList.add('hidden');
+    kgDropdownFocusedIndex = -1;
+    clearDropdownFocus();
+}
+
+function updateDropdownFocus() {
+    const options = kgDropdownList?.querySelectorAll('.kg-dropdown-option[role="option"]');
+    options?.forEach((opt, i) => {
+        if (i === kgDropdownFocusedIndex) {
+            opt.classList.add('focused');
+            opt.scrollIntoView({ block: 'nearest' });
+        } else {
+            opt.classList.remove('focused');
+        }
+    });
+}
+
+function clearDropdownFocus() {
+    const options = kgDropdownList?.querySelectorAll('.kg-dropdown-option');
+    options?.forEach(opt => opt.classList.remove('focused'));
+}
+
+function handleDropdownKeydown(e) {
+    const options = Array.from(kgDropdownList?.querySelectorAll('.kg-dropdown-option[role="option"]') || []);
+    const isOpen = kgDropdownToggle?.getAttribute('aria-expanded') === 'true';
+
+    switch (e.key) {
+        case 'Enter':
+        case ' ':
+            e.preventDefault();
+            if (!isOpen) {
+                openKGDropdown();
+            } else if (kgDropdownFocusedIndex >= 0 && options[kgDropdownFocusedIndex]) {
+                const option = options[kgDropdownFocusedIndex];
+                const value = option.getAttribute('data-value');
+                const name = option.querySelector('span')?.textContent || option.textContent;
+                handleDropdownSelect(value, name);
+            }
+            break;
+
+        case 'Escape':
+            e.preventDefault();
+            closeKGDropdown();
+            kgDropdownToggle?.focus();
+            break;
+
+        case 'ArrowDown':
+            e.preventDefault();
+            if (!isOpen) {
+                openKGDropdown();
+            } else {
+                kgDropdownFocusedIndex = Math.min(kgDropdownFocusedIndex + 1, options.length - 1);
+                updateDropdownFocus();
+            }
+            break;
+
+        case 'ArrowUp':
+            e.preventDefault();
+            if (isOpen) {
+                kgDropdownFocusedIndex = Math.max(kgDropdownFocusedIndex - 1, 0);
+                updateDropdownFocus();
+            }
+            break;
+
+        case 'Home':
+            e.preventDefault();
+            if (isOpen) {
+                kgDropdownFocusedIndex = 0;
+                updateDropdownFocus();
+            }
+            break;
+
+        case 'End':
+            e.preventDefault();
+            if (isOpen) {
+                kgDropdownFocusedIndex = options.length - 1;
+                updateDropdownFocus();
+            }
+            break;
+
+        case 'Tab':
+            if (isOpen) {
+                closeKGDropdown();
+            }
+            break;
+    }
+}
+
+async function selectKGProject(projectId) {
+    if (!projectId) {
+        kgCurrentProjectId = null;
+        kgCurrentProject = null;
+        sessionStorage.removeItem(KG_PROJECT_STORAGE_KEY);
+        kgWorkflow?.classList.add('hidden');
+        kgStateBadge?.classList.add('hidden');
+        kgConfirmations?.classList.add('hidden');
+        kgStats?.classList.add('hidden');
+        kgExport?.classList.add('hidden');
+        stopKGPolling();
+        return;
+    }
+
+    kgCurrentProjectId = projectId;
+    sessionStorage.setItem(KG_PROJECT_STORAGE_KEY, projectId);
+    await refreshKGProjectStatus();
+    startKGPolling();
+}
+
+async function refreshKGProjectStatus() {
+    if (!kgCurrentProjectId) return;
+
+    try {
+        const project = await kgClient.getProject(kgCurrentProjectId);
+        if (!project) {
+            showToast('Project not found', 'error');
+            selectKGProject(null);
+            return;
+        }
+
+        kgCurrentProject = project;
+        updateKGUI(project);
+    } catch (e) {
+        console.error('Failed to refresh KG project:', e);
+    }
+}
+
+// ============================================
+// KG UI Updates
+// ============================================
+
+function updateKGUI(project) {
+    kgWorkflow?.classList.remove('hidden');
+
+    updateKGStateBadge(project.state);
+    updateKGActionButton(project);
+    updateKGConfirmations(project.pending_confirmations);
+    updateKGStats(project);
+
+    const hasData = project.thing_count > 0 || project.connection_count > 0;
+    kgExport?.classList.toggle('hidden', !hasData);
+
+    if (kgPendingBadge) {
+        if (project.pending_confirmations > 0) {
+            kgPendingBadge.textContent = project.pending_confirmations;
+            kgPendingBadge.classList.remove('hidden');
+        } else {
+            kgPendingBadge.classList.add('hidden');
+        }
+    }
+}
+
+function updateKGStateBadge(state) {
+    if (!kgStateBadge || !kgStateLabel) return;
+
+    kgStateBadge.classList.remove('hidden');
+
+    const indicator = kgStateBadge.querySelector('.kg-state-indicator');
+    if (indicator) {
+        indicator.className = `kg-state-indicator ${state}`;
+    }
+
+    const labels = {
+        'created': 'Created',
+        'bootstrapping': 'Bootstrapping...',
+        'active': 'Active',
+        'stable': 'Stable'
+    };
+
+    kgStateLabel.textContent = labels[state] || state;
+}
+
+function updateKGActionButton(project) {
+    if (!kgActionBtn) return;
+
+    const icon = kgActionBtn.querySelector('i');
+    const text = kgActionBtn.querySelector('span');
+
+    switch (project.state) {
+        case 'created':
+            icon.className = 'ph-bold ph-lightning mr-1.5';
+            text.textContent = 'Bootstrap from Video';
+            kgActionBtn.disabled = false;
+            kgProgress?.classList.add('hidden');
+            break;
+        case 'bootstrapping':
+            icon.className = 'ph-bold ph-spinner mr-1.5 animate-spin';
+            text.textContent = 'Bootstrapping...';
+            kgActionBtn.disabled = true;
+            kgProgress?.classList.remove('hidden');
+            if (kgProgressText) kgProgressText.textContent = 'Analyzing domain...';
+            break;
+        case 'active':
+        case 'stable':
+            icon.className = 'ph-bold ph-magnifying-glass-plus mr-1.5';
+            text.textContent = 'Extract from Video';
+            kgActionBtn.disabled = false;
+            kgProgress?.classList.add('hidden');
+            break;
+    }
+}
+
+async function updateKGConfirmations(pendingCount) {
+    if (!kgConfirmations || !kgConfirmationsList) return;
+
+    if (pendingCount === 0) {
+        kgConfirmations.classList.add('hidden');
+        return;
+    }
+
+    kgConfirmations.classList.remove('hidden');
+
+    try {
+        const discoveries = await kgClient.getConfirmations(kgCurrentProjectId);
+        renderKGConfirmations(discoveries);
+    } catch (e) {
+        console.error('Failed to load confirmations:', e);
+    }
+}
+
+function renderKGConfirmations(discoveries) {
+    if (!kgConfirmationsList) return;
+
+    kgConfirmationsList.innerHTML = discoveries.map(d => `
+        <div class="kg-discovery-item" data-discovery-id="${escapeHtml(d.id)}">
+            <span class="discovery-question">${DOMPurify.sanitize(d.user_question)}</span>
+            <div class="discovery-actions">
+                <button class="discovery-btn accept" onclick="confirmKGDiscovery('${escapeHtml(d.id)}', true)">
+                    <i class="ph-bold ph-check"></i> Yes
+                </button>
+                <button class="discovery-btn reject" onclick="confirmKGDiscovery('${escapeHtml(d.id)}', false)">
+                    <i class="ph-bold ph-x"></i> No
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function updateKGStats(project) {
+    if (!kgStats) return;
+
+    const hasData = project.thing_count > 0 || project.connection_count > 0;
+    kgStats.classList.toggle('hidden', !hasData);
+
+    if (hasData) {
+        document.getElementById('kg-stat-nodes').textContent = project.thing_count;
+        document.getElementById('kg-stat-edges').textContent = project.connection_count;
+    }
+}
+
+// ============================================
+// KG Actions
+// ============================================
+
+async function createKGProject() {
+    const name = prompt('Enter project name:');
+    if (!name || !name.trim()) return;
+
+    try {
+        const project = await kgClient.createProject(name.trim());
+        showToast(`Project "${project.name}" created`, 'success');
+
+        await loadKGProjects();
+        kgProjectSelect.value = project.project_id;
+        await selectKGProject(project.project_id);
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+async function confirmKGDiscovery(discoveryId, confirmed) {
+    if (!kgCurrentProjectId) return;
+
+    const item = document.querySelector(`[data-discovery-id="${discoveryId}"]`);
+    const buttons = item?.querySelectorAll('button');
+    buttons?.forEach(btn => btn.disabled = true);
+
+    try {
+        await kgClient.confirmDiscovery(kgCurrentProjectId, discoveryId, confirmed);
+
+        item?.classList.add('fade-out');
+        setTimeout(() => {
+            item?.remove();
+            const remaining = kgConfirmationsList?.children.length || 0;
+            if (kgPendingBadge) {
+                if (remaining > 0) {
+                    kgPendingBadge.textContent = remaining;
+                } else {
+                    kgPendingBadge.classList.add('hidden');
+                    kgConfirmations?.classList.add('hidden');
+                }
+            }
+        }, 200);
+
+        showToast(confirmed ? 'Discovery confirmed' : 'Discovery rejected', 'success');
+    } catch (e) {
+        showToast(e.message, 'error');
+        buttons?.forEach(btn => btn.disabled = false);
+    }
+}
+
+async function exportKGGraph(format) {
+    if (!kgCurrentProjectId) return;
+
+    try {
+        const result = await kgClient.exportGraph(kgCurrentProjectId, format);
+        showToast(`Exported to ${result.path}`, 'success');
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+// ============================================
+// KG Polling
+// ============================================
+
+function startKGPolling() {
+    stopKGPolling();
+    kgPollInterval = setInterval(refreshKGProjectStatus, KG_POLL_INTERVAL_MS);
+}
+
+function stopKGPolling() {
+    if (kgPollInterval) {
+        clearInterval(kgPollInterval);
+        kgPollInterval = null;
+    }
+}
+
+// ============================================
+// KG Event Listeners
+// ============================================
+
+function initKGEventListeners() {
+    kgToggle?.addEventListener('click', toggleKGPanel);
+    kgNewProjectBtn?.addEventListener('click', createKGProject);
+
+    // Custom dropdown events
+    kgDropdownToggle?.addEventListener('click', toggleKGDropdown);
+    kgDropdownToggle?.addEventListener('keydown', handleDropdownKeydown);
+
+    // Click outside to close
+    document.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('kg-project-dropdown');
+        if (dropdown && !dropdown.contains(e.target)) {
+            closeKGDropdown();
+        }
+    });
+
+    document.getElementById('kg-export-json')?.addEventListener('click', () => exportKGGraph('json'));
+    document.getElementById('kg-export-graphml')?.addEventListener('click', () => exportKGGraph('graphml'));
+}
+
+// ============================================
 // File Upload
 // ============================================
 
@@ -548,6 +1158,32 @@ async function handleFileSelect(e) {
 
     // Reset file input
     fileInput.value = '';
+}
+
+// ============================================
+// Empty State Management
+// ============================================
+
+function showEmptyState() {
+    const emptyState = document.getElementById('empty-state');
+    const messageContainer = chatMessages?.querySelector('div.space-y-6');
+    if (emptyState) {
+        emptyState.classList.remove('hidden');
+    }
+    if (messageContainer) {
+        messageContainer.classList.add('hidden');
+    }
+}
+
+function hideEmptyState() {
+    const emptyState = document.getElementById('empty-state');
+    const messageContainer = chatMessages?.querySelector('div.space-y-6');
+    if (emptyState) {
+        emptyState.classList.add('hidden');
+    }
+    if (messageContainer) {
+        messageContainer.classList.remove('hidden');
+    }
 }
 
 // ============================================
@@ -629,6 +1265,8 @@ function enhanceMarkdown(html) {
 
 // Add Message to UI
 function addMessage(text, sender, usage = null) {
+    hideEmptyState();
+
     const isUser = sender === 'user';
 
     // Outer Container
@@ -906,6 +1544,7 @@ async function initSession() {
     const existingMessages = await loadExistingSession();
 
     if (existingMessages && existingMessages.length > 0) {
+        hideEmptyState();
         // Restore existing messages
         for (const msg of existingMessages) {
             addMessage(msg.content, msg.role);
@@ -924,7 +1563,8 @@ async function initSession() {
         return;
     }
 
-    // Initialize new session
+    // Initialize new session - show empty state initially
+    showEmptyState();
     const loadingId = showLoading();
 
     try {
@@ -1003,12 +1643,16 @@ function initEventListeners() {
     // Sidebar panel toggles
     historyToggle?.addEventListener('click', toggleHistoryPanel);
     transcriptsToggle?.addEventListener('click', toggleTranscriptsPanel);
+
+    // Initialize KG event listeners
+    initKGEventListeners();
 }
 
 function initSidebarData() {
     // Pre-load sidebar data (collapsed state)
     loadHistory();
     loadTranscripts();
+    loadKGProjects();
 }
 
 // Run initialization when DOM is ready

@@ -6,7 +6,9 @@ Uses app.dependency_overrides for mocking KG service (FastAPI pattern).
 
 Testing Checklist Items:
 - [x] POST /kg/projects creates project and returns project_id
+- [x] GET /kg/projects lists all projects (empty, multiple, pending counts)
 - [x] GET /kg/projects/{id} returns status or 404
+- [x] DELETE /kg/projects/{id} deletes project or 404
 - [x] POST /kg/projects/{id}/bootstrap handles state validation
 - [x] GET /kg/projects/{id}/confirmations returns pending discoveries
 - [x] POST /kg/projects/{id}/confirm processes confirmations
@@ -106,6 +108,14 @@ class MockKGService:
                 return True
         return False
 
+    async def delete_project(self, project_id: str) -> bool:
+        """Delete a project by ID."""
+        if project_id in self.projects:
+            del self.projects[project_id]
+            self.pending_discoveries.pop(project_id, None)
+            return True
+        return False
+
     # Helper methods for test setup
     def add_project(self, project: KGProject) -> None:
         """Add a pre-configured project for testing."""
@@ -175,6 +185,132 @@ class TestCreateProject:
             # Project IDs are 12-character hex strings
             assert len(data["project_id"]) == 12
             assert all(c in "0123456789abcdef" for c in data["project_id"])
+        finally:
+            app.dependency_overrides.pop(get_kg_service, None)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TEST: GET /kg/projects (list all)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestListProjects:
+    """Test GET /kg/projects endpoint (list all projects)."""
+
+    @pytest.mark.asyncio
+    async def test_list_projects_empty(self) -> None:
+        """Test that empty project list returns empty array."""
+        from app.main import app
+
+        mock_service = MockKGService()
+        app.dependency_overrides[get_kg_service] = lambda: mock_service
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.get("/kg/projects")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["projects"] == []
+        finally:
+            app.dependency_overrides.pop(get_kg_service, None)
+
+    @pytest.mark.asyncio
+    async def test_list_projects_returns_all(self) -> None:
+        """Test that all projects are returned with correct fields."""
+        from app.main import app
+
+        mock_service = MockKGService()
+        # Add multiple projects
+        project1 = KGProject(
+            id="proj001",
+            name="Project One",
+            state=ProjectState.CREATED,
+        )
+        project2 = KGProject(
+            id="proj002",
+            name="Project Two",
+            state=ProjectState.ACTIVE,
+            thing_count=5,
+            connection_count=3,
+        )
+        mock_service.add_project(project1)
+        mock_service.add_project(project2)
+        app.dependency_overrides[get_kg_service] = lambda: mock_service
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.get("/kg/projects")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["projects"]) == 2
+
+            # Check project fields are present
+            project_ids = {p["project_id"] for p in data["projects"]}
+            assert "proj001" in project_ids
+            assert "proj002" in project_ids
+        finally:
+            app.dependency_overrides.pop(get_kg_service, None)
+
+    @pytest.mark.asyncio
+    async def test_list_projects_includes_pending_count(self) -> None:
+        """Test that pending_confirmations count is calculated correctly."""
+        from app.main import app
+
+        mock_service = MockKGService()
+        project = KGProject(
+            id="proj_pending",
+            name="Project with Discoveries",
+            state=ProjectState.ACTIVE,
+            pending_discoveries=[
+                Discovery(
+                    discovery_type="thing_type",
+                    name="person",
+                    display_name="Person",
+                    description="A human entity",
+                    user_question="Track Person entities?",
+                    status=DiscoveryStatus.PENDING,
+                ),
+                Discovery(
+                    discovery_type="thing_type",
+                    name="organization",
+                    display_name="Organization",
+                    description="A company or org",
+                    user_question="Track Org entities?",
+                    status=DiscoveryStatus.PENDING,
+                ),
+                Discovery(
+                    discovery_type="thing_type",
+                    name="old_type",
+                    display_name="Old Type",
+                    description="An old type",
+                    user_question="Track Old entities?",
+                    status=DiscoveryStatus.CONFIRMED,  # Not pending
+                ),
+            ],
+        )
+        mock_service.add_project(project)
+        app.dependency_overrides[get_kg_service] = lambda: mock_service
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.get("/kg/projects")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["projects"]) == 1
+            # Only 2 PENDING discoveries should be counted
+            assert data["projects"][0]["pending_confirmations"] == 2
         finally:
             app.dependency_overrides.pop(get_kg_service, None)
 
@@ -595,5 +731,101 @@ class TestConfirmDiscovery:
 
             assert response.status_code == 404
             assert response.json()["detail"] == "Discovery not found"
+        finally:
+            app.dependency_overrides.pop(get_kg_service, None)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TEST: DELETE /kg/projects/{project_id}
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestDeleteProject:
+    """Test DELETE /kg/projects/{project_id} endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_delete_project_success(self) -> None:
+        """Test successful project deletion."""
+        from app.main import app
+
+        mock_service = MockKGService()
+        project = KGProject(
+            id="de1e7e123456",
+            name="To Delete",
+            state=ProjectState.CREATED,
+        )
+        mock_service.add_project(project)
+        app.dependency_overrides[get_kg_service] = lambda: mock_service
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.delete("/kg/projects/de1e7e123456")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "deleted"
+            assert data["project_id"] == "de1e7e123456"
+
+            # Verify project is actually removed
+            assert "de1e7e123456" not in mock_service.projects
+        finally:
+            app.dependency_overrides.pop(get_kg_service, None)
+
+    @pytest.mark.asyncio
+    async def test_delete_project_not_found_404(self) -> None:
+        """Test deletion of non-existent project returns 404."""
+        from app.main import app
+
+        mock_service = MockKGService()
+        app.dependency_overrides[get_kg_service] = lambda: mock_service
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.delete("/kg/projects/abcdef123456")
+
+            assert response.status_code == 404
+            assert response.json()["detail"] == "Project not found"
+        finally:
+            app.dependency_overrides.pop(get_kg_service, None)
+
+    @pytest.mark.asyncio
+    async def test_delete_project_removes_discoveries(self) -> None:
+        """Test deletion also removes associated discoveries."""
+        from app.main import app
+
+        mock_service = MockKGService()
+        project = KGProject(
+            id="d15c0e123456",
+            name="With Discoveries",
+            state=ProjectState.ACTIVE,
+        )
+        mock_service.add_project(project)
+        discovery = Discovery(
+            id="d15c12345678",
+            discovery_type="thing_type",
+            name="SomeType",
+            display_name="Some Type",
+            description="A type",
+            status=DiscoveryStatus.PENDING,
+        )
+        mock_service.add_discovery("d15c0e123456", discovery)
+        app.dependency_overrides[get_kg_service] = lambda: mock_service
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.delete("/kg/projects/d15c0e123456")
+
+            assert response.status_code == 200
+            # Verify discoveries are also removed
+            assert "d15c0e123456" not in mock_service.pending_discoveries
         finally:
             app.dependency_overrides.pop(get_kg_service, None)

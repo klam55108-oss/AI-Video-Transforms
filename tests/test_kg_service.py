@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -595,18 +595,14 @@ class TestBootstrapFromTranscript:
             mock_client.receive_response = empty_async_gen
             mock_client_class.return_value = mock_client
 
-            # Mock bootstrap data to simulate empty response (triggers error)
-            with patch(
-                "app.services.kg_service.get_bootstrap_data",
-                return_value={},
-            ):
-                with pytest.raises(RuntimeError, match="Bootstrap produced no data"):
-                    await kg_service.bootstrap_from_transcript(
-                        project_id=project.id,
-                        transcript="Test transcript content for the video",
-                        title="Test Video",
-                        source_id="source123",
-                    )
+            # Without any _bootstrap_data in messages, bootstrap will fail
+            with pytest.raises(RuntimeError, match="Bootstrap produced no data"):
+                await kg_service.bootstrap_from_transcript(
+                    project_id=project.id,
+                    transcript="Test transcript content for the video",
+                    title="Test Video",
+                    source_id="source123",
+                )
 
             # After failure, state should be restored to CREATED
             restored_project = await kg_service.get_project(project.id)
@@ -675,31 +671,65 @@ class TestBootstrapFromTranscript:
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_client.query = AsyncMock()
 
-            # Mock receive_response to return a ResultMessage
-            from claude_agent_sdk import ResultMessage
+            # Mock receive_response to return UserMessages with ToolResultBlocks
+            # and a final ResultMessage (per SDK - tool results are in UserMessage.content)
+            from claude_agent_sdk import ResultMessage, UserMessage
 
+            from app.kg.tools.bootstrap import BOOTSTRAP_DATA_MARKER
+
+            # Create mock ToolResultBlocks inside UserMessage.content
+            # (SDK sends tool results as UserMessage, simulating user providing tool results)
+            def make_tool_result_block(step: str, data: Any) -> MagicMock:
+                """Create a mock ToolResultBlock with embedded bootstrap data."""
+                import json
+
+                payload = {"step": step, "data": data}
+                block = MagicMock()
+                # Note: We check block_class == "ToolResultBlock" in the code
+                block.__class__.__name__ = "ToolResultBlock"
+                block.type = "tool_result"
+                block.tool_use_id = f"tool_{step}"
+                # Content as list of text blocks
+                block.content = [
+                    {"type": "text", "text": f"{step} completed"},
+                    {
+                        "type": "text",
+                        "text": f"{BOOTSTRAP_DATA_MARKER}{json.dumps(payload)}",
+                    },
+                ]
+                return block
+
+            # Create UserMessages with tool results
+            user_messages = []
+            for step, data in mock_bootstrap_data.items():
+                msg = MagicMock(spec=UserMessage)
+                msg.type = "user"
+                msg.content = [make_tool_result_block(step, data)]
+                user_messages.append(msg)
+
+            # Final ResultMessage (no tool_results attribute per SDK docs)
             mock_result = MagicMock(spec=ResultMessage)
+            mock_result.type = "result"
             mock_result.is_error = False
             mock_result.num_turns = 5
             mock_result.total_cost_usd = 0.01
 
             async def mock_receive():
+                # Yield UserMessages with tool results first
+                for msg in user_messages:
+                    yield msg
+                # Then yield the final ResultMessage
                 yield mock_result
 
             mock_client.receive_response = mock_receive
             mock_client_class.return_value = mock_client
 
-            with patch(
-                "app.services.kg_service.get_bootstrap_data",
-                return_value=mock_bootstrap_data,
-            ):
-                with patch("app.services.kg_service.clear_bootstrap_collector"):
-                    profile = await kg_service.bootstrap_from_transcript(
-                        project_id=project.id,
-                        transcript="Detailed transcript about historical events.",
-                        title="History Documentary",
-                        source_id="video123",
-                    )
+            profile = await kg_service.bootstrap_from_transcript(
+                project_id=project.id,
+                transcript="Detailed transcript about historical events.",
+                title="History Documentary",
+                source_id="video123",
+            )
 
         # Verify the profile was created
         assert profile is not None

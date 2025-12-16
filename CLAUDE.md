@@ -8,7 +8,7 @@ AI-powered video transcription and knowledge graph extraction.
 
 ```bash
 uv run python -m app.main              # Dev server → http://127.0.0.1:8000
-uv run pytest                          # 534 tests
+uv run pytest                          # 538 tests
 uv run mypy .                          # Type check (strict)
 uv run ruff check . && ruff format .   # Lint + format
 ```

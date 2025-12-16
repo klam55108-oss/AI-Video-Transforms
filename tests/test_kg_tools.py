@@ -10,11 +10,12 @@ This module tests the MCP tools used for domain inference during bootstrap:
 - finalize_domain_profile: Profile finalization
 
 Each tool returns structured responses:
-- Success: {"content": [{"type": "text", "text": "..."}]}
+- Success: {"content": [{"type": "text", "text": "..."}, {"type": "text", "text": JSON}]}
 - Error: {"success": False, "error": "message"}
 
-Tools also store data in a collector via _bootstrap_collector for assembly
-into a DomainProfile by the service layer.
+Bootstrap data is embedded as JSON in content blocks with a marker prefix
+because the Claude Agent SDK strips custom top-level keys. The service layer
+parses this data from content blocks to assemble into a DomainProfile.
 
 Note: The @tool decorator from claude_agent_sdk wraps functions into SdkMcpTool
 objects. We access the underlying handler function via the .handler attribute
@@ -23,21 +24,45 @@ for direct testing.
 
 from __future__ import annotations
 
+import json
+from typing import Any
+
 import pytest
 
 from app.kg.tools.bootstrap import (
+    BOOTSTRAP_DATA_MARKER,
     BOOTSTRAP_TOOL_NAMES,
     BOOTSTRAP_TOOLS,
     analyze_content_domain,
-    clear_bootstrap_collector,
     create_bootstrap_mcp_server,
     finalize_domain_profile,
     generate_extraction_context,
-    get_bootstrap_data,
     identify_connection_types,
     identify_seed_entities,
     identify_thing_types,
 )
+
+
+def extract_bootstrap_data(result: dict[str, Any]) -> dict[str, Any] | None:
+    """Extract bootstrap data from tool response content blocks.
+
+    Args:
+        result: Tool response dict with 'content' key
+
+    Returns:
+        Parsed bootstrap data dict with 'step' and 'data' keys, or None if not found
+    """
+    if "content" not in result:
+        return None
+
+    for block in result["content"]:
+        if block.get("type") == "text":
+            text = block.get("text", "")
+            if text.startswith(BOOTSTRAP_DATA_MARKER):
+                json_str = text[len(BOOTSTRAP_DATA_MARKER) :]
+                return json.loads(json_str)
+    return None
+
 
 # Extract underlying handler functions from SdkMcpTool objects
 # The @tool decorator wraps functions, so we need .handler to get the callable
@@ -47,19 +72,6 @@ _identify_connection_types = identify_connection_types.handler
 _identify_seed_entities = identify_seed_entities.handler
 _generate_extraction_context = generate_extraction_context.handler
 _finalize_domain_profile = finalize_domain_profile.handler
-
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# TEST FIXTURES
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-
-@pytest.fixture(autouse=True)
-def clear_collector():
-    """Clear bootstrap collector before each test."""
-    clear_bootstrap_collector()
-    yield
-    clear_bootstrap_collector()
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -83,9 +95,9 @@ class TestAnalyzeContentDomain:
 
         result = await _analyze_content_domain(args)
 
-        # Should return content format (success)
+        # Should return content format (success) with 2 blocks
         assert "content" in result
-        assert len(result["content"]) == 1
+        assert len(result["content"]) == 2  # Message + bootstrap data
         assert result["content"][0]["type"] == "text"
         assert "Domain analysis recorded" in result["content"][0]["text"]
         assert "history" in result["content"][0]["text"]
@@ -93,7 +105,7 @@ class TestAnalyzeContentDomain:
 
     @pytest.mark.asyncio
     async def test_analyze_content_domain_returns_bootstrap_data(self):
-        """Test that tool stores data in bootstrap collector."""
+        """Test that tool returns bootstrap_data embedded in content."""
         args = {
             "content_type": "interview",
             "domain": "science",
@@ -102,13 +114,14 @@ class TestAnalyzeContentDomain:
             "complexity": "moderate",
         }
 
-        await _analyze_content_domain(args)
+        result = await _analyze_content_domain(args)
 
-        # Verify data was stored in collector
-        bootstrap_data = get_bootstrap_data()
-        assert "analyze_content_domain" in bootstrap_data
+        # Extract bootstrap data from content blocks
+        bootstrap_data = extract_bootstrap_data(result)
+        assert bootstrap_data is not None
+        assert bootstrap_data["step"] == "analyze_content_domain"
 
-        stored = bootstrap_data["analyze_content_domain"]
+        stored = bootstrap_data["data"]
         assert stored["content_type"] == "interview"
         assert stored["domain"] == "science"
         assert stored["complexity"] == "moderate"
@@ -204,7 +217,7 @@ class TestIdentifyThingTypes:
 
     @pytest.mark.asyncio
     async def test_identify_thing_types_creates_thing_type_objects(self):
-        """Test that tool stores normalized thing type data in collector."""
+        """Test that tool returns normalized thing type data in response."""
         args = {
             "thing_types": [
                 {
@@ -222,12 +235,14 @@ class TestIdentifyThingTypes:
             ]
         }
 
-        await _identify_thing_types(args)
+        result = await _identify_thing_types(args)
 
-        bootstrap_data = get_bootstrap_data()
-        assert "identify_thing_types" in bootstrap_data
+        # Extract bootstrap data from content blocks
+        bootstrap_data = extract_bootstrap_data(result)
+        assert bootstrap_data is not None
+        assert bootstrap_data["step"] == "identify_thing_types"
 
-        thing_types = bootstrap_data["identify_thing_types"]
+        thing_types = bootstrap_data["data"]
         assert len(thing_types) == 2
 
         # Check first type has defaults applied
@@ -325,7 +340,7 @@ class TestIdentifyConnectionTypes:
 
     @pytest.mark.asyncio
     async def test_identify_connection_types_creates_connection_type_objects(self):
-        """Test that tool stores normalized connection type data in collector."""
+        """Test that tool returns normalized connection type data in response."""
         args = {
             "connection_types": [
                 {
@@ -343,12 +358,14 @@ class TestIdentifyConnectionTypes:
             ]
         }
 
-        await _identify_connection_types(args)
+        result = await _identify_connection_types(args)
 
-        bootstrap_data = get_bootstrap_data()
-        assert "identify_connection_types" in bootstrap_data
+        # Extract bootstrap data from content blocks
+        bootstrap_data = extract_bootstrap_data(result)
+        assert bootstrap_data is not None
+        assert bootstrap_data["step"] == "identify_connection_types"
 
-        connection_types = bootstrap_data["identify_connection_types"]
+        connection_types = bootstrap_data["data"]
         assert len(connection_types) == 2
 
         # Check first type defaults and example conversion
@@ -432,7 +449,7 @@ class TestIdentifySeedEntities:
 
     @pytest.mark.asyncio
     async def test_identify_seed_entities_creates_seed_entity_objects(self):
-        """Test that tool stores normalized seed entity data in collector."""
+        """Test that tool returns normalized seed entity data in response."""
         args = {
             "seed_entities": [
                 {
@@ -448,12 +465,14 @@ class TestIdentifySeedEntities:
             ]
         }
 
-        await _identify_seed_entities(args)
+        result = await _identify_seed_entities(args)
 
-        bootstrap_data = get_bootstrap_data()
-        assert "identify_seed_entities" in bootstrap_data
+        # Extract bootstrap data from content blocks
+        bootstrap_data = extract_bootstrap_data(result)
+        assert bootstrap_data is not None
+        assert bootstrap_data["step"] == "identify_seed_entities"
 
-        entities = bootstrap_data["identify_seed_entities"]
+        entities = bootstrap_data["data"]
         assert len(entities) == 2
 
         # Check first entity with all fields
@@ -533,7 +552,7 @@ class TestGenerateExtractionContext:
 
     @pytest.mark.asyncio
     async def test_generate_extraction_context_stores_data(self):
-        """Test that tool stores context in bootstrap collector."""
+        """Test that tool returns context in response."""
         context = (
             "Domain-specific guidance for extraction: Look for person-organization "
             "relationships, project hierarchies, and document references. "
@@ -541,11 +560,13 @@ class TestGenerateExtractionContext:
         )
         args = {"context": context}
 
-        await _generate_extraction_context(args)
+        result = await _generate_extraction_context(args)
 
-        bootstrap_data = get_bootstrap_data()
-        assert "generate_extraction_context" in bootstrap_data
-        assert bootstrap_data["generate_extraction_context"] == context
+        # Extract bootstrap data from content blocks
+        bootstrap_data = extract_bootstrap_data(result)
+        assert bootstrap_data is not None
+        assert bootstrap_data["step"] == "generate_extraction_context"
+        assert bootstrap_data["data"] == context
 
     @pytest.mark.asyncio
     async def test_generate_extraction_context_error_missing_field(self):
@@ -603,19 +624,21 @@ class TestFinalizeDomainProfile:
 
     @pytest.mark.asyncio
     async def test_finalize_domain_profile_includes_confidence(self):
-        """Test that finalization stores confidence value correctly."""
+        """Test that finalization returns confidence value correctly in response."""
         args = {
             "name": "SpaceX History",
             "description": "Knowledge graph about SpaceX development and missions.",
             "confidence": 0.92,
         }
 
-        await _finalize_domain_profile(args)
+        result = await _finalize_domain_profile(args)
 
-        bootstrap_data = get_bootstrap_data()
-        assert "finalize_domain_profile" in bootstrap_data
+        # Extract bootstrap data from content blocks
+        bootstrap_data = extract_bootstrap_data(result)
+        assert bootstrap_data is not None
+        assert bootstrap_data["step"] == "finalize_domain_profile"
 
-        stored = bootstrap_data["finalize_domain_profile"]
+        stored = bootstrap_data["data"]
         assert stored["name"] == "SpaceX History"
         assert stored["confidence"] == 0.92
         assert isinstance(stored["confidence"], float)
@@ -701,8 +724,10 @@ class TestFinalizeDomainProfile:
         result = await _finalize_domain_profile(args)
 
         assert "content" in result
-        bootstrap_data = get_bootstrap_data()
-        assert bootstrap_data["finalize_domain_profile"]["confidence"] == 1.0
+        # Extract bootstrap data from content blocks
+        bootstrap_data = extract_bootstrap_data(result)
+        assert bootstrap_data is not None
+        assert bootstrap_data["data"]["confidence"] == 1.0
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -771,19 +796,17 @@ class TestMCPServerCreation:
 
 
 class TestBootstrapCollector:
-    """Tests for bootstrap data collection utilities."""
-
-    def test_clear_bootstrap_collector(self):
-        """Test that clear_bootstrap_collector empties the collector."""
-        # The fixture already clears, but verify behavior
-        bootstrap_data = get_bootstrap_data()
-        assert bootstrap_data == {}
+    """Tests for bootstrap data collection pattern."""
 
     @pytest.mark.asyncio
     async def test_collector_accumulates_data_across_tools(self):
-        """Test that multiple tool calls accumulate data in collector."""
+        """Test that each tool returns bootstrap_data embedded in content.
+
+        Note: Data accumulation now happens in the service layer when
+        collecting from the message stream by parsing content blocks.
+        """
         # Call first tool
-        await _analyze_content_domain(
+        result1 = await _analyze_content_domain(
             {
                 "content_type": "documentary",
                 "domain": "history",
@@ -794,7 +817,7 @@ class TestBootstrapCollector:
         )
 
         # Call second tool
-        await _identify_thing_types(
+        result2 = await _identify_thing_types(
             {
                 "thing_types": [
                     {
@@ -806,16 +829,11 @@ class TestBootstrapCollector:
             }
         )
 
-        # Verify both are in collector
-        bootstrap_data = get_bootstrap_data()
-        assert "analyze_content_domain" in bootstrap_data
-        assert "identify_thing_types" in bootstrap_data
+        # Verify each tool returns its bootstrap_data embedded in content
+        bootstrap1 = extract_bootstrap_data(result1)
+        assert bootstrap1 is not None
+        assert bootstrap1["step"] == "analyze_content_domain"
 
-    def test_get_bootstrap_data_returns_copy(self):
-        """Test that get_bootstrap_data returns a copy, not the original."""
-        data1 = get_bootstrap_data()
-        data2 = get_bootstrap_data()
-
-        # Modifying one should not affect the other
-        data1["test_key"] = "test_value"
-        assert "test_key" not in data2
+        bootstrap2 = extract_bootstrap_data(result2)
+        assert bootstrap2 is not None
+        assert bootstrap2["step"] == "identify_thing_types"
