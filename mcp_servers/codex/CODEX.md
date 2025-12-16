@@ -1,6 +1,13 @@
-# GPT-5.1-Codex-Max MCP Server
+# GPT-5.2 MCP Server
 
-MCP server providing GPT-5.1-Codex-Max integration for Claude Code.
+MCP server providing GPT-5.2 integration for Claude Code.
+
+## GPT-5.2 Features
+
+- **400,000 context window** — Analyze large codebases in a single request
+- **128,000 max output tokens** — Comprehensive responses
+- **High reasoning** — Deep analysis with `xhigh` available
+- **Aug 2025 knowledge cutoff** — Current best practices
 
 ## Tools
 

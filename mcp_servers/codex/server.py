@@ -1,10 +1,15 @@
 """
-GPT-5.1-Codex-Max MCP Server for Claude Code.
+GPT-5.2 MCP Server for Claude Code.
 
-Provides 3 specialized tools leveraging high-reasoning capabilities:
+Provides 3 specialized tools leveraging GPT-5.2's high-reasoning capabilities:
 - codex_query: General queries with high reasoning
 - codex_analyzer: Comprehensive code/project analysis
 - codex_fixer: Root-cause bug fixing (not monkey patches)
+
+GPT-5.2 is OpenAI's flagship model for coding and agentic tasks:
+- 400,000 context window for large codebases
+- 128,000 max output tokens
+- Improved accuracy, instruction following, and code generation
 
 Integration with Claude Code:
 - Configured in .mcp.json alongside gemini-cli
@@ -185,7 +190,7 @@ async def codex_query(
     timeout_seconds: float = 300.0,
 ) -> str:
     """
-    Send a general query to GPT-5.1-Codex-Max with high reasoning capabilities.
+    Send a general query to GPT-5.2 with high reasoning capabilities.
 
     Use this tool for one-off questions, explanations, code generation,
     or any general-purpose interaction requiring deep reasoning.
@@ -194,11 +199,10 @@ async def codex_query(
         prompt: The question or prompt to send.
         reasoning_effort: Reasoning level - 'none', 'low', 'medium', 'high', 'xhigh'.
                          Default 'high' for thorough responses.
-                         Note: 'xhigh' is only available for GPT-5.1-Codex-Max.
         timeout_seconds: Maximum wait time (default 300s for complex reasoning).
 
     Returns:
-        Codex's response, or an error message if the request failed.
+        GPT-5.2's response, or an error message if the request failed.
     """
     if not prompt or not prompt.strip():
         return "Error: prompt is required"
@@ -234,7 +238,7 @@ async def codex_analyzer(
     timeout_seconds: float = 600.0,
 ) -> str:
     """
-    Analyze code quality, architecture, and logical flow using GPT-5.1-Codex-Max.
+    Analyze code quality, architecture, and logical flow using GPT-5.2.
 
     This tool performs deep analysis of single files or complete projects,
     providing a comprehensive, well-structured, and actionable report.
@@ -307,7 +311,7 @@ Please provide a comprehensive analysis following the report structure in your i
 
     if response.success:
         # Add metadata footer
-        footer = f"\n\n---\n*Analysis by GPT-5.1-Codex-Max | {file_count} files | {response.reasoning_tokens} reasoning tokens*"
+        footer = f"\n\n---\n*Analysis by GPT-5.2 | {file_count} files | {response.reasoning_tokens} reasoning tokens*"
         return response.output + footer
     return f"**Error:** {response.error}"
 
@@ -320,7 +324,7 @@ async def codex_fixer(
     timeout_seconds: float = 600.0,
 ) -> str:
     """
-    Fix code issues at the ROOT LEVEL using GPT-5.1-Codex-Max high reasoning.
+    Fix code issues at the ROOT LEVEL using GPT-5.2 high reasoning.
 
     This tool receives files/directories with concrete issues and implements
     fixes that address the root cause - NOT monkey patches or workarounds.
@@ -394,7 +398,7 @@ Remember: NO MONKEY PATCHES. Fix at the SOURCE.
     )
 
     if response.success:
-        footer = f"\n\n---\n*Fix analysis by GPT-5.1-Codex-Max | {file_count} files | {response.reasoning_tokens} reasoning tokens*"
+        footer = f"\n\n---\n*Fix analysis by GPT-5.2 | {file_count} files | {response.reasoning_tokens} reasoning tokens*"
         return response.output + footer
     return f"**Error:** {response.error}"
 
