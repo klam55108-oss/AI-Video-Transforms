@@ -393,9 +393,10 @@ async def export_graph(
     if not export_path:
         raise HTTPException(status_code=404, detail="No graph data to export")
 
+    # Return only filename for security (avoid exposing server paths)
     return {
         "status": "exported",
-        "path": str(export_path),
+        "filename": export_path.name,
         "format": request.format,
     }
 

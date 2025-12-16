@@ -308,7 +308,7 @@ async def test_get_graph_stats_endpoint_no_data() -> None:
 
 @pytest.mark.asyncio
 async def test_export_endpoint_graphml() -> None:
-    """Test exporting graph as GraphML returns path and format."""
+    """Test exporting graph as GraphML returns filename and format."""
     from app.api.deps import get_kg_service
     from app.main import app
 
@@ -331,7 +331,8 @@ async def test_export_endpoint_graphml() -> None:
         data = response.json()
         assert data["status"] == "exported"
         assert data["format"] == "graphml"
-        assert project_id in data["path"]
+        # Returns filename only (not full path) for security
+        assert project_id in data["filename"]
         assert mock_service.export_called is True
     finally:
         app.dependency_overrides.pop(get_kg_service, None)

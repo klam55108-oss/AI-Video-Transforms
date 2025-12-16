@@ -113,7 +113,7 @@ HTTP Request → input_queue → [SessionActor] → response_queue → Response
 | `/kg/projects/{id}/extract` | POST | Extract from transcript |
 | `/kg/projects/{id}/export` | POST | Export (GraphML/JSON) |
 | `/kg/projects/{id}/nodes` | GET | Query nodes |
-| `/kg/projects/{id}/neighbors` | GET | Get node neighbors |
+| `/kg/projects/{id}/nodes/{node_id}/neighbors` | GET | Get node neighbors |
 
 ### History & Cost
 

@@ -1093,7 +1093,7 @@ async function createKGProject() {
         showToast(`Project "${project.name}" created`, 'success');
 
         await loadKGProjects();
-        kgProjectSelect.value = project.project_id;
+        // selectKGProject handles updating the custom dropdown display
         await selectKGProject(project.project_id);
     } catch (e) {
         showToast(e.message, 'error');
@@ -1136,7 +1136,7 @@ async function exportKGGraph(format) {
 
     try {
         const result = await kgClient.exportGraph(kgCurrentProjectId, format);
-        showToast(`Exported to ${result.path}`, 'success');
+        showToast(`Graph exported as ${result.filename}`, 'success');
     } catch (e) {
         showToast(e.message, 'error');
     }
