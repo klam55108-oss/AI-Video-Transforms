@@ -271,7 +271,9 @@ class SessionActor:
         # Fallback to TextBlock content
         return [block.text for block in message.content if isinstance(block, TextBlock)]
 
-    def _extract_usage_from_message(self, message: AssistantMessage) -> UsageData | None:
+    def _extract_usage_from_message(
+        self, message: AssistantMessage
+    ) -> UsageData | None:
         """
         Extract token usage data from an AssistantMessage.
 
@@ -322,11 +324,21 @@ class SessionActor:
         if message.total_cost_usd is not None:
             self.session_cost.set_reported_cost(message.total_cost_usd)
 
-        # Handle subtypes per SDK documentation
+        # Handle subtypes per Claude Agent SDK documentation.
+        # The SDK may send ResultMessage with subtype field indicating the outcome:
+        # - "success": Explicit success
+        # - "error_max_structured_output_retries": Output validation failures
+        # - "interrupted": User or system interruption
+        # - "error_during_execution": Tool execution error
+        #
+        # Fallback for subtype=None: Older SDK versions or simple responses may not
+        # set subtype. We treat (is_error=False AND subtype=None) as success for
+        # backwards compatibility and robustness.
         subtype = getattr(message, "subtype", None)
 
         if subtype == "success" or (not message.is_error and subtype is None):
-            return None  # Success
+            # Explicit success OR implicit success (no error flag, no subtype)
+            return None
 
         # Handle specific error subtypes with user-friendly messages
         if subtype == "error_max_structured_output_retries":
@@ -343,9 +355,7 @@ class SessionActor:
             return "The request was interrupted."
 
         if subtype == "error_during_execution":
-            logger.error(
-                f"Session {self.session_id}: Error during tool execution"
-            )
+            logger.error(f"Session {self.session_id}: Error during tool execution")
             return (
                 "An error occurred while executing a tool. "
                 "Please check the tool inputs and try again."
@@ -353,7 +363,9 @@ class SessionActor:
 
         # General error
         if message.is_error:
-            logger.error(f"Session {self.session_id}: General error (subtype={subtype})")
+            logger.error(
+                f"Session {self.session_id}: General error (subtype={subtype})"
+            )
             return "An error occurred processing your request."
 
         return None

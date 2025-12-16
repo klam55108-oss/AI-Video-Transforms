@@ -341,6 +341,19 @@ class KnowledgeGraphService:
         if not project:
             raise ValueError(f"Project {project_id} not found")
 
+        # Validate project state - only CREATED projects can be bootstrapped
+        if project.state != ProjectState.CREATED:
+            if project.state == ProjectState.BOOTSTRAPPING:
+                raise ValueError(
+                    f"Project {project_id} is already bootstrapping. "
+                    "Wait for current bootstrap to complete or fail."
+                )
+            else:
+                raise ValueError(
+                    f"Project {project_id} is not in CREATED state "
+                    f"(current: {project.state.value}). Only new projects can be bootstrapped."
+                )
+
         # Update state to bootstrapping
         project.state = ProjectState.BOOTSTRAPPING
         project.error = None
@@ -376,7 +389,9 @@ class KnowledgeGraphService:
                 content: str | list[Any] | None, source: str = ""
             ) -> None:
                 """Extract bootstrap step data from tool result content."""
-                payload = _extract_marked_content(content, BOOTSTRAP_DATA_MARKER, source)
+                payload = _extract_marked_content(
+                    content, BOOTSTRAP_DATA_MARKER, source
+                )
                 if payload:
                     step = payload.get("step")
                     data = payload.get("data")
@@ -474,7 +489,12 @@ class KnowledgeGraphService:
             project.updated_at = _utc_now()
             await self._save_project(project)
 
-            logger.error(f"Bootstrap failed for project {project_id}: {e}")
+            # Note: bootstrap_data (local dict) is automatically garbage collected.
+            # Project state is restored to CREATED, allowing retry.
+            logger.error(
+                f"Bootstrap failed for project {project_id}: {e}. "
+                f"State restored to CREATED, partial data cleaned up."
+            )
             raise
 
     def _build_bootstrap_prompt(
@@ -961,7 +981,7 @@ Call all bootstrap tools in order to build a complete domain profile.
     async def export_graph(
         self,
         project_id: str,
-        format: str = "graphml",
+        export_format: str = "graphml",
     ) -> Path | None:
         """
         Export a project's knowledge graph to file.
@@ -971,7 +991,7 @@ Call all bootstrap tools in order to build a complete domain profile.
 
         Args:
             project_id: ID of the project to export
-            format: Export format - "graphml" (default) or "json"
+            export_format: Export format - "graphml" (default) or "json"
 
         Returns:
             Path to the exported file, or None if no graph data exists
@@ -988,9 +1008,9 @@ Call all bootstrap tools in order to build a complete domain profile.
         export_path = self.data_path / "exports"
         export_path.mkdir(parents=True, exist_ok=True)
 
-        output_file = export_path / f"{project_id}.{format}"
+        output_file = export_path / f"{project_id}.{export_format}"
 
-        if format == "graphml":
+        if export_format == "graphml":
             export_graphml(kb, output_file)
         else:
             # JSON export

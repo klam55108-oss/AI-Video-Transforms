@@ -291,6 +291,16 @@ code, pre, .font-mono {
     color: var(--sidebar-text-primary);
 }
 
+/* Brand Logo Gradient (moved from inline style) */
+.brand-logo-gradient {
+    background: var(--accent-gradient);
+}
+
+/* Sidebar Icon Accent Color (moved from inline style) */
+.sidebar-icon-accent {
+    color: var(--accent-primary);
+}
+
 /* Brand Logo Glow */
 .brand-logo {
     position: relative;
@@ -988,6 +998,16 @@ button:focus {
 .loading-dot:nth-child(1) { animation-delay: 0s; }
 .loading-dot:nth-child(2) { animation-delay: 0.16s; }
 .loading-dot:nth-child(3) { animation-delay: 0.32s; }
+
+/* Small loading dots variant (for KG progress) */
+.loading-dots-sm {
+    gap: 3px;
+}
+
+.loading-dot-sm {
+    width: 4px;
+    height: 4px;
+}
 
 @keyframes loadingBounce {
     0%, 80%, 100% {

@@ -20,17 +20,26 @@ from claude_agent_sdk import tool
 if TYPE_CHECKING:
     from app.services.kg_service import KnowledgeGraphService
 
-# Module-level cache for fallback singleton
+# Module-level cache for fallback singleton.
+# This exists because KG tools can be invoked in two contexts:
+# 1. FastAPI request context (ServiceContainer is available)
+# 2. MCP agent context during bootstrap/extraction (ServiceContainer may not be available)
+# The singleton fallback ensures tools work in both contexts without code duplication.
+# In production, FastAPI context should always be available, but we keep the fallback
+# for robustness during development/testing and edge cases.
 _kg_service_singleton: "KnowledgeGraphService | None" = None
 
 
 def _get_kg_service() -> "KnowledgeGraphService":
     """
-    Get KnowledgeGraphService instance.
+    Get KnowledgeGraphService instance with automatic context detection.
 
     Resolution order:
-    1. Try FastAPI ServiceContainer (works in request context)
+    1. Try FastAPI ServiceContainer (works in request context) - primary path
     2. Fall back to lazy-initialized singleton (works in MCP agent context)
+
+    The singleton fallback is rarely used in production but provides safety
+    when tools are invoked outside the normal request lifecycle.
     """
     global _kg_service_singleton
 
@@ -40,10 +49,13 @@ def _get_kg_service() -> "KnowledgeGraphService":
 
         return get_services().kg
     except RuntimeError:
-        # Services not initialized - we're outside FastAPI context
+        # Services not initialized - we're outside FastAPI context.
+        # This can happen during:
+        # - Unit tests without full app initialization
+        # - Direct tool invocation from MCP server
         pass
 
-    # Fallback: create singleton for MCP agent context
+    # Fallback: create singleton for edge cases
     if _kg_service_singleton is None:
         from pathlib import Path
         from app.services.kg_service import KnowledgeGraphService

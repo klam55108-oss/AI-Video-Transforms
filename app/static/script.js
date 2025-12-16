@@ -1754,6 +1754,32 @@ function initSidebarData() {
     loadKGProjects();
 }
 
+// ============================================
+// Cleanup on Page Unload
+// ============================================
+
+// Clean up intervals when page is unloaded to prevent memory leaks.
+// Note: beforeunload is more reliable than unload for cleanup tasks.
+window.addEventListener('beforeunload', () => {
+    stopKGPolling();
+    stopStatusPolling();
+});
+
+// Also clean up when tab becomes hidden (e.g., user switches tabs)
+// This prevents unnecessary polling when the page isn't visible.
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        stopKGPolling();
+        stopStatusPolling();
+    } else {
+        // Resume polling when tab becomes visible again
+        startStatusPolling();
+        if (kgCurrentProjectId) {
+            startKGPolling();
+        }
+    }
+});
+
 // Run initialization when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();

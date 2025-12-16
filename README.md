@@ -3,7 +3,7 @@
 > Transform videos into searchable transcripts and knowledge graphs through an intelligent AI chat interface.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-538%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-551%20passing-brightgreen.svg)](#testing)
 [![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#development)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -150,7 +150,7 @@ Tools available to the Claude agent:
 
 ```bash
 uv run python -m app.main              # Dev server
-uv run pytest                          # 538 tests
+uv run pytest                          # 551 tests
 uv run mypy .                          # Type check (strict)
 uv run ruff check . && ruff format .   # Lint + format
 ```
@@ -208,7 +208,7 @@ app/
 ├── static/          # Frontend JS/CSS
 └── templates/       # Jinja2 HTML
 
-tests/               # 538 tests across 27 modules
+tests/               # 551 tests across 27 modules
 data/                # Runtime storage (sessions, transcripts, kg_projects)
 ```
 

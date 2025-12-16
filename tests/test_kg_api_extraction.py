@@ -73,13 +73,13 @@ class MockKnowledgeGraphService:
     async def export_graph(
         self,
         project_id: str,
-        format: str = "graphml",
+        export_format: str = "graphml",
     ) -> Path | None:
         """Mock export - returns a fake path."""
         if not self.project or not self.project.kb_id:
             return None
         self.export_called = True
-        return Path(f"/mock/exports/{project_id}.{format}")
+        return Path(f"/mock/exports/{project_id}.{export_format}")
 
 
 def _create_test_project(

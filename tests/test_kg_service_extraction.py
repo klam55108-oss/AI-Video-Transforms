@@ -736,7 +736,7 @@ class TestExportGraph:
         await kg_service._save_project(project)
 
         # Export the graph
-        output_path = await kg_service.export_graph(project.id, format="graphml")
+        output_path = await kg_service.export_graph(project.id, export_format="graphml")
 
         assert output_path is not None
         assert output_path.exists()
@@ -754,7 +754,7 @@ class TestExportGraph:
         kg_service: KnowledgeGraphService,
         sample_domain_profile: DomainProfile,
     ) -> None:
-        """Test that export_graph creates a JSON file when format=json."""
+        """Test that export_graph creates a JSON file when export_format=json."""
         project = await kg_service.create_project("JSON Export Test")
         project.domain_profile = sample_domain_profile
         await kg_service._save_project(project)
@@ -767,7 +767,7 @@ class TestExportGraph:
         project.kb_id = kb.id
         await kg_service._save_project(project)
 
-        output_path = await kg_service.export_graph(project.id, format="json")
+        output_path = await kg_service.export_graph(project.id, export_format="json")
 
         assert output_path is not None
         assert output_path.exists()

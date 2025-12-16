@@ -228,10 +228,11 @@ async def extract_knowledge(args: dict[str, Any]) -> dict[str, Any]:
                     "error": f"relationships[{i}] missing 'relationship_type'",
                 }
 
-            # Clamp confidence to valid range
-            confidence = r.get("confidence", 1.0)
+            # Clamp confidence to valid range. Default to 0.5 (moderate confidence)
+            # rather than 1.0 as a conservative default when not explicitly provided.
+            confidence = r.get("confidence", 0.5)
             if not isinstance(confidence, (int, float)):
-                confidence = 1.0
+                confidence = 0.5
             confidence = max(0.0, min(1.0, float(confidence)))
 
             relationships.append(

@@ -745,3 +745,188 @@ class TestBootstrapFromTranscript:
         assert updated_project.state == ProjectState.ACTIVE
         assert updated_project.source_count == 1
         assert updated_project.domain_profile is not None
+
+    @pytest.mark.asyncio
+    async def test_bootstrap_timeout_restores_state(
+        self, kg_service: KnowledgeGraphService
+    ) -> None:
+        """Test that bootstrap timeout restores project to CREATED state."""
+        project = await kg_service.create_project("Timeout Test")
+
+        with patch("app.services.kg_service.ClaudeSDKClient") as mock_client_class:
+            import asyncio
+
+            mock_client = AsyncMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.query = AsyncMock()
+
+            # Simulate a timeout by raising TimeoutError
+            async def timeout_receive():
+                await asyncio.sleep(0.1)
+                raise asyncio.TimeoutError("Operation timed out")
+                yield  # noqa: F401 - unreachable but makes this an async generator
+
+            mock_client.receive_response = timeout_receive
+            mock_client_class.return_value = mock_client
+
+            with pytest.raises(asyncio.TimeoutError):
+                await kg_service.bootstrap_from_transcript(
+                    project_id=project.id,
+                    transcript="Test transcript",
+                    title="Test Video",
+                    source_id="source123",
+                )
+
+            # Project state should be restored to CREATED
+            restored_project = await kg_service.get_project(project.id)
+            assert restored_project is not None
+            assert restored_project.state == ProjectState.CREATED
+            assert restored_project.error is not None
+            assert "timed out" in restored_project.error.lower()
+
+    @pytest.mark.asyncio
+    async def test_bootstrap_concurrent_attempts_blocked(
+        self, kg_service: KnowledgeGraphService
+    ) -> None:
+        """Test that concurrent bootstrap attempts on same project are blocked."""
+        project = await kg_service.create_project("Concurrent Test")
+
+        # Manually set project to BOOTSTRAPPING to simulate in-progress bootstrap
+        project.state = ProjectState.BOOTSTRAPPING
+        await kg_service._save_project(project)
+
+        # Attempt bootstrap should fail because project is already bootstrapping
+        with pytest.raises(ValueError, match="already bootstrapping|not in CREATED"):
+            await kg_service.bootstrap_from_transcript(
+                project_id=project.id,
+                transcript="Test transcript",
+                title="Test Video",
+                source_id="source123",
+            )
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# MALFORMED TOOL RESPONSE TESTS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestExtractMarkedContent:
+    """Tests for _extract_marked_content robustness with malformed responses."""
+
+    def test_extract_none_content_returns_none(self) -> None:
+        """Test that None content returns None gracefully."""
+        from app.services.kg_service import _extract_marked_content
+
+        result = _extract_marked_content(None, "__TEST_MARKER__:")
+        assert result is None
+
+    def test_extract_empty_string_returns_none(self) -> None:
+        """Test that empty string returns None."""
+        from app.services.kg_service import _extract_marked_content
+
+        result = _extract_marked_content("", "__TEST_MARKER__:")
+        assert result is None
+
+    def test_extract_invalid_json_returns_none(self) -> None:
+        """Test that invalid JSON after marker returns None (doesn't crash)."""
+        from app.services.kg_service import _extract_marked_content
+
+        # Valid marker but invalid JSON
+        result = _extract_marked_content(
+            "__TEST_MARKER__:this is not valid json{", "__TEST_MARKER__:"
+        )
+        assert result is None
+
+    def test_extract_truncated_json_returns_none(self) -> None:
+        """Test that truncated JSON returns None."""
+        from app.services.kg_service import _extract_marked_content
+
+        # JSON cut off mid-way
+        result = _extract_marked_content(
+            '__TEST_MARKER__:{"key": "value", "incomplete', "__TEST_MARKER__:"
+        )
+        assert result is None
+
+    def test_extract_wrong_marker_returns_none(self) -> None:
+        """Test that content with different marker returns None."""
+        from app.services.kg_service import _extract_marked_content
+
+        result = _extract_marked_content(
+            '__OTHER_MARKER__:{"data": true}', "__TEST_MARKER__:"
+        )
+        assert result is None
+
+    def test_extract_valid_string_content(self) -> None:
+        """Test extraction from valid string content."""
+        from app.services.kg_service import _extract_marked_content
+
+        result = _extract_marked_content(
+            '__TEST_MARKER__:{"step": "test", "data": {"value": 42}}',
+            "__TEST_MARKER__:",
+        )
+        assert result is not None
+        assert result["step"] == "test"
+        assert result["data"]["value"] == 42
+
+    def test_extract_from_list_content(self) -> None:
+        """Test extraction from list of content blocks."""
+        from app.services.kg_service import _extract_marked_content
+
+        content = [
+            {"type": "text", "text": "Some intro text"},
+            {"type": "text", "text": '__TEST_MARKER__:{"found": true}'},
+        ]
+        result = _extract_marked_content(content, "__TEST_MARKER__:")
+        assert result is not None
+        assert result["found"] is True
+
+    def test_extract_from_list_no_match(self) -> None:
+        """Test that list without matching marker returns None."""
+        from app.services.kg_service import _extract_marked_content
+
+        content = [
+            {"type": "text", "text": "Some text without marker"},
+            {"type": "image", "url": "http://example.com/img.png"},
+        ]
+        result = _extract_marked_content(content, "__TEST_MARKER__:")
+        assert result is None
+
+    def test_extract_unexpected_type_returns_none(self) -> None:
+        """Test that unexpected content type returns None."""
+        from app.services.kg_service import _extract_marked_content
+
+        # Pass an integer - should not crash
+        result = _extract_marked_content(42, "__TEST_MARKER__:")  # type: ignore
+        assert result is None
+
+    def test_extract_from_object_with_text_attr(self) -> None:
+        """Test extraction from object with type/text attributes."""
+        from app.services.kg_service import _extract_marked_content
+
+        class MockBlock:
+            type = "text"
+            text = '__TEST_MARKER__:{"extracted": "from_object"}'
+
+        content = [MockBlock()]
+        result = _extract_marked_content(content, "__TEST_MARKER__:")
+        assert result is not None
+        assert result["extracted"] == "from_object"
+
+    def test_extract_nested_json(self) -> None:
+        """Test extraction of deeply nested JSON."""
+        from app.services.kg_service import _extract_marked_content
+
+        nested_data = {
+            "level1": {
+                "level2": {
+                    "level3": {"items": [1, 2, 3], "nested_str": "deeply nested"}
+                }
+            }
+        }
+        import json
+
+        content = f"__TEST_MARKER__:{json.dumps(nested_data)}"
+        result = _extract_marked_content(content, "__TEST_MARKER__:")
+        assert result is not None
+        assert result["level1"]["level2"]["level3"]["nested_str"] == "deeply nested"

@@ -389,11 +389,15 @@ async def export_graph(
     Raises:
         HTTPException: 404 if no graph data to export
     """
-    export_path = await kg_service.export_graph(project_id, request.format)
+    export_path = await kg_service.export_graph(
+        project_id, export_format=request.format
+    )
     if not export_path:
         raise HTTPException(status_code=404, detail="No graph data to export")
 
-    # Return only filename for security (avoid exposing server paths)
+    # Security: Return only filename (not full path) to prevent server path disclosure.
+    # Export files are stored in data/exports/ which is a controlled directory.
+    # The frontend constructs download URL from filename, never accessing arbitrary paths.
     return {
         "status": "exported",
         "filename": export_path.name,

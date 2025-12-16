@@ -303,7 +303,7 @@ class TestExtractKnowledgeReturnsResult:
 
     @pytest.mark.asyncio
     async def test_extract_knowledge_returns_result_default_confidence(self):
-        """Test that missing confidence defaults to 1.0."""
+        """Test that missing confidence defaults to 0.5 (conservative default)."""
         args = {
             "entities": [
                 {"label": "Entity1", "entity_type": "Person"},
@@ -325,7 +325,8 @@ class TestExtractKnowledgeReturnsResult:
         extraction_result = extract_extraction_data(result)
         assert extraction_result is not None
         relationships = extraction_result["relationships"]
-        assert relationships[0]["confidence"] == 1.0
+        # Default confidence changed from 1.0 to 0.5 for epistemically honest defaults
+        assert relationships[0]["confidence"] == 0.5
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -552,7 +553,7 @@ class TestExtractKnowledgeErrorHandling:
                     "source_label": "A",
                     "target_label": "B",
                     "relationship_type": "knows",
-                    "confidence": "high",  # Invalid type, should become 1.0
+                    "confidence": "high",  # Invalid type, should become 0.5
                 }
             ],
         }
@@ -562,7 +563,8 @@ class TestExtractKnowledgeErrorHandling:
         extraction_result = extract_extraction_data(result)
         assert extraction_result is not None
         relationships = extraction_result["relationships"]
-        assert relationships[0]["confidence"] == 1.0
+        # Invalid confidence type defaults to 0.5 (conservative)
+        assert relationships[0]["confidence"] == 0.5
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
