@@ -20,17 +20,26 @@ from claude_agent_sdk import tool
 if TYPE_CHECKING:
     from app.services.kg_service import KnowledgeGraphService
 
-# Module-level cache for fallback singleton
+# Module-level cache for fallback singleton.
+# This exists because KG tools can be invoked in two contexts:
+# 1. FastAPI request context (ServiceContainer is available)
+# 2. MCP agent context during bootstrap/extraction (ServiceContainer may not be available)
+# The singleton fallback ensures tools work in both contexts without code duplication.
+# In production, FastAPI context should always be available, but we keep the fallback
+# for robustness during development/testing and edge cases.
 _kg_service_singleton: "KnowledgeGraphService | None" = None
 
 
 def _get_kg_service() -> "KnowledgeGraphService":
     """
-    Get KnowledgeGraphService instance.
+    Get KnowledgeGraphService instance with automatic context detection.
 
     Resolution order:
-    1. Try FastAPI ServiceContainer (works in request context)
+    1. Try FastAPI ServiceContainer (works in request context) - primary path
     2. Fall back to lazy-initialized singleton (works in MCP agent context)
+
+    The singleton fallback is rarely used in production but provides safety
+    when tools are invoked outside the normal request lifecycle.
     """
     global _kg_service_singleton
 
@@ -40,10 +49,13 @@ def _get_kg_service() -> "KnowledgeGraphService":
 
         return get_services().kg
     except RuntimeError:
-        # Services not initialized - we're outside FastAPI context
+        # Services not initialized - we're outside FastAPI context.
+        # This can happen during:
+        # - Unit tests without full app initialization
+        # - Direct tool invocation from MCP server
         pass
 
-    # Fallback: create singleton for MCP agent context
+    # Fallback: create singleton for edge cases
     if _kg_service_singleton is None:
         from pathlib import Path
         from app.services.kg_service import KnowledgeGraphService
@@ -64,10 +76,26 @@ def _get_kg_service() -> "KnowledgeGraphService":
     "The project must exist and be bootstrapped (have a domain profile). "
     "Returns extraction statistics including entity/relationship counts.",
     {
-        "project_id": str,
-        "transcript": str,
-        "title": str,
-        "source_id": str,
+        "type": "object",
+        "properties": {
+            "project_id": {
+                "type": "string",
+                "description": "ID of the target Knowledge Graph project",
+            },
+            "transcript": {
+                "type": "string",
+                "description": "Full transcript text to extract entities and relationships from",
+            },
+            "title": {
+                "type": "string",
+                "description": "Title of the source content (video/audio name)",
+            },
+            "source_id": {
+                "type": "string",
+                "description": "Optional unique identifier for the source. Auto-generated if not provided.",
+            },
+        },
+        "required": ["project_id", "transcript", "title"],
     },
 )
 async def extract_to_kg(args: dict[str, Any]) -> dict[str, Any]:
@@ -152,7 +180,11 @@ async def extract_to_kg(args: dict[str, Any]) -> dict[str, Any]:
     "list_kg_projects",
     "List all Knowledge Graph projects with their status and statistics. "
     "Returns project ID, name, state, and counts of entities/relationships/sources.",
-    {},
+    {
+        "type": "object",
+        "properties": {},
+        "required": [],
+    },
 )
 async def list_kg_projects(args: dict[str, Any]) -> dict[str, Any]:
     """
@@ -213,7 +245,18 @@ async def list_kg_projects(args: dict[str, Any]) -> dict[str, Any]:
     "create_kg_project",
     "Create a new Knowledge Graph project. "
     "Returns the project ID which is needed for bootstrap and extraction operations.",
-    {"name": str},
+    {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Human-readable name for the project (e.g., 'MK-Ultra Research', 'AI Interviews')",
+            },
+        },
+        "required": ["name"],
+    },
 )
 async def create_kg_project(args: dict[str, Any]) -> dict[str, Any]:
     """
@@ -264,9 +307,22 @@ async def create_kg_project(args: dict[str, Any]) -> dict[str, Any]:
     "Analyzes content to infer entity types, relationship types, and seed entities. "
     "Must be called once before extraction. Fails if project is already bootstrapped.",
     {
-        "project_id": str,
-        "transcript": str,
-        "title": str,
+        "type": "object",
+        "properties": {
+            "project_id": {
+                "type": "string",
+                "description": "ID of the target Knowledge Graph project to bootstrap",
+            },
+            "transcript": {
+                "type": "string",
+                "description": "First transcript to analyze for domain inference",
+            },
+            "title": {
+                "type": "string",
+                "description": "Title of the source content for reference",
+            },
+        },
+        "required": ["project_id", "transcript", "title"],
     },
 )
 async def bootstrap_kg_project(args: dict[str, Any]) -> dict[str, Any]:
@@ -374,7 +430,16 @@ async def bootstrap_kg_project(args: dict[str, Any]) -> dict[str, Any]:
     "get_kg_stats",
     "Get detailed statistics for a Knowledge Graph project. "
     "Returns counts by entity type and relationship type.",
-    {"project_id": str},
+    {
+        "type": "object",
+        "properties": {
+            "project_id": {
+                "type": "string",
+                "description": "ID of the Knowledge Graph project to get statistics for",
+            },
+        },
+        "required": ["project_id"],
+    },
 )
 async def get_kg_stats(args: dict[str, Any]) -> dict[str, Any]:
     """

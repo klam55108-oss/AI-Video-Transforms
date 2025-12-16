@@ -169,3 +169,9 @@ class DiscoveryResponse(BaseModel):
     description: str
     examples: list[str]
     user_question: str
+
+
+class ListProjectsResponse(BaseModel):
+    """Response model for listing all KG projects."""
+
+    projects: list[ProjectStatusResponse]

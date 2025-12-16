@@ -19,11 +19,12 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from app.api.deps import ValidatedProjectId, get_kg_service
-from app.kg.domain import ProjectState
+from app.kg.domain import DiscoveryStatus, ProjectState
 from app.kg.persistence import load_knowledge_base
 from app.models.api import (
     CreateProjectResponse,
     DiscoveryResponse,
+    ListProjectsResponse,
     ProjectStatusResponse,
 )
 from app.models.requests import (
@@ -68,6 +69,67 @@ async def create_project(
         name=project.name,
         state=project.state.value,
     )
+
+
+@router.get("/projects", response_model=ListProjectsResponse)
+async def list_projects(
+    kg_service: KnowledgeGraphService = Depends(get_kg_service),
+) -> ListProjectsResponse:
+    """List all KG projects sorted by creation date (newest first)."""
+    projects = await kg_service.list_projects()
+    return ListProjectsResponse(
+        projects=[
+            ProjectStatusResponse(
+                project_id=p.id,
+                name=p.name,
+                state=p.state.value,
+                source_count=p.source_count,
+                thing_count=p.thing_count,
+                connection_count=p.connection_count,
+                pending_confirmations=len(
+                    [
+                        d
+                        for d in p.pending_discoveries
+                        if d.status == DiscoveryStatus.PENDING
+                    ]
+                ),
+                domain_name=p.domain_profile.name if p.domain_profile else None,
+                domain_description=(
+                    p.domain_profile.description if p.domain_profile else None
+                ),
+                error=p.error,
+            )
+            for p in projects
+        ]
+    )
+
+
+@router.delete("/projects/{project_id}")
+async def delete_project(
+    project_id: str = Depends(ValidatedProjectId()),
+    kg_service: KnowledgeGraphService = Depends(get_kg_service),
+) -> dict[str, str]:
+    """
+    Delete a KG project and all associated data.
+
+    Removes the project, its domain profile, and any extracted
+    knowledge graph data.
+
+    Args:
+        project_id: 12-character project identifier
+        kg_service: Injected KG service
+
+    Returns:
+        Status dict with "deleted" status
+
+    Raises:
+        HTTPException: 404 if project not found
+    """
+    success = await kg_service.delete_project(project_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    return {"status": "deleted", "project_id": project_id}
 
 
 @router.get("/projects/{project_id}", response_model=ProjectStatusResponse)
@@ -327,13 +389,18 @@ async def export_graph(
     Raises:
         HTTPException: 404 if no graph data to export
     """
-    export_path = await kg_service.export_graph(project_id, request.format)
+    export_path = await kg_service.export_graph(
+        project_id, export_format=request.format
+    )
     if not export_path:
         raise HTTPException(status_code=404, detail="No graph data to export")
 
+    # Security: Return only filename (not full path) to prevent server path disclosure.
+    # Export files are stored in data/exports/ which is a controlled directory.
+    # The frontend constructs download URL from filename, never accessing arbitrary paths.
     return {
         "status": "exported",
-        "path": str(export_path),
+        "filename": export_path.name,
         "format": request.format,
     }
 

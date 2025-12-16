@@ -7,18 +7,21 @@ receives the complete extraction output in a single call.
 
 The tool validates the extraction data against our schemas and returns both:
 1. A human-readable summary (for the agent conversation)
-2. A structured `_extraction_result` (for the service layer to persist)
+2. A structured extraction result embedded in content (for the service layer to persist)
 
 Response Format:
-    - Success: {"content": [{"type": "text", "text": "..."}], "_extraction_result": {...}}
+    - Success: {"content": [{"type": "text", "text": "..."}, {"type": "text", "text": JSON}]}
     - Error: {"success": False, "error": "message"}
 
-The _extraction_result field contains the validated ExtractionResult data
-that the service layer uses to populate the KnowledgeBase.
+NOTE: Extraction data is embedded as JSON in the second content block because
+the Claude Agent SDK strips custom top-level keys (like _extraction_result).
+Only standard fields (content, isError) survive MCP/SDK serialization.
+The service layer parses JSON from content blocks to collect tool results.
 """
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from claude_agent_sdk import create_sdk_mcp_server, tool
@@ -29,6 +32,10 @@ from app.kg.schemas import (
     ExtractedRelationship,
     ExtractionResult,
 )
+
+
+# Marker prefix for extraction data in content blocks
+EXTRACTION_DATA_MARKER = "__EXTRACTION_DATA__:"
 
 
 @tool(
@@ -221,10 +228,11 @@ async def extract_knowledge(args: dict[str, Any]) -> dict[str, Any]:
                     "error": f"relationships[{i}] missing 'relationship_type'",
                 }
 
-            # Clamp confidence to valid range
-            confidence = r.get("confidence", 1.0)
+            # Clamp confidence to valid range. Default to 0.5 (moderate confidence)
+            # rather than 1.0 as a conservative default when not explicitly provided.
+            confidence = r.get("confidence", 0.5)
             if not isinstance(confidence, (int, float)):
-                confidence = 1.0
+                confidence = 0.5
             confidence = max(0.0, min(1.0, float(confidence)))
 
             relationships.append(
@@ -290,14 +298,18 @@ async def extract_knowledge(args: dict[str, Any]) -> dict[str, Any]:
         if result.summary:
             summary_parts.append(f"— {result.summary}")
 
+        # Embed extraction result as JSON in content (SDK strips top-level custom keys)
         return {
             "content": [
                 {
                     "type": "text",
                     "text": ". ".join(summary_parts),
-                }
+                },
+                {
+                    "type": "text",
+                    "text": f"{EXTRACTION_DATA_MARKER}{json.dumps(result.model_dump())}",
+                },
             ],
-            "_extraction_result": result.model_dump(),
         }
     except Exception as e:
         return {"success": False, "error": f"extract_knowledge failed: {e}"}

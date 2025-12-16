@@ -16,6 +16,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import tempfile
 from collections import OrderedDict
 from datetime import datetime, timezone
@@ -23,10 +24,10 @@ from pathlib import Path
 from typing import Any
 
 from claude_agent_sdk import (
-    AssistantMessage,
     ClaudeAgentOptions,
     ClaudeSDKClient,
     ResultMessage,
+    UserMessage,
 )
 
 from app.core.config import get_settings
@@ -47,14 +48,82 @@ from app.kg.prompts.bootstrap_prompt import BOOTSTRAP_SYSTEM_PROMPT
 from app.kg.prompts.templates import generate_extraction_prompt
 from app.kg.schemas import ExtractedDiscovery, ExtractionResult
 from app.kg.tools.bootstrap import (
+    BOOTSTRAP_DATA_MARKER,
     BOOTSTRAP_TOOL_NAMES,
-    clear_bootstrap_collector,
     create_bootstrap_mcp_server,
-    get_bootstrap_data,
 )
-from app.kg.tools.extraction import EXTRACTION_TOOL_NAMES, create_extraction_mcp_server
+from app.kg.tools.extraction import (
+    EXTRACTION_DATA_MARKER,
+    EXTRACTION_TOOL_NAMES,
+    create_extraction_mcp_server,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_marked_content(
+    content: str | list[Any] | None,
+    marker: str,
+    source: str = "",
+) -> dict[str, Any] | None:
+    """
+    Extract JSON data from tool result content marked with a prefix.
+
+    This generic helper is used by both bootstrap and extraction phases to parse
+    data embedded in Claude Agent SDK tool result content blocks. Data is embedded
+    with a marker prefix because the SDK strips custom top-level keys.
+
+    Args:
+        content: ToolResultBlock.content - can be string or list of blocks
+        marker: The prefix marker to look for (e.g., BOOTSTRAP_DATA_MARKER)
+        source: Debug label for logging
+
+    Returns:
+        Parsed JSON dict if found, None otherwise
+    """
+    if content is None:
+        return None
+
+    # ToolResultBlock.content can be string or list[dict]
+    if isinstance(content, str):
+        # Single string content - check for marker
+        if content.startswith(marker):
+            try:
+                json_str = content[len(marker) :]
+                payload = json.loads(json_str)
+                logger.debug(f"Extracted marked content ({source})")
+                return payload
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse marked JSON: {e}")
+        return None
+
+    # List of content blocks
+    if not isinstance(content, list):
+        logger.debug(f"Unexpected content type: {type(content)}")
+        return None
+
+    for i, block in enumerate(content):
+        text = None
+        # Handle dict block
+        if isinstance(block, dict):
+            if block.get("type") == "text":
+                text = block.get("text", "")
+        # Handle object block
+        elif hasattr(block, "type"):
+            block_type = getattr(block, "type", None)
+            if block_type == "text":
+                text = getattr(block, "text", "")
+
+        if text and text.startswith(marker):
+            try:
+                json_str = text[len(marker) :]
+                payload = json.loads(json_str)
+                logger.debug(f"Extracted marked content ({source}[{i}])")
+                return payload
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse marked JSON: {e}")
+
+    return None
 
 
 def _utc_now() -> datetime:
@@ -197,6 +266,46 @@ class KnowledgeGraphService:
         # Sort by creation date, newest first
         return sorted(projects, key=lambda p: p.created_at, reverse=True)
 
+    async def delete_project(self, project_id: str) -> bool:
+        """
+        Delete a KG project and its associated data.
+
+        Removes:
+        - Project from in-memory cache
+        - Project JSON file from disk
+        - Associated KnowledgeBase directory (if exists)
+
+        Args:
+            project_id: 12-character project identifier
+
+        Returns:
+            True if project was deleted, False if not found
+        """
+        # Get project to find associated KB
+        project = await self.get_project(project_id)
+        if not project:
+            return False
+
+        # Remove from cache
+        if project_id in self._projects:
+            del self._projects[project_id]
+
+        # Delete project JSON file
+        project_file = self.projects_path / f"{project_id}.json"
+        if project_file.exists():
+            project_file.unlink()
+            logger.info(f"Deleted project file: {project_file}")
+
+        # Delete associated KnowledgeBase if exists (async to avoid blocking)
+        if project.kb_id:
+            kb_dir = self.kb_path / project.kb_id
+            if kb_dir.exists() and kb_dir.is_dir():
+                await asyncio.to_thread(shutil.rmtree, kb_dir)
+                logger.info(f"Deleted knowledge base: {kb_dir}")
+
+        logger.info(f"Deleted KG project: {project_id} ({project.name})")
+        return True
+
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # BOOTSTRAP (First Video)
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -232,6 +341,19 @@ class KnowledgeGraphService:
         if not project:
             raise ValueError(f"Project {project_id} not found")
 
+        # Validate project state - only CREATED projects can be bootstrapped
+        if project.state != ProjectState.CREATED:
+            if project.state == ProjectState.BOOTSTRAPPING:
+                raise ValueError(
+                    f"Project {project_id} is already bootstrapping. "
+                    "Wait for current bootstrap to complete or fail."
+                )
+            else:
+                raise ValueError(
+                    f"Project {project_id} is not in CREATED state "
+                    f"(current: {project.state.value}). Only new projects can be bootstrapped."
+                )
+
         # Update state to bootstrapping
         project.state = ProjectState.BOOTSTRAPPING
         project.error = None
@@ -240,9 +362,6 @@ class KnowledgeGraphService:
         logger.info(f"Starting bootstrap for project {project_id}")
 
         try:
-            # Clear the bootstrap data collector before starting
-            clear_bootstrap_collector()
-
             # Build the prompt for bootstrap analysis
             prompt = self._build_bootstrap_prompt(transcript, title, project.name)
 
@@ -256,13 +375,42 @@ class KnowledgeGraphService:
                 permission_mode="bypassPermissions",  # Tools are safe, no user approval needed
             )
 
+            # Collect bootstrap data from message stream
+            # NOTE: Claude Agent SDK strips custom top-level keys from tool responses.
+            # Bootstrap data is embedded as JSON in content blocks with a marker prefix.
+            #
+            # Per SDK docs (04_API_REFERENCE.md):
+            # - ResultMessage does NOT have tool_results (only result, num_turns, etc.)
+            # - Tool results are in AssistantMessage.content as ToolResultBlock objects
+            # - ToolResultBlock.content contains the actual tool output
+            bootstrap_data: dict[str, Any] = {}
+
+            def _collect_bootstrap_step(
+                content: str | list[Any] | None, source: str = ""
+            ) -> None:
+                """Extract bootstrap step data from tool result content."""
+                payload = _extract_marked_content(
+                    content, BOOTSTRAP_DATA_MARKER, source
+                )
+                if payload:
+                    step = payload.get("step")
+                    data = payload.get("data")
+                    if step and data is not None:
+                        bootstrap_data[step] = data
+                        logger.info(f"Collected bootstrap step: {step} ({source})")
+
             # Run Claude to perform bootstrap analysis (with concurrency limit)
             async with self._claude_semaphore:
                 async with ClaudeSDKClient(options) as client:
                     await client.query(prompt)
 
-                    # Consume all messages (tools execute and store data in collector)
+                    message_count = 0
+                    # Process messages and collect bootstrap data from content blocks
                     async for message in client.receive_response():
+                        message_count += 1
+                        msg_type = type(message).__name__
+                        logger.debug(f"Message #{message_count}: {msg_type}")
+
                         if isinstance(message, ResultMessage):
                             if message.is_error:
                                 raise RuntimeError(
@@ -272,12 +420,42 @@ class KnowledgeGraphService:
                                 f"Bootstrap completed in {message.num_turns} turns, "
                                 f"cost: ${message.total_cost_usd or 0:.4f}"
                             )
-                        elif isinstance(message, AssistantMessage):
-                            # Log progress (optional)
-                            pass
+                            # Log ResultMessage attributes for debugging
+                            logger.debug(
+                                f"ResultMessage attrs: {[a for a in dir(message) if not a.startswith('_')]}"
+                            )
 
-            # Collect bootstrap data from tools
-            bootstrap_data = get_bootstrap_data()
+                        elif isinstance(message, UserMessage):
+                            # Tool results are in UserMessage.content as ToolResultBlock
+                            # (SDK sends tool results as UserMessage, simulating user response)
+                            content_blocks = getattr(message, "content", None) or []
+                            logger.debug(
+                                f"UserMessage has {len(content_blocks)} content blocks"
+                            )
+
+                            for idx, block in enumerate(content_blocks):
+                                block_type = getattr(block, "type", None)
+                                block_class = type(block).__name__
+                                logger.debug(
+                                    f"  Block[{idx}]: type={block_type}, "
+                                    f"class={block_class}"
+                                )
+
+                                # ToolResultBlock contains the tool output
+                                if block_class == "ToolResultBlock":
+                                    tool_content = getattr(block, "content", None)
+                                    logger.debug(
+                                        f"    ToolResult content type: {type(tool_content)}, "
+                                        f"preview: {str(tool_content)[:200] if tool_content else 'None'}..."
+                                    )
+                                    _collect_bootstrap_step(
+                                        tool_content, f"UserMsg.block[{idx}]"
+                                    )
+
+                    logger.info(
+                        f"Processed {message_count} messages, "
+                        f"collected {len(bootstrap_data)} bootstrap steps"
+                    )
 
             if not bootstrap_data:
                 raise RuntimeError(
@@ -311,7 +489,12 @@ class KnowledgeGraphService:
             project.updated_at = _utc_now()
             await self._save_project(project)
 
-            logger.error(f"Bootstrap failed for project {project_id}: {e}")
+            # Note: bootstrap_data (local dict) is automatically garbage collected.
+            # Project state is restored to CREATED, allowing retry.
+            logger.error(
+                f"Bootstrap failed for project {project_id}: {e}. "
+                f"State restored to CREATED, partial data cleaned up."
+            )
             raise
 
     def _build_bootstrap_prompt(
@@ -591,14 +774,30 @@ Call all bootstrap tools in order to build a complete domain profile.
 
         extraction_result: ExtractionResult | None = None
 
+        def _collect_extraction_result(
+            content: str | list[Any] | None, source: str = ""
+        ) -> None:
+            """Extract and validate extraction result from tool result content."""
+            nonlocal extraction_result
+            payload = _extract_marked_content(content, EXTRACTION_DATA_MARKER, source)
+            if payload:
+                try:
+                    extraction_result = ExtractionResult.model_validate(payload)
+                    logger.info(f"Extracted extraction result ({source})")
+                except Exception as e:
+                    logger.warning(f"Failed to validate extraction result: {e}")
+
         try:
             # Run extraction with concurrency limit
             async with self._claude_semaphore:
                 async with ClaudeSDKClient(options) as client:
                     await client.query(prompt)
 
-                    # Process messages to find extraction result
+                    message_count = 0
+                    # Process messages - tool results are in UserMessage.content
                     async for message in client.receive_response():
+                        message_count += 1
+
                         if isinstance(message, ResultMessage):
                             if message.is_error:
                                 raise RuntimeError(
@@ -609,53 +808,19 @@ Call all bootstrap tools in order to build a complete domain profile.
                                 f"cost: ${message.total_cost_usd or 0:.4f}"
                             )
 
-                            # Check for extraction result in tool results
-                            logger.debug(
-                                f"Checking ResultMessage for extraction result "
-                                f"(has tool_results: {hasattr(message, 'tool_results')})"
-                            )
-                            if (
-                                hasattr(message, "tool_results")
-                                and message.tool_results
-                            ):
-                                logger.debug(
-                                    f"Found {len(message.tool_results)} tool results to check"
-                                )
-                                for i, result in enumerate(message.tool_results):
-                                    if (
-                                        isinstance(result, dict)
-                                        and "_extraction_result" in result
-                                    ):
-                                        logger.info(
-                                            f"Found extraction result in tool_results[{i}]"
-                                        )
-                                        extraction_result = (
-                                            ExtractionResult.model_validate(
-                                                result["_extraction_result"]
-                                            )
-                                        )
-                        elif isinstance(message, AssistantMessage):
-                            # Check tool use blocks for extraction results
-                            logger.debug(
-                                f"Checking AssistantMessage for extraction result "
-                                f"(has content: {hasattr(message, 'content')})"
-                            )
-                            if hasattr(message, "content"):
-                                for i, block in enumerate(message.content):
-                                    if hasattr(block, "tool_result"):
-                                        tool_result = block.tool_result
-                                        if (
-                                            isinstance(tool_result, dict)
-                                            and "_extraction_result" in tool_result
-                                        ):
-                                            logger.info(
-                                                f"Found extraction result in content[{i}].tool_result"
-                                            )
-                                            extraction_result = (
-                                                ExtractionResult.model_validate(
-                                                    tool_result["_extraction_result"]
-                                                )
-                                            )
+                        elif isinstance(message, UserMessage):
+                            # Tool results are in UserMessage.content as ToolResultBlock
+                            # (SDK sends tool results as UserMessage)
+                            content_blocks = getattr(message, "content", None) or []
+                            for idx, block in enumerate(content_blocks):
+                                block_class = type(block).__name__
+                                if block_class == "ToolResultBlock":
+                                    tool_content = getattr(block, "content", None)
+                                    _collect_extraction_result(
+                                        tool_content, f"UserMsg.block[{idx}]"
+                                    )
+
+                    logger.debug(f"Processed {message_count} extraction messages")
 
         except Exception as e:
             logger.error(f"Extraction failed for project {project_id}: {e}")
@@ -816,7 +981,7 @@ Call all bootstrap tools in order to build a complete domain profile.
     async def export_graph(
         self,
         project_id: str,
-        format: str = "graphml",
+        export_format: str = "graphml",
     ) -> Path | None:
         """
         Export a project's knowledge graph to file.
@@ -826,7 +991,7 @@ Call all bootstrap tools in order to build a complete domain profile.
 
         Args:
             project_id: ID of the project to export
-            format: Export format - "graphml" (default) or "json"
+            export_format: Export format - "graphml" (default) or "json"
 
         Returns:
             Path to the exported file, or None if no graph data exists
@@ -843,9 +1008,9 @@ Call all bootstrap tools in order to build a complete domain profile.
         export_path = self.data_path / "exports"
         export_path.mkdir(parents=True, exist_ok=True)
 
-        output_file = export_path / f"{project_id}.{format}"
+        output_file = export_path / f"{project_id}.{export_format}"
 
-        if format == "graphml":
+        if export_format == "graphml":
             export_graphml(kb, output_file)
         else:
             # JSON export

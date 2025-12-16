@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     queue_max_size: int = 10
     kg_project_cache_max_size: int = 100
 
+    # Frontend polling intervals (milliseconds)
+    kg_poll_interval_ms: int = 5000
+    status_poll_interval_ms: int = 3000
+
 
 @lru_cache
 def get_settings() -> Settings:

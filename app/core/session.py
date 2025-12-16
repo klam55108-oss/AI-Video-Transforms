@@ -19,6 +19,8 @@ from claude_agent_sdk import (
     TextBlock,
 )
 
+from app.core.cost_tracking import UsageData
+
 from app.agent import video_tools_server
 from app.agent.prompts import SYSTEM_PROMPT
 from app.core.config import get_settings
@@ -269,6 +271,105 @@ class SessionActor:
         # Fallback to TextBlock content
         return [block.text for block in message.content if isinstance(block, TextBlock)]
 
+    def _extract_usage_from_message(
+        self, message: AssistantMessage
+    ) -> UsageData | None:
+        """
+        Extract token usage data from an AssistantMessage.
+
+        The SDK provides per-message usage in AssistantMessage.usage dict.
+        This extracts it into our UsageData format for tracking.
+
+        Args:
+            message: The AssistantMessage from SDK
+
+        Returns:
+            UsageData if usage info available, None otherwise
+        """
+        if not hasattr(message, "usage") or not message.usage:
+            return None
+
+        usage = message.usage
+        message_id = getattr(message, "id", "") or ""
+
+        if not message_id:
+            return None
+
+        return UsageData(
+            message_id=message_id,
+            input_tokens=usage.get("input_tokens", 0),
+            output_tokens=usage.get("output_tokens", 0),
+            cache_creation_input_tokens=usage.get("cache_creation_input_tokens", 0),
+            cache_read_input_tokens=usage.get("cache_read_input_tokens", 0),
+        )
+
+    def _handle_result_message(self, message: ResultMessage) -> str | None:
+        """
+        Handle ResultMessage including subtype-specific error handling.
+
+        The SDK provides specific subtypes for different outcomes:
+        - success: Completed successfully
+        - error: General error occurred
+        - interrupted: User interrupted execution
+        - error_during_execution: Error during tool execution
+        - error_max_structured_output_retries: Failed to produce valid JSON
+
+        Args:
+            message: The ResultMessage from SDK
+
+        Returns:
+            Error message string if error occurred, None if success
+        """
+        # Update cost tracking (SDK's authoritative source)
+        if message.total_cost_usd is not None:
+            self.session_cost.set_reported_cost(message.total_cost_usd)
+
+        # Handle subtypes per Claude Agent SDK documentation.
+        # The SDK may send ResultMessage with subtype field indicating the outcome:
+        # - "success": Explicit success
+        # - "error_max_structured_output_retries": Output validation failures
+        # - "interrupted": User or system interruption
+        # - "error_during_execution": Tool execution error
+        #
+        # Fallback for subtype=None: Older SDK versions or simple responses may not
+        # set subtype. We treat (is_error=False AND subtype=None) as success for
+        # backwards compatibility and robustness.
+        subtype = getattr(message, "subtype", None)
+
+        if subtype == "success" or (not message.is_error and subtype is None):
+            # Explicit success OR implicit success (no error flag, no subtype)
+            return None
+
+        # Handle specific error subtypes with user-friendly messages
+        if subtype == "error_max_structured_output_retries":
+            logger.warning(
+                f"Session {self.session_id}: Structured output validation failed repeatedly"
+            )
+            return (
+                "I had trouble formatting my response correctly. "
+                "This usually resolves on retry. Please try your request again."
+            )
+
+        if subtype == "interrupted":
+            logger.info(f"Session {self.session_id}: Request was interrupted")
+            return "The request was interrupted."
+
+        if subtype == "error_during_execution":
+            logger.error(f"Session {self.session_id}: Error during tool execution")
+            return (
+                "An error occurred while executing a tool. "
+                "Please check the tool inputs and try again."
+            )
+
+        # General error
+        if message.is_error:
+            logger.error(
+                f"Session {self.session_id}: General error (subtype={subtype})"
+            )
+            return "An error occurred processing your request."
+
+        return None
+
     async def _worker_loop(self) -> None:
         """The main loop that holds the ClaudeSDKClient context."""
         logger.info(f"Session {self.session_id}: Worker started")
@@ -326,21 +427,28 @@ class SessionActor:
                     await client.query(initial_prompt)
 
                     greeting_text = []
+                    error_message: str | None = None
+
                     async for message in client.receive_response():
-                        # Capture cost from ResultMessage (SDK's authoritative source)
+                        # Handle ResultMessage with subtype-aware error handling
                         if isinstance(message, ResultMessage):
-                            if message.total_cost_usd is not None:
-                                self.session_cost.set_reported_cost(
-                                    message.total_cost_usd
-                                )
+                            error_message = self._handle_result_message(message)
 
                         if isinstance(message, AssistantMessage):
+                            # Extract token usage for granular tracking
+                            usage_data = self._extract_usage_from_message(message)
+                            if usage_data:
+                                self.session_cost.add_usage(usage_data)
+
                             greeting_text.extend(self._extract_message_text(message))
+
+                    # Use error message if there was an error, otherwise use greeting
+                    final_text = error_message or "\n".join(greeting_text)
 
                     # Return cumulative session usage (aggregated across all messages)
                     await self.greeting_queue.put(
                         MessageResponse(
-                            text="\n".join(greeting_text),
+                            text=final_text,
                             usage=self.get_cumulative_usage(),
                         )
                     )
@@ -371,21 +479,28 @@ class SessionActor:
                         await client.query(user_message)
 
                         full_text = []
+                        response_error: str | None = None
+
                         async for message in client.receive_response():
-                            # Capture cost from ResultMessage (SDK's authoritative source)
+                            # Handle ResultMessage with subtype-aware error handling
                             if isinstance(message, ResultMessage):
-                                if message.total_cost_usd is not None:
-                                    self.session_cost.set_reported_cost(
-                                        message.total_cost_usd
-                                    )
+                                response_error = self._handle_result_message(message)
 
                             if isinstance(message, AssistantMessage):
+                                # Extract token usage for granular tracking
+                                usage_data = self._extract_usage_from_message(message)
+                                if usage_data:
+                                    self.session_cost.add_usage(usage_data)
+
                                 full_text.extend(self._extract_message_text(message))
+
+                        # Use error message if there was an error, otherwise use response
+                        final_text = response_error or "\n".join(full_text)
 
                         # Return cumulative session usage (aggregated across all messages)
                         await self.response_queue.put(
                             MessageResponse(
-                                text="\n".join(full_text),
+                                text=final_text,
                                 usage=self.get_cumulative_usage(),
                             )
                         )

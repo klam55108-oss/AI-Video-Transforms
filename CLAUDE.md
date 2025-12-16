@@ -8,7 +8,7 @@ AI-powered video transcription and knowledge graph extraction.
 
 ```bash
 uv run python -m app.main              # Dev server → http://127.0.0.1:8000
-uv run pytest                          # 534 tests
+uv run pytest                          # 551 tests
 uv run mypy .                          # Type check (strict)
 uv run ruff check . && ruff format .   # Lint + format
 ```
@@ -62,7 +62,10 @@ OPENAI_API_KEY=sk-...            # gpt-4o-transcribe + Codex MCP (required)
 
 - Accessed via `get_services().kg` from ServiceContainer
 - Projects stored in `data/kg_projects/`
+- Bootstrap validates state: only `CREATED` projects can be bootstrapped
+- Concurrent bootstrap attempts are blocked (prevents data corruption)
 - **Rule**: Always use DomainProfile for extraction context
+- **Rule**: Default confidence is 0.5 (conservative) — not 1.0
 
 ### Configuration (`app/core/config.py`)
 

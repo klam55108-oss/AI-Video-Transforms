@@ -12,6 +12,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from app.core.config import get_settings
+
 # Configure templates
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
@@ -29,4 +31,12 @@ async def read_root(request: Request) -> HTMLResponse:
     Returns:
         HTML response with the main application template
     """
-    return templates.TemplateResponse(request, "index.html")
+    settings = get_settings()
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "kg_poll_interval_ms": settings.kg_poll_interval_ms,
+            "status_poll_interval_ms": settings.status_poll_interval_ms,
+        },
+    )

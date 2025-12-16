@@ -23,6 +23,13 @@
             document.documentElement.setAttribute('data-theme', theme);
         })();
     </script>
+    <!-- Server-injected configuration -->
+    <script>
+        window.APP_CONFIG = {
+            KG_POLL_INTERVAL_MS: {{ kg_poll_interval_ms }},
+            STATUS_POLL_INTERVAL_MS: {{ status_poll_interval_ms }}
+        };
+    </script>
 </head>
 <body class="h-full overflow-hidden flex transition-theme">
 
@@ -34,14 +41,14 @@
         <!-- Sidebar Header with Brand -->
         <div class="h-16 flex items-center justify-between px-5 border-b border-[var(--sidebar-border)]">
             <div class="flex items-center gap-3">
-                <div class="brand-logo w-9 h-9 rounded-xl flex items-center justify-center" style="background: var(--accent-gradient);">
+                <div class="brand-logo w-9 h-9 rounded-xl flex items-center justify-center brand-logo-gradient">
                     <i class="ph-bold ph-video-camera text-white text-lg"></i>
                 </div>
                 <span class="font-display text-base font-semibold text-[var(--sidebar-text-primary)] tracking-tight">VideoAgent</span>
             </div>
             <!-- Mobile close button -->
-            <button id="sidebar-close" class="lg:hidden p-2 rounded-lg text-[var(--sidebar-text-secondary)] hover:text-[var(--sidebar-text-primary)] hover:bg-[var(--sidebar-hover)] transition-all">
-                <i class="ph-bold ph-x text-lg"></i>
+            <button type="button" id="sidebar-close" aria-label="Close sidebar" class="lg:hidden p-2 rounded-lg text-[var(--sidebar-text-secondary)] hover:text-[var(--sidebar-text-primary)] hover:bg-[var(--sidebar-hover)] transition-all">
+                <i class="ph-bold ph-x text-lg" aria-hidden="true"></i>
             </button>
         </div>
 
@@ -49,7 +56,7 @@
         <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto sidebar-scroll">
 
             <!-- Primary Action Button -->
-            <button id="reset-btn" class="btn-primary w-full justify-center mb-6">
+            <button type="button" id="reset-btn" class="btn-primary w-full justify-center mb-6">
                 <i class="ph-bold ph-plus-circle text-lg"></i>
                 <span>New Transcription</span>
             </button>
@@ -59,30 +66,159 @@
 
             <!-- Current Session (Active) -->
             <a href="#" class="sidebar-nav-item active flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[var(--sidebar-text-primary)]">
-                <i class="ph-fill ph-chat-circle-text text-lg" style="color: var(--accent-primary);"></i>
+                <i class="ph-fill ph-chat-circle-text text-lg sidebar-icon-accent"></i>
                 <span>Current Session</span>
             </a>
 
+            <!-- Knowledge Graph Section (Collapsible) - Primary Feature -->
+            <div id="kg-section">
+                <button type="button" id="kg-toggle" class="panel-toggle text-sm font-medium text-[var(--sidebar-text-secondary)]">
+                    <i class="ph-fill ph-graph text-lg mr-3 text-[var(--sidebar-text-muted)]"></i>
+                    <span>Knowledge Graph</span>
+                    <span id="kg-pending-badge" class="hidden ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-[var(--status-warning)] text-white">0</span>
+                    <i id="kg-caret" class="ph-bold ph-caret-right panel-caret text-[var(--sidebar-text-muted)]"></i>
+                </button>
+
+                <div id="kg-content" class="panel-content ml-8 mt-1 sidebar-scroll">
+                    <div class="space-y-3 pr-2 pb-2">
+
+                        <!-- Project Selector -->
+                        <div id="kg-project-selector" class="space-y-2">
+                            <div class="flex items-center gap-2">
+                                <!-- Custom Dropdown -->
+                                <div class="kg-dropdown flex-1" id="kg-project-dropdown">
+                                    <button type="button"
+                                            id="kg-dropdown-toggle"
+                                            class="kg-dropdown-toggle"
+                                            aria-haspopup="listbox"
+                                            aria-expanded="false"
+                                            aria-labelledby="kg-dropdown-label">
+                                        <span id="kg-dropdown-label">-- Select Project --</span>
+                                        <i class="ph-bold ph-caret-down kg-dropdown-caret"></i>
+                                    </button>
+                                    <ul id="kg-dropdown-list"
+                                        role="listbox"
+                                        class="kg-dropdown-list hidden sidebar-scroll"
+                                        tabindex="-1"
+                                        aria-label="Knowledge Graph Projects">
+                                        <!-- Options populated by JS -->
+                                    </ul>
+                                </div>
+                                <button type="button"
+                                        id="kg-new-project-btn"
+                                        title="Create new project"
+                                        aria-label="Create new project">
+                                    <i class="ph-bold ph-plus"></i>
+                                </button>
+                            </div>
+
+                            <!-- State Badge -->
+                            <div id="kg-state-badge" class="hidden flex items-center gap-2">
+                                <span class="kg-state-indicator"></span>
+                                <span id="kg-state-label" class="text-[10px] font-medium text-[var(--sidebar-text-muted)]">Created</span>
+                            </div>
+                        </div>
+
+                        <!-- Workflow Actions -->
+                        <div id="kg-workflow" class="hidden space-y-2">
+                            <button type="button"
+                                    id="kg-action-btn"
+                                    class="w-full text-xs px-3 py-2 rounded-md font-medium transition-all
+                                           bg-[var(--sidebar-hover)] text-[var(--sidebar-text-secondary)]
+                                           hover:bg-[var(--accent-primary)]/20 hover:text-[var(--accent-primary)]
+                                           disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled
+                                    aria-label="Bootstrap project from video">
+                                <i class="ph-bold ph-lightning mr-1.5"></i>
+                                <span>Bootstrap from Video</span>
+                            </button>
+
+                            <!-- Progress Indicator -->
+                            <div id="kg-progress" class="hidden flex items-center gap-2 px-2 py-1.5 text-[10px] text-[var(--sidebar-text-muted)]">
+                                <div class="loading-dots loading-dots-sm">
+                                    <div class="loading-dot loading-dot-sm"></div>
+                                    <div class="loading-dot loading-dot-sm"></div>
+                                    <div class="loading-dot loading-dot-sm"></div>
+                                </div>
+                                <span id="kg-progress-text">Processing...</span>
+                            </div>
+                        </div>
+
+                        <!-- Confirmations List -->
+                        <div id="kg-confirmations" class="hidden space-y-1.5">
+                            <p class="text-[10px] font-semibold text-[var(--sidebar-text-muted)] uppercase tracking-wider">
+                                Confirmations
+                            </p>
+                            <div id="kg-confirmations-list" class="space-y-1 max-h-[120px] overflow-y-auto sidebar-scroll" aria-live="polite">
+                            </div>
+                        </div>
+
+                        <!-- Graph Stats -->
+                        <div id="kg-stats" class="hidden space-y-1.5">
+                            <p class="text-[10px] font-semibold text-[var(--sidebar-text-muted)] uppercase tracking-wider">
+                                Graph Stats
+                            </p>
+                            <div class="grid grid-cols-2 gap-1.5 text-[10px]">
+                                <div class="px-2 py-1.5 rounded-md bg-[var(--sidebar-hover)]">
+                                    <span class="text-[var(--sidebar-text-muted)]">Entities</span>
+                                    <span id="kg-stat-nodes" class="ml-1 font-semibold text-[var(--sidebar-text-primary)]">0</span>
+                                </div>
+                                <div class="px-2 py-1.5 rounded-md bg-[var(--sidebar-hover)]">
+                                    <span class="text-[var(--sidebar-text-muted)]">Relations</span>
+                                    <span id="kg-stat-edges" class="ml-1 font-semibold text-[var(--sidebar-text-primary)]">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Export Buttons -->
+                        <div id="kg-export" class="hidden flex gap-2">
+                            <button type="button"
+                                    id="kg-export-json"
+                                    class="flex-1 text-[10px] px-2 py-1.5 rounded-md font-medium
+                                           border border-[var(--sidebar-border)] text-[var(--sidebar-text-secondary)]
+                                           hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all"
+                                    aria-label="Export graph as JSON">
+                                <i class="ph-bold ph-brackets-curly mr-1"></i>JSON
+                            </button>
+                            <button type="button"
+                                    id="kg-export-graphml"
+                                    class="flex-1 text-[10px] px-2 py-1.5 rounded-md font-medium
+                                           border border-[var(--sidebar-border)] text-[var(--sidebar-text-secondary)]
+                                           hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all"
+                                    aria-label="Export graph as GraphML">
+                                <i class="ph-bold ph-share-network mr-1"></i>GraphML
+                            </button>
+                        </div>
+
+                        <!-- Empty State -->
+                        <div id="kg-empty-state" class="text-center py-3">
+                            <i class="ph-light ph-graph text-2xl text-[var(--sidebar-text-muted)] opacity-50"></i>
+                            <p class="text-[10px] text-[var(--sidebar-text-muted)] mt-1">No projects yet</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- History Section (Collapsible) -->
             <div id="history-section">
-                <button id="history-toggle" class="panel-toggle text-sm font-medium text-[var(--sidebar-text-secondary)]">
+                <button type="button" id="history-toggle" class="panel-toggle text-sm font-medium text-[var(--sidebar-text-secondary)]">
                     <i class="ph-fill ph-clock-counter-clockwise text-lg mr-3 text-[var(--sidebar-text-muted)]"></i>
                     <span>History</span>
                     <i id="history-caret" class="ph-bold ph-caret-right panel-caret text-[var(--sidebar-text-muted)]"></i>
                 </button>
-                <div id="history-list" class="panel-content ml-8 mt-1 space-y-1 sidebar-scroll" style="max-height: 200px; overflow-y: auto;">
+                <div id="history-list" class="panel-content ml-8 mt-1 space-y-1 sidebar-scroll">
                     <p class="text-xs text-[var(--sidebar-text-muted)] px-2 py-1">Loading...</p>
                 </div>
             </div>
 
             <!-- Transcripts Section (Collapsible) -->
             <div id="transcripts-section">
-                <button id="transcripts-toggle" class="panel-toggle text-sm font-medium text-[var(--sidebar-text-secondary)]">
+                <button type="button" id="transcripts-toggle" class="panel-toggle text-sm font-medium text-[var(--sidebar-text-secondary)]">
                     <i class="ph-fill ph-folder-open text-lg mr-3 text-[var(--sidebar-text-muted)]"></i>
                     <span>Transcripts</span>
                     <i id="transcripts-caret" class="ph-bold ph-caret-right panel-caret text-[var(--sidebar-text-muted)]"></i>
                 </button>
-                <div id="transcripts-list" class="panel-content ml-8 mt-1 space-y-1 sidebar-scroll" style="max-height: 200px; overflow-y: auto;">
+                <div id="transcripts-list" class="panel-content ml-8 mt-1 space-y-1 sidebar-scroll">
                     <p class="text-xs text-[var(--sidebar-text-muted)] px-2 py-1">Loading...</p>
                 </div>
             </div>
@@ -98,7 +234,7 @@
                 <p class="user-status">Free Plan</p>
             </div>
             <!-- Theme Toggle in Profile Area -->
-            <button id="theme-toggle" class="theme-toggle" title="Toggle theme">
+            <button type="button" id="theme-toggle" class="theme-toggle" title="Toggle theme">
                 <i class="ph-fill ph-moon theme-toggle-icon moon-icon"></i>
                 <i class="ph-fill ph-sun theme-toggle-icon sun-icon"></i>
             </button>
@@ -112,8 +248,8 @@
         <header class="content-header h-14 flex items-center justify-between px-6 z-10">
             <div class="flex items-center gap-3">
                 <!-- Mobile menu button -->
-                <button id="mobile-menu-btn" class="lg:hidden p-2 -ml-2 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all">
-                    <i class="ph-bold ph-list text-xl"></i>
+                <button type="button" id="mobile-menu-btn" aria-label="Open menu" class="lg:hidden p-2 -ml-2 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all">
+                    <i class="ph-bold ph-list text-xl" aria-hidden="true"></i>
                 </button>
                 <div class="flex items-center gap-2">
                     <i class="ph-regular ph-hash text-[var(--text-tertiary)]"></i>
@@ -132,6 +268,29 @@
 
         <!-- Chat Messages Area -->
         <div id="chat-messages" class="chat-container flex-1 overflow-y-auto px-6 py-8 scroll-smooth">
+            <!-- Empty State -->
+            <div id="empty-state" class="empty-state">
+                <div class="empty-state-icon">
+                    <i class="ph-duotone ph-video-camera"></i>
+                </div>
+                <h2 class="empty-state-title">Welcome to VideoAgent</h2>
+                <p class="empty-state-description">
+                    Transform videos into searchable transcripts and knowledge graphs
+                    using AI-powered analysis.
+                </p>
+                <div class="empty-state-actions">
+                    <button type="button"
+                            onclick="document.getElementById('user-input').focus()"
+                            class="btn-primary">
+                        <i class="ph-bold ph-play-circle"></i>
+                        <span>Start Transcription</span>
+                    </button>
+                    <p class="empty-state-hint">
+                        Paste a YouTube URL or upload a video file to begin
+                    </p>
+                </div>
+            </div>
+
             <div class="max-w-3xl mx-auto space-y-6">
                 <!-- Messages injected here via JS -->
             </div>

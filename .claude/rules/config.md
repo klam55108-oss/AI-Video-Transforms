@@ -31,6 +31,8 @@ All settings use the `APP_` prefix (automatically stripped by pydantic-settings)
 | `APP_GRACEFUL_SHUTDOWN_TIMEOUT` | `5.0` | Shutdown grace period (seconds) |
 | `APP_QUEUE_MAX_SIZE` | `10` | Max pending messages per session |
 | `APP_KG_PROJECT_CACHE_MAX_SIZE` | `100` | LRU cache size for KG projects |
+| `APP_KG_POLL_INTERVAL_MS` | `5000` | Frontend KG status poll interval (ms) |
+| `APP_STATUS_POLL_INTERVAL_MS` | `3000` | Frontend agent status poll interval (ms) |
 
 ## Settings Singleton
 
@@ -80,6 +82,38 @@ self._projects.move_to_end(project_id)
 # On insert, evict oldest if over limit
 if len(self._projects) >= max_size:
     self._projects.popitem(last=False)
+```
+
+## Frontend Configuration Injection
+
+Poll intervals are injected into the frontend via Jinja2 template:
+
+```python
+# app/ui/routes.py
+settings = get_settings()
+return templates.TemplateResponse(
+    request,
+    "index.html",
+    {
+        "kg_poll_interval_ms": settings.kg_poll_interval_ms,
+        "status_poll_interval_ms": settings.status_poll_interval_ms,
+    },
+)
+```
+
+```html
+<!-- app/templates/index.html -->
+<script>
+    window.APP_CONFIG = {
+        KG_POLL_INTERVAL_MS: {{ kg_poll_interval_ms }},
+        STATUS_POLL_INTERVAL_MS: {{ status_poll_interval_ms }}
+    };
+</script>
+```
+
+```javascript
+// app/static/script.js - reads with fallback
+const KG_POLL_INTERVAL_MS = window.APP_CONFIG?.KG_POLL_INTERVAL_MS || 5000;
 ```
 
 ## Testing Configuration

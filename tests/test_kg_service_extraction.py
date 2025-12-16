@@ -216,18 +216,38 @@ class TestExtractFromTranscript:
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_client.query = AsyncMock()
 
-            # Mock receive_response to return a ResultMessage with extraction data
-            from claude_agent_sdk import ResultMessage
+            # Mock receive_response to return UserMessage with ToolResultBlock
+            # and final ResultMessage (per SDK - tool results are in UserMessage.content)
+            from claude_agent_sdk import ResultMessage, UserMessage
+
+            from app.kg.tools.extraction import EXTRACTION_DATA_MARKER
+
+            # Create mock ToolResultBlock inside UserMessage.content
+            # (SDK sends tool results as UserMessage)
+            tool_result_block = MagicMock()
+            tool_result_block.__class__.__name__ = "ToolResultBlock"
+            tool_result_block.type = "tool_result"
+            tool_result_block.tool_use_id = "tool_extract"
+            tool_result_block.content = [
+                {"type": "text", "text": "Extraction completed"},
+                {
+                    "type": "text",
+                    "text": f"{EXTRACTION_DATA_MARKER}{json.dumps(sample_extraction_result.model_dump())}",
+                },
+            ]
+
+            mock_user_msg = MagicMock(spec=UserMessage)
+            mock_user_msg.type = "user"
+            mock_user_msg.content = [tool_result_block]
 
             mock_result = MagicMock(spec=ResultMessage)
+            mock_result.type = "result"
             mock_result.is_error = False
             mock_result.num_turns = 2
             mock_result.total_cost_usd = 0.005
-            mock_result.tool_results = [
-                {"_extraction_result": sample_extraction_result.model_dump()}
-            ]
 
             async def mock_receive():
+                yield mock_user_msg
                 yield mock_result
 
             mock_client.receive_response = mock_receive
@@ -266,17 +286,34 @@ class TestExtractFromTranscript:
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_client.query = AsyncMock()
 
-            from claude_agent_sdk import ResultMessage
+            from claude_agent_sdk import ResultMessage, UserMessage
+
+            from app.kg.tools.extraction import EXTRACTION_DATA_MARKER
+
+            tool_result_block = MagicMock()
+            tool_result_block.__class__.__name__ = "ToolResultBlock"
+            tool_result_block.type = "tool_result"
+            tool_result_block.tool_use_id = "tool_extract"
+            tool_result_block.content = [
+                {"type": "text", "text": "Extraction completed"},
+                {
+                    "type": "text",
+                    "text": f"{EXTRACTION_DATA_MARKER}{json.dumps(sample_extraction_result.model_dump())}",
+                },
+            ]
+
+            mock_user_msg = MagicMock(spec=UserMessage)
+            mock_user_msg.type = "user"
+            mock_user_msg.content = [tool_result_block]
 
             mock_result = MagicMock(spec=ResultMessage)
+            mock_result.type = "result"
             mock_result.is_error = False
             mock_result.num_turns = 2
             mock_result.total_cost_usd = 0.005
-            mock_result.tool_results = [
-                {"_extraction_result": sample_extraction_result.model_dump()}
-            ]
 
             async def mock_receive():
+                yield mock_user_msg
                 yield mock_result
 
             mock_client.receive_response = mock_receive
@@ -316,17 +353,34 @@ class TestExtractFromTranscript:
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_client.query = AsyncMock()
 
-            from claude_agent_sdk import ResultMessage
+            from claude_agent_sdk import ResultMessage, UserMessage
+
+            from app.kg.tools.extraction import EXTRACTION_DATA_MARKER
+
+            tool_result_block = MagicMock()
+            tool_result_block.__class__.__name__ = "ToolResultBlock"
+            tool_result_block.type = "tool_result"
+            tool_result_block.tool_use_id = "tool_extract"
+            tool_result_block.content = [
+                {"type": "text", "text": "Extraction completed"},
+                {
+                    "type": "text",
+                    "text": f"{EXTRACTION_DATA_MARKER}{json.dumps(sample_extraction_result.model_dump())}",
+                },
+            ]
+
+            mock_user_msg = MagicMock(spec=UserMessage)
+            mock_user_msg.type = "user"
+            mock_user_msg.content = [tool_result_block]
 
             mock_result = MagicMock(spec=ResultMessage)
+            mock_result.type = "result"
             mock_result.is_error = False
             mock_result.num_turns = 2
             mock_result.total_cost_usd = 0.005
-            mock_result.tool_results = [
-                {"_extraction_result": sample_extraction_result.model_dump()}
-            ]
 
             async def mock_receive():
+                yield mock_user_msg
                 yield mock_result
 
             mock_client.receive_response = mock_receive
@@ -682,7 +736,7 @@ class TestExportGraph:
         await kg_service._save_project(project)
 
         # Export the graph
-        output_path = await kg_service.export_graph(project.id, format="graphml")
+        output_path = await kg_service.export_graph(project.id, export_format="graphml")
 
         assert output_path is not None
         assert output_path.exists()
@@ -700,7 +754,7 @@ class TestExportGraph:
         kg_service: KnowledgeGraphService,
         sample_domain_profile: DomainProfile,
     ) -> None:
-        """Test that export_graph creates a JSON file when format=json."""
+        """Test that export_graph creates a JSON file when export_format=json."""
         project = await kg_service.create_project("JSON Export Test")
         project.domain_profile = sample_domain_profile
         await kg_service._save_project(project)
@@ -713,7 +767,7 @@ class TestExportGraph:
         project.kb_id = kb.id
         await kg_service._save_project(project)
 
-        output_path = await kg_service.export_graph(project.id, format="json")
+        output_path = await kg_service.export_graph(project.id, export_format="json")
 
         assert output_path is not None
         assert output_path.exists()

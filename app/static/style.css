@@ -266,7 +266,14 @@ code, pre, .font-mono {
 .sidebar {
     background: var(--sidebar-bg);
     border-right: 1px solid var(--sidebar-border);
-    transition: background-color 0.3s ease;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+    position: relative;
+    z-index: 10;
+}
+
+[data-theme="light"] .sidebar {
+    box-shadow: 4px 0 24px rgba(26, 31, 54, 0.15);
 }
 
 .sidebar-nav-item {
@@ -282,6 +289,16 @@ code, pre, .font-mono {
 .sidebar-nav-item.active {
     background: var(--sidebar-active);
     color: var(--sidebar-text-primary);
+}
+
+/* Brand Logo Gradient (moved from inline style) */
+.brand-logo-gradient {
+    background: var(--accent-gradient);
+}
+
+/* Sidebar Icon Accent Color (moved from inline style) */
+.sidebar-icon-accent {
+    color: var(--accent-primary);
 }
 
 /* Brand Logo Glow */
@@ -317,6 +334,7 @@ code, pre, .font-mono {
 .content-header {
     background: var(--content-surface);
     border-bottom: 1px solid var(--divider);
+    -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
 }
 
@@ -551,6 +569,7 @@ code, pre, .font-mono {
     background: var(--content-surface);
     border-top: 1px solid var(--divider);
     padding: 20px 24px;
+    -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
 }
 
@@ -732,6 +751,7 @@ button:focus {
     justify-content: space-between;
     gap: 12px;
     animation: toastSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
 }
 
@@ -911,13 +931,18 @@ button:focus {
 
 .prose table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     margin: 1em 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--divider);
 }
 
 .prose th, .prose td {
-    border: 1px solid var(--divider);
-    padding: 10px 14px;
+    border: none;
+    border-bottom: 1px solid var(--divider);
+    padding: 12px 16px;
     text-align: left;
     color: var(--text-primary);
 }
@@ -926,6 +951,19 @@ button:focus {
     background: var(--bg-tertiary);
     font-weight: 600;
     color: var(--text-primary);
+    border-bottom-width: 2px;
+}
+
+.prose tr:last-child td {
+    border-bottom: none;
+}
+
+.prose tbody tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+[data-theme="light"] .prose tbody tr:hover {
+    background: rgba(0, 0, 0, 0.02);
 }
 
 .prose strong, .prose b {
@@ -960,6 +998,16 @@ button:focus {
 .loading-dot:nth-child(1) { animation-delay: 0s; }
 .loading-dot:nth-child(2) { animation-delay: 0.16s; }
 .loading-dot:nth-child(3) { animation-delay: 0.32s; }
+
+/* Small loading dots variant (for KG progress) */
+.loading-dots-sm {
+    gap: 3px;
+}
+
+.loading-dot-sm {
+    width: 4px;
+    height: 4px;
+}
 
 @keyframes loadingBounce {
     0%, 80%, 100% {
@@ -997,23 +1045,353 @@ button:focus {
 
 .panel-caret {
     margin-left: auto;
-    transition: transform 0.2s ease;
+    opacity: 0.6;
+    transition: transform 0.2s ease, opacity 0.2s ease, color 0.2s ease;
 }
 
 .panel-caret.open {
     transform: rotate(90deg);
+    opacity: 0.8;
+}
+
+.panel-toggle:hover .panel-caret {
+    opacity: 1;
+    color: var(--accent-primary);
 }
 
 .panel-content {
     overflow: hidden;
     max-height: 0;
     opacity: 0;
-    transition: max-height 0.3s ease, opacity 0.2s ease;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
 }
 
 .panel-content.open {
-    max-height: 300px;
+    max-height: 2000px; /* Large enough for any content, CSS will handle actual height */
     opacity: 1;
+}
+
+/* KG Section Enhanced Spacing */
+#kg-content {
+    margin-left: 0.5rem;
+    padding-left: 0.75rem;
+    border-left: 2px solid var(--accent-primary);
+}
+
+/* KG content uses same expansion pattern as History for consistent UX */
+
+[data-theme="light"] #kg-content {
+    border-left-color: var(--accent-primary);
+}
+
+/* ==============================================
+   KG SIDEBAR PANEL STYLES
+   Refined Knowledge Graph UI Components
+   ============================================== */
+
+/* --- KG Section Container --- */
+#kg-section {
+    position: relative;
+}
+
+/* --- Custom Styled Select Dropdown --- */
+#kg-project-select {
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2398a2b4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    padding-right: 28px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+#kg-project-select:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+#kg-project-select:focus {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px rgba(0, 217, 255, 0.15);
+    outline: none;
+}
+
+#kg-project-select option {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    padding: 8px;
+}
+
+/* --- New Project Button (Enhanced) --- */
+#kg-new-project-btn {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: var(--accent-primary);
+    border: 1px solid var(--accent-primary);
+    color: #0a0f1c;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+    z-index: 1;
+}
+
+#kg-new-project-btn:hover {
+    background: var(--accent-secondary);
+    border-color: var(--accent-secondary);
+    box-shadow: 0 0 12px rgba(0, 217, 255, 0.5);
+    /* No transform - keep button in place, just glow */
+}
+
+#kg-new-project-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.3);
+}
+
+#kg-new-project-btn:active {
+    transform: scale(0.95);
+}
+
+#kg-new-project-btn i {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+[data-theme="light"] #kg-new-project-btn {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: white;
+}
+
+[data-theme="light"] #kg-new-project-btn:hover {
+    background: var(--accent-secondary);
+    border-color: var(--accent-secondary);
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.5);
+}
+
+/* --- State Badge (Enhanced) --- */
+#kg-state-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* State indicator dot */
+.kg-state-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--sidebar-text-muted);
+    flex-shrink: 0;
+}
+
+.kg-state-indicator.created {
+    background: var(--status-info);
+    box-shadow: 0 0 6px rgba(59, 130, 246, 0.5);
+}
+
+.kg-state-indicator.bootstrapping {
+    background: var(--status-warning);
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+    animation: kg-pulse 1.5s ease-in-out infinite;
+}
+
+.kg-state-indicator.active {
+    background: var(--status-success);
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+}
+
+.kg-state-indicator.stable {
+    background: var(--accent-primary);
+    box-shadow: 0 0 8px rgba(0, 217, 255, 0.5);
+}
+
+@keyframes kg-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.2); }
+}
+
+/* --- Empty State (Enhanced with Animation) --- */
+#kg-empty-state {
+    padding: 20px 12px;
+    text-align: center;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, rgba(0, 217, 255, 0.03) 100%);
+    border: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+#kg-empty-state i {
+    font-size: 28px;
+    color: var(--accent-primary);
+    opacity: 0.4;
+    animation: kg-float 3s ease-in-out infinite;
+}
+
+#kg-empty-state p {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--sidebar-text-muted);
+}
+
+#kg-empty-state::after {
+    content: "Click + to create your first project";
+    display: block;
+    margin-top: 4px;
+    font-size: 10px;
+    color: var(--sidebar-text-muted);
+    opacity: 0.6;
+}
+
+@keyframes kg-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+}
+
+/* --- Workflow Action Button (Enhanced) --- */
+#kg-action-btn {
+    position: relative;
+    overflow: hidden;
+}
+
+#kg-action-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transition: left 0.5s ease;
+}
+
+#kg-action-btn:not(:disabled):hover::before {
+    left: 100%;
+}
+
+#kg-action-btn:not(:disabled):hover {
+    background: rgba(0, 217, 255, 0.15);
+    border-color: var(--accent-primary);
+}
+
+/* --- Discovery Confirmation Items (Enhanced) --- */
+.kg-discovery-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-left: 3px solid var(--status-warning);
+    transition: all 0.2s ease;
+}
+
+.kg-discovery-item:hover {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%);
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+.kg-discovery-item .discovery-question {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--sidebar-text-primary);
+    line-height: 1.4;
+}
+
+.kg-discovery-item .discovery-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.kg-discovery-item .discovery-btn {
+    flex: 1;
+    padding: 6px 10px;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.kg-discovery-item .discovery-btn.accept {
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--status-success);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.kg-discovery-item .discovery-btn.accept:hover {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: var(--status-success);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+}
+
+.kg-discovery-item .discovery-btn.reject {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--status-error);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.kg-discovery-item .discovery-btn.reject:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: var(--status-error);
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+}
+
+/* --- Stats Cards (Enhanced) --- */
+#kg-stats .grid > div {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(0, 217, 255, 0.02) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: all 0.2s ease;
+}
+
+#kg-stats .grid > div:hover {
+    border-color: rgba(0, 217, 255, 0.2);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(0, 217, 255, 0.05) 100%);
+}
+
+/* --- Export Buttons (Enhanced) --- */
+#kg-export button {
+    background: rgba(255, 255, 255, 0.02);
+    transition: all 0.2s ease;
+}
+
+#kg-export button:hover {
+    background: rgba(0, 217, 255, 0.08);
+    transform: translateY(-1px);
+}
+
+/* KG panel now uses consistent expansion behavior with History/Transcripts */
+
+/* Fade out animation for confirmed/rejected items */
+.kg-discovery-item.fade-out {
+    opacity: 0;
+    transform: translateX(-10px) scale(0.95);
+    transition: all 0.25s ease;
+}
+
+/* --- Panel Caret Enhancement --- */
+#kg-caret {
+    opacity: 0.7;
+    transition: all 0.2s ease;
+}
+
+#kg-toggle:hover #kg-caret {
+    opacity: 1;
+    color: var(--accent-primary);
 }
 
 /* ==============================================
@@ -1037,6 +1415,7 @@ button:focus {
 
 .glass {
     background: rgba(255, 255, 255, 0.05);
+    -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -1127,19 +1506,27 @@ button:focus {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 16px;
+    padding: 14px 16px;
     border-top: 1px solid var(--sidebar-border);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
+    transition: background 0.2s ease;
+}
+
+.user-profile:hover {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
 }
 
 .user-avatar {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.08);
+    background: linear-gradient(135deg, rgba(0, 217, 255, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%);
+    border: 1px solid rgba(0, 217, 255, 0.2);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--sidebar-text-secondary);
+    color: var(--accent-primary);
+    flex-shrink: 0;
 }
 
 .user-info {
@@ -1150,10 +1537,340 @@ button:focus {
 .user-name {
     font-weight: 600;
     color: var(--sidebar-text-primary);
-    font-size: 14px;
+    font-size: 13px;
 }
 
 .user-status {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--sidebar-text-muted);
+    margin-top: 1px;
+}
+
+/* Theme toggle in sidebar - needs different styling for dark sidebar */
+.user-profile .theme-toggle {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+}
+
+.user-profile .theme-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 10px rgba(0, 217, 255, 0.2);
+}
+
+.user-profile .theme-toggle .theme-toggle-icon {
+    font-size: 16px;
+}
+
+/* ==============================================
+   SESSION HISTORY & TRANSCRIPTS LIST ENHANCEMENTS
+   ============================================== */
+
+/* Session History Enhanced Readability */
+#history-list {
+    padding: 0.25rem;
+}
+
+#history-list button {
+    width: 100%;
+    text-align: left;
+    padding: 0.625rem 0.75rem;
+    margin-bottom: 0.25rem;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+}
+
+#history-list button:hover {
+    background: var(--sidebar-hover);
+    border-color: rgba(255, 255, 255, 0.06);
+}
+
+#history-list button:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px rgba(0, 217, 255, 0.1);
+}
+
+#history-list button .truncate {
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+/* Transcripts list similar treatment */
+#transcripts-list > div {
+    padding: 0.625rem 0.75rem;
+    margin-bottom: 0.25rem;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+#transcripts-list > div:hover {
+    border-color: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="light"] #history-list button:focus {
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.1);
+}
+
+/* ==============================================
+   EMPTY STATE COMPONENT
+   ============================================== */
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    text-align: center;
+    padding: 2rem;
+    animation: emptyStateFadeIn 0.5s ease;
+}
+
+.empty-state.hidden {
+    display: none;
+}
+
+@keyframes emptyStateFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.empty-state-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, rgba(0, 217, 255, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%);
+    border: 1px solid rgba(0, 217, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+}
+
+.empty-state-icon i {
+    font-size: 36px;
+    color: var(--accent-primary);
+    opacity: 0.8;
+}
+
+.empty-state-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.empty-state-description {
+    font-size: 0.95rem;
+    color: var(--text-tertiary);
+    max-width: 400px;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+}
+
+.empty-state-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.empty-state-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Light theme adjustments for empty state */
+[data-theme="light"] .empty-state-icon {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(234, 88, 12, 0.1) 100%);
+    border-color: rgba(245, 158, 11, 0.2);
+}
+
+/* ==============================================
+   CUSTOM DROPDOWN FOR KG PROJECT SELECTOR
+   ============================================== */
+
+.kg-dropdown {
+    position: relative;
+}
+
+.kg-dropdown-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--sidebar-text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.kg-dropdown-toggle:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.kg-dropdown-toggle:focus {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px rgba(0, 217, 255, 0.15);
+    outline: none;
+}
+
+.kg-dropdown-toggle[aria-expanded="true"] {
+    border-color: rgba(255, 255, 255, 0.2);
+    outline: none;
+}
+
+.kg-dropdown-caret {
+    font-size: 10px;
+    color: var(--sidebar-text-muted);
+    transition: transform 0.2s ease;
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+.kg-dropdown-toggle[aria-expanded="true"] .kg-dropdown-caret {
+    transform: rotate(180deg);
+}
+
+.kg-dropdown-list {
+    /* Inline expansion like History - NOT absolute overlay */
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.3s ease, opacity 0.2s ease, margin 0.3s ease;
+    background: transparent;
+    border-radius: 6px;
+    padding: 0;
+    margin-top: 0;
+}
+
+.kg-dropdown-list.open {
+    max-height: 300px;
+    overflow-y: auto;
+    opacity: 1;
+    margin-top: 8px;
+    padding: 4px 0;
+}
+
+.kg-dropdown-list.hidden {
+    max-height: 0;
+    opacity: 0;
+    margin-top: 0;
+    padding: 0;
+}
+
+.kg-dropdown-option {
+    /* Styled like History items for consistency */
+    padding: 0.5rem 0.625rem;
+    font-size: 12px;
+    color: var(--sidebar-text-secondary);
+    border-radius: 6px;
+    cursor: default;
+    transition: all 0.15s ease;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 2px;
+    border: 1px solid transparent;
+}
+
+.kg-dropdown-option:hover,
+.kg-dropdown-option.focused {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-text-primary);
+    border-color: rgba(255, 255, 255, 0.06);
+    outline: none;
+}
+
+.kg-dropdown-option[aria-selected="true"] {
+    background: var(--sidebar-active);
+    color: var(--accent-primary);
+    border-color: rgba(0, 217, 255, 0.2);
+}
+
+.kg-dropdown-option[data-empty="true"] {
+    color: var(--sidebar-text-muted);
+    font-style: italic;
+    cursor: default;
+    flex-direction: row;
+}
+
+.kg-dropdown-option[data-empty="true"]:hover {
+    background: transparent;
+    color: var(--sidebar-text-muted);
+    border-color: transparent;
+}
+
+.kg-dropdown-option .option-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+    gap: 2px;
+}
+
+.kg-dropdown-option .option-name {
+    font-weight: 500;
+    color: inherit;
+}
+
+.kg-dropdown-option .option-state {
+    font-size: 10px;
+    color: var(--sidebar-text-muted);
+}
+
+.kg-dropdown-option .kg-delete-btn {
+    flex-shrink: 0;
+    padding: 4px 6px;
+    border: none;
+    background: transparent;
+    color: var(--sidebar-text-muted);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+}
+
+.kg-dropdown-option .kg-delete-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--status-error);
+}
+
+/* Light theme adjustments */
+[data-theme="light"] .kg-dropdown-toggle {
+    background: rgba(26, 31, 54, 0.03);
+    border-color: rgba(26, 31, 54, 0.1);
+}
+
+[data-theme="light"] .kg-dropdown-toggle:hover {
+    border-color: rgba(26, 31, 54, 0.2);
+    background: rgba(26, 31, 54, 0.05);
+}
+
+[data-theme="light"] .kg-dropdown-toggle:focus {
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.15);
+}
+
+[data-theme="light"] .kg-dropdown-toggle[aria-expanded="true"] {
+    border-color: rgba(26, 31, 54, 0.2);
 }

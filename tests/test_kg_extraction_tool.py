@@ -6,8 +6,12 @@ relationship extraction during KG population:
 - extract_knowledge: Process and validate extraction results from Claude
 
 Each tool returns structured responses:
-- Success: {"content": [{"type": "text", "text": "..."}], "_extraction_result": {...}}
+- Success: {"content": [{"type": "text", "text": "..."}, {"type": "text", "text": JSON}]}
 - Error: {"success": False, "error": "message"}
+
+Extraction data is embedded as JSON in content blocks with a marker prefix
+because the Claude Agent SDK strips custom top-level keys. The service layer
+parses this data from content blocks to collect extraction results.
 
 Note: The @tool decorator from claude_agent_sdk wraps functions into SdkMcpTool
 objects. We access the underlying handler function via the .handler attribute
@@ -16,14 +20,40 @@ for direct testing.
 
 from __future__ import annotations
 
+import json
+from typing import Any
+
 import pytest
 
 from app.kg.tools.extraction import (
+    EXTRACTION_DATA_MARKER,
     EXTRACTION_TOOL_NAMES,
     EXTRACTION_TOOLS,
     create_extraction_mcp_server,
     extract_knowledge,
 )
+
+
+def extract_extraction_data(result: dict[str, Any]) -> dict[str, Any] | None:
+    """Extract extraction result from tool response content blocks.
+
+    Args:
+        result: Tool response dict with 'content' key
+
+    Returns:
+        Parsed extraction result dict, or None if not found
+    """
+    if "content" not in result:
+        return None
+
+    for block in result["content"]:
+        if block.get("type") == "text":
+            text = block.get("text", "")
+            if text.startswith(EXTRACTION_DATA_MARKER):
+                json_str = text[len(EXTRACTION_DATA_MARKER) :]
+                return json.loads(json_str)
+    return None
+
 
 # Extract underlying handler function from SdkMcpTool object
 # The @tool decorator wraps functions, so we need .handler to get the callable
@@ -70,9 +100,9 @@ class TestExtractKnowledgeSuccess:
 
         result = await _extract_knowledge(args)
 
-        # Should return content format (success)
+        # Should return content format (success) with 2 blocks
         assert "content" in result
-        assert len(result["content"]) == 1
+        assert len(result["content"]) == 2  # Message + extraction data
         assert result["content"][0]["type"] == "text"
         assert "2 entities" in result["content"][0]["text"]
         assert "1 relationships" in result["content"][0]["text"]
@@ -130,11 +160,11 @@ class TestExtractKnowledgeSuccess:
 
 
 class TestExtractKnowledgeReturnsResult:
-    """Tests for extract_knowledge tool returning structured _extraction_result."""
+    """Tests for extract_knowledge tool returning extraction result in content."""
 
     @pytest.mark.asyncio
     async def test_extract_knowledge_returns_result(self):
-        """Test that successful extraction includes _extraction_result data."""
+        """Test that successful extraction includes extraction result data."""
         args = {
             "entities": [
                 {
@@ -164,9 +194,9 @@ class TestExtractKnowledgeReturnsResult:
 
         result = await _extract_knowledge(args)
 
-        # Should include _extraction_result for service layer
-        assert "_extraction_result" in result
-        extraction_result = result["_extraction_result"]
+        # Extract extraction result from content blocks
+        extraction_result = extract_extraction_data(result)
+        assert extraction_result is not None
 
         # Validate entities
         assert len(extraction_result["entities"]) == 2
@@ -191,7 +221,7 @@ class TestExtractKnowledgeReturnsResult:
 
     @pytest.mark.asyncio
     async def test_extract_knowledge_returns_result_with_discoveries(self):
-        """Test that _extraction_result includes validated discoveries."""
+        """Test that extraction result includes validated discoveries."""
         args = {
             "entities": [{"label": "Entity1", "entity_type": "Person"}],
             "relationships": [],
@@ -215,8 +245,10 @@ class TestExtractKnowledgeReturnsResult:
 
         result = await _extract_knowledge(args)
 
-        assert "_extraction_result" in result
-        discoveries = result["_extraction_result"]["discoveries"]
+        # Extract extraction result from content blocks
+        extraction_result = extract_extraction_data(result)
+        assert extraction_result is not None
+        discoveries = extraction_result["discoveries"]
         assert len(discoveries) == 2
 
         # Check connection_type discovery
@@ -258,8 +290,10 @@ class TestExtractKnowledgeReturnsResult:
 
         result = await _extract_knowledge(args)
 
-        assert "_extraction_result" in result
-        relationships = result["_extraction_result"]["relationships"]
+        # Extract extraction result from content blocks
+        extraction_result = extract_extraction_data(result)
+        assert extraction_result is not None
+        relationships = extraction_result["relationships"]
 
         # First relationship should be clamped to 1.0
         assert relationships[0]["confidence"] == 1.0
@@ -269,7 +303,7 @@ class TestExtractKnowledgeReturnsResult:
 
     @pytest.mark.asyncio
     async def test_extract_knowledge_returns_result_default_confidence(self):
-        """Test that missing confidence defaults to 1.0."""
+        """Test that missing confidence defaults to 0.5 (conservative default)."""
         args = {
             "entities": [
                 {"label": "Entity1", "entity_type": "Person"},
@@ -287,9 +321,12 @@ class TestExtractKnowledgeReturnsResult:
 
         result = await _extract_knowledge(args)
 
-        assert "_extraction_result" in result
-        relationships = result["_extraction_result"]["relationships"]
-        assert relationships[0]["confidence"] == 1.0
+        # Extract extraction result from content blocks
+        extraction_result = extract_extraction_data(result)
+        assert extraction_result is not None
+        relationships = extraction_result["relationships"]
+        # Default confidence changed from 1.0 to 0.5 for epistemically honest defaults
+        assert relationships[0]["confidence"] == 0.5
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -497,8 +534,9 @@ class TestExtractKnowledgeErrorHandling:
 
         # Should succeed with only the valid discovery
         assert "content" in result
-        assert "_extraction_result" in result
-        discoveries = result["_extraction_result"]["discoveries"]
+        extraction_result = extract_extraction_data(result)
+        assert extraction_result is not None
+        discoveries = extraction_result["discoveries"]
         assert len(discoveries) == 1
         assert discoveries[0]["name"] == "document"
 
@@ -515,16 +553,18 @@ class TestExtractKnowledgeErrorHandling:
                     "source_label": "A",
                     "target_label": "B",
                     "relationship_type": "knows",
-                    "confidence": "high",  # Invalid type, should become 1.0
+                    "confidence": "high",  # Invalid type, should become 0.5
                 }
             ],
         }
 
         result = await _extract_knowledge(args)
 
-        assert "_extraction_result" in result
-        relationships = result["_extraction_result"]["relationships"]
-        assert relationships[0]["confidence"] == 1.0
+        extraction_result = extract_extraction_data(result)
+        assert extraction_result is not None
+        relationships = extraction_result["relationships"]
+        # Invalid confidence type defaults to 0.5 (conservative)
+        assert relationships[0]["confidence"] == 0.5
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
