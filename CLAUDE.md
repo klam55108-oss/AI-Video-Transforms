@@ -94,7 +94,7 @@ Two servers in `mcp_servers/` (for Claude Code, not the app agent):
 
 | Server | Purpose | Rule File |
 |--------|---------|-----------|
-| **codex/** | GPT-5.1-Codex-Max via OpenAI Responses API | @.claude/rules/codex-mcp.md |
+| **codex/** | GPT-5.2 via OpenAI Responses API | @.claude/rules/codex-mcp.md |
 | **gemini/** | Gemini CLI wrapper | @.claude/rules/gemini-mcp.md |
 
 ## Git Workflow

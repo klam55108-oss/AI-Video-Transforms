@@ -13,17 +13,23 @@ paths: mcp_servers/codex/**/*.py
 ```python
 # Uses Responses API (not Chat Completions) for chain-of-thought
 response = await client.responses.create(
-    model="gpt-5.1-codex-max",
+    model="gpt-5.2",
     input=input_content,
     reasoning={"effort": effort.value},  # none, low, medium, high, xhigh
 )
 ```
 
+## GPT-5.2 Capabilities
+- 400,000 context window for large codebases
+- 128,000 max output tokens
+- Aug 2025 knowledge cutoff
+- Improved instruction following and accuracy
+
 ## Reasoning Effort Levels
-- `none`: No chain-of-thought
+- `none`: No chain-of-thought (GPT-5.2 default)
 - `low`/`medium`: Moderate reasoning
-- `high`: Default for most queries
-- `xhigh`: Maximum reasoning (Codex-Max exclusive)
+- `high`: Default for our tools (thorough analysis)
+- `xhigh`: Maximum reasoning
 
 ## Tool Design Philosophy
 - `codex_query`: General high-reasoning queries

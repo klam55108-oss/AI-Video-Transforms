@@ -1,8 +1,14 @@
 """
-GPT-5.1-Codex-Max async client using OpenAI Responses API.
+GPT-5.2 async client using OpenAI Responses API.
 
 This client wraps the OpenAI Responses API specifically optimized for
-GPT-5.1-codex-max with high reasoning effort for complex coding tasks.
+GPT-5.2 with high reasoning effort for complex coding tasks.
+
+GPT-5.2 is OpenAI's flagship model for coding and agentic tasks:
+- 400,000 context window
+- 128,000 max output tokens
+- Aug 2025 knowledge cutoff
+- Reasoning effort: none, low, medium, high, xhigh
 
 Key features:
 - Uses Responses API (not Chat Completions) for chain-of-thought support
@@ -31,7 +37,7 @@ _ENV_FILE = _PROJECT_ROOT / ".env"
 if _ENV_FILE.exists():
     load_dotenv(_ENV_FILE)
 
-DEFAULT_MODEL = "gpt-5.1-codex-max"
+DEFAULT_MODEL = "gpt-5.2"
 DEFAULT_TIMEOUT = 300.0  # 5 minutes for complex analysis
 MAX_OUTPUT_CHARS = 100_000
 MAX_RETRIES = 3
@@ -39,18 +45,22 @@ RETRY_DELAY = 1.0
 
 
 class ReasoningEffort(str, Enum):
-    """Reasoning effort levels for GPT-5.1-codex-max."""
+    """Reasoning effort levels for GPT-5.2.
+
+    Note: GPT-5.2 defaults to 'none' reasoning, but we use 'high' as default
+    for thorough analysis in our tools.
+    """
 
     NONE = "none"
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
-    XHIGH = "xhigh"  # Only available for codex-max
+    XHIGH = "xhigh"
 
 
 @dataclass
 class CodexResponse:
-    """Response from GPT-5.1-Codex-Max."""
+    """Response from GPT-5.2."""
 
     success: bool
     output: str
@@ -62,12 +72,17 @@ class CodexResponse:
 
 class CodexClient:
     """
-    Async client for GPT-5.1-Codex-Max via OpenAI Responses API.
+    Async client for GPT-5.2 via OpenAI Responses API.
 
     This client is designed for high-reasoning coding tasks:
     - Code analysis and review
     - Bug detection and fixing
     - Architectural analysis
+
+    GPT-5.2 features:
+    - 400K context window for large codebases
+    - Improved instruction following and accuracy
+    - Better code generation, especially frontend UI
     """
 
     def __init__(
@@ -106,7 +121,7 @@ class CodexClient:
         model: str | None = None,
     ) -> CodexResponse:
         """
-        Execute a query via GPT-5.1-Codex-Max Responses API.
+        Execute a query via GPT-5.2 Responses API.
 
         Args:
             prompt: The user prompt/question

@@ -1,6 +1,6 @@
 ---
 name: council-advice
-description: Multi-model AI council for actionable project advice. Leverages Gemini CLI MCP and GPT-5.1-Codex-Max MCP in parallel, then synthesizes through an Opus Judge for stage-appropriate, non-overkill recommendations. Use when seeking architectural guidance, code review synthesis, or implementation planning.
+description: Multi-model AI council for actionable project advice. Leverages Gemini CLI MCP and GPT-5.2 MCP in parallel, then synthesizes through an Opus Judge for stage-appropriate, non-overkill recommendations. Use when seeking architectural guidance, code review synthesis, or implementation planning.
 ---
 
 # Council Advice
@@ -263,7 +263,7 @@ the tool calls, make all of the independent tool calls in parallel.
 ### MCP Tools Not Available
 Ensure both MCP servers are configured in `.mcp.json`:
 - `gemini-cli`: Gemini CLI wrapper
-- `codex`: GPT-5.1-Codex-Max wrapper
+- `codex`: GPT-5.2 wrapper
 
 ### Opus Judge Script Fails
 Check:

@@ -73,6 +73,9 @@ htmlcov/
 # CHANGELOG.md is auto-generated/maintained for internal tracking
 CHANGELOG.md
 
+# Analysis reports
+analysis/
+
 # =============================================================================
 # Project-Specific
 # =============================================================================

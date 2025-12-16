@@ -229,15 +229,15 @@ class TestCodexClient:
 
     def test_default_model(self) -> None:
         client = CodexClient()
-        assert client.model == "gpt-5.1-codex-max"
+        assert client.model == "gpt-5.2"
 
     def test_default_reasoning_effort(self) -> None:
         client = CodexClient()
         assert client.default_reasoning == ReasoningEffort.HIGH
 
     def test_custom_model(self) -> None:
-        client = CodexClient(model="gpt-5.1-codex-mini")
-        assert client.model == "gpt-5.1-codex-mini"
+        client = CodexClient(model="gpt-5.2-pro")
+        assert client.model == "gpt-5.2-pro"
 
 
 class TestCodexResponse:
