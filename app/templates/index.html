@@ -12,6 +12,8 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- DOMPurify for XSS Protection -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+    <!-- Cytoscape.js for Graph Visualization -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <!-- Custom CSS (Theme System) -->
@@ -27,7 +29,8 @@
     <script>
         window.APP_CONFIG = {
             KG_POLL_INTERVAL_MS: {{ kg_poll_interval_ms }},
-            STATUS_POLL_INTERVAL_MS: {{ status_poll_interval_ms }}
+            STATUS_POLL_INTERVAL_MS: {{ status_poll_interval_ms }},
+            JOB_POLL_INTERVAL_MS: {{ job_poll_interval_ms }}
         };
     </script>
 </head>
@@ -40,16 +43,22 @@
     <aside id="sidebar" class="sidebar w-72 flex-shrink-0 flex flex-col h-full">
         <!-- Sidebar Header with Brand -->
         <div class="h-16 flex items-center justify-between px-5 border-b border-[var(--sidebar-border)]">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 sidebar-brand">
                 <div class="brand-logo w-9 h-9 rounded-xl flex items-center justify-center brand-logo-gradient">
                     <i class="ph-bold ph-video-camera text-white text-lg"></i>
                 </div>
-                <span class="font-display text-base font-semibold text-[var(--sidebar-text-primary)] tracking-tight">VideoAgent</span>
+                <span class="sidebar-brand-text font-display text-base font-semibold text-[var(--sidebar-text-primary)] tracking-tight">VideoAgent</span>
             </div>
-            <!-- Mobile close button -->
-            <button type="button" id="sidebar-close" aria-label="Close sidebar" class="lg:hidden p-2 rounded-lg text-[var(--sidebar-text-secondary)] hover:text-[var(--sidebar-text-primary)] hover:bg-[var(--sidebar-hover)] transition-all">
-                <i class="ph-bold ph-x text-lg" aria-hidden="true"></i>
-            </button>
+            <div class="flex items-center gap-1">
+                <!-- Sidebar collapse button (desktop) -->
+                <button type="button" id="sidebar-collapse-btn" aria-label="Collapse sidebar" class="hidden lg:flex p-2 rounded-lg text-[var(--sidebar-text-secondary)] hover:text-[var(--sidebar-text-primary)] hover:bg-[var(--sidebar-hover)] transition-all">
+                    <i class="ph-bold ph-sidebar-simple text-lg" aria-hidden="true"></i>
+                </button>
+                <!-- Mobile close button -->
+                <button type="button" id="sidebar-close" aria-label="Close sidebar" class="lg:hidden p-2 rounded-lg text-[var(--sidebar-text-secondary)] hover:text-[var(--sidebar-text-primary)] hover:bg-[var(--sidebar-hover)] transition-all">
+                    <i class="ph-bold ph-x text-lg" aria-hidden="true"></i>
+                </button>
+            </div>
         </div>
 
         <!-- Navigation -->
@@ -153,6 +162,24 @@
                             </div>
                         </div>
 
+                        <!-- View Toggle Buttons -->
+                        <div id="kg-view-toggle" class="hidden flex gap-1 p-1 rounded-md bg-[var(--sidebar-hover)]">
+                            <button type="button"
+                                    id="kg-view-list-btn"
+                                    class="kg-view-btn active flex-1 text-[10px] px-2 py-1.5 rounded font-medium transition-all"
+                                    aria-label="List view"
+                                    data-view="list">
+                                <i class="ph-bold ph-list mr-1"></i>List
+                            </button>
+                            <button type="button"
+                                    id="kg-view-graph-btn"
+                                    class="kg-view-btn flex-1 text-[10px] px-2 py-1.5 rounded font-medium transition-all"
+                                    aria-label="Graph view"
+                                    data-view="graph">
+                                <i class="ph-bold ph-graph mr-1"></i>Graph
+                            </button>
+                        </div>
+
                         <!-- Graph Stats -->
                         <div id="kg-stats" class="hidden space-y-1.5">
                             <p class="text-[10px] font-semibold text-[var(--sidebar-text-muted)] uppercase tracking-wider">
@@ -247,17 +274,61 @@
         <!-- Header -->
         <header class="content-header h-14 flex items-center justify-between px-6 z-10">
             <div class="flex items-center gap-3">
+                <!-- Sidebar expand button (when collapsed) -->
+                <button type="button" id="sidebar-expand-btn" aria-label="Expand sidebar" class="hidden p-2 -ml-2 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all">
+                    <i class="ph-bold ph-sidebar-simple text-xl" aria-hidden="true"></i>
+                </button>
                 <!-- Mobile menu button -->
                 <button type="button" id="mobile-menu-btn" aria-label="Open menu" class="lg:hidden p-2 -ml-2 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all">
                     <i class="ph-bold ph-list text-xl" aria-hidden="true"></i>
                 </button>
                 <div class="flex items-center gap-2">
-                    <i class="ph-regular ph-hash text-[var(--text-tertiary)]"></i>
-                    <h1 class="font-display text-sm font-semibold text-[var(--text-primary)]">Transcription & Analysis</h1>
+                    <i id="header-icon" class="ph-regular ph-hash text-[var(--text-tertiary)]"></i>
+                    <h1 id="header-title" class="font-display text-sm font-semibold text-[var(--text-primary)]">Transcription & Analysis</h1>
                 </div>
             </div>
 
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2">
+                <!-- Graph Controls (visible in graph view) -->
+                <div id="graph-header-controls" class="hidden items-center gap-2">
+                    <!-- Layout Dropdown -->
+                    <div class="header-dropdown" id="header-layout-dropdown">
+                        <button type="button" class="header-dropdown-btn" id="header-layout-btn" title="Change layout">
+                            <i class="ph-bold ph-graph"></i>
+                            <span class="header-dropdown-label">Layout</span>
+                            <i class="ph-bold ph-caret-down text-xs"></i>
+                        </button>
+                        <div class="header-dropdown-menu hidden" id="header-layout-menu">
+                            <button class="header-dropdown-item active" data-layout="cose" onclick="changeGraphLayout('cose')">
+                                <i class="ph-bold ph-graph"></i>
+                                Force-directed
+                            </button>
+                            <button class="header-dropdown-item" data-layout="grid" onclick="changeGraphLayout('grid')">
+                                <i class="ph-bold ph-squares-four"></i>
+                                Grid
+                            </button>
+                            <button class="header-dropdown-item" data-layout="circle" onclick="changeGraphLayout('circle')">
+                                <i class="ph-bold ph-circle"></i>
+                                Circle
+                            </button>
+                            <button class="header-dropdown-item" data-layout="breadthfirst" onclick="changeGraphLayout('breadthfirst')">
+                                <i class="ph-bold ph-tree-structure"></i>
+                                Hierarchical
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- View Controls -->
+                    <button type="button" class="header-control-btn" title="Fit to view" onclick="fitGraphView()">
+                        <i class="ph-bold ph-arrows-out"></i>
+                    </button>
+                    <button type="button" class="header-control-btn" title="Reset view" onclick="resetGraphView()">
+                        <i class="ph-bold ph-arrows-counter-clockwise"></i>
+                    </button>
+
+                    <div class="header-divider"></div>
+                </div>
+
                 <!-- Status Badge -->
                 <div class="status-badge">
                     <span id="status-indicator" class="status-dot initializing"></span>
@@ -294,6 +365,58 @@
             <div class="max-w-3xl mx-auto space-y-6">
                 <!-- Messages injected here via JS -->
             </div>
+        </div>
+
+        <!-- Knowledge Graph Visualization -->
+        <div id="kg-graph-view" class="hidden flex-1 flex">
+            <!-- Graph Canvas (main area) -->
+            <div class="flex-1 relative overflow-hidden min-w-0">
+                <!-- Cytoscape container (MUST be empty - Cytoscape replaces contents) -->
+                <div id="kg-graph-container" class="absolute inset-0 bg-[var(--bg-secondary)]">
+                    <!-- Cytoscape will inject its canvas here -->
+                </div>
+
+                <!-- Graph Search Bar (sibling of container to survive Cytoscape re-renders) -->
+                <div class="graph-search-bar" id="kg-search-container">
+                    <i class="ph-bold ph-magnifying-glass search-icon"></i>
+                    <input type="text"
+                           id="kg-graph-search"
+                           class="graph-search-input"
+                           placeholder="Search entities..."
+                           autocomplete="off">
+                    <button type="button"
+                            id="kg-search-clear"
+                            class="search-clear-btn hidden"
+                            aria-label="Clear search">
+                        <i class="ph-bold ph-x"></i>
+                    </button>
+                    <!-- Search Results Dropdown -->
+                    <div id="kg-search-results" class="graph-search-results hidden">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Type Legend (sibling of container to survive Cytoscape re-renders) -->
+                <div id="kg-type-legend" class="graph-legend hidden">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Right-Side Inspector Panel (slides in) -->
+            <aside id="kg-node-inspector" class="inspector-panel">
+                <div class="inspector-panel-header">
+                    <h3 class="inspector-panel-title" id="kg-inspector-title">Node Details</h3>
+                    <button type="button"
+                            id="kg-inspector-close"
+                            class="inspector-close-btn"
+                            aria-label="Close inspector">
+                        <i class="ph-bold ph-x"></i>
+                    </button>
+                </div>
+                <div id="kg-inspector-content" class="inspector-panel-content">
+                    <!-- Inspector content populated by JS -->
+                </div>
+            </aside>
         </div>
 
         <!-- Input Area -->

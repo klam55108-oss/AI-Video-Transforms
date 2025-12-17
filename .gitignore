@@ -70,8 +70,9 @@ htmlcov/
 # =============================================================================
 # Transient Documentation
 # =============================================================================
-# CHANGELOG.md is auto-generated/maintained for internal tracking
+# Internal tracking documents (auto-generated/maintained)
 CHANGELOG.md
+IMPLEMENTATION_SUMMARY.md
 
 # Analysis reports
 analysis/

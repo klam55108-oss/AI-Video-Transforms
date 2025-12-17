@@ -1,0 +1,83 @@
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Testing and coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Development
+.env
+.env.local
+.env.*.local
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+docs/
+*.md
+LICENSE
+.claude/
+ai_docs/
+
+# Tests
+tests/
+pytest.ini
+
+# MCP servers (external utilities)
+mcp_servers/
+
+# CI/CD
+.github/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Logs
+*.log
+
+# Data (will be mounted as volume)
+data/sessions/*
+data/transcripts/*
+data/kg_projects/*
+data/exports/*
+data/knowledge_bases/*
+!data/.gitkeep
+!data/*/.gitkeep
+
+# Temporary files
+tmp/
+temp/
+*.tmp

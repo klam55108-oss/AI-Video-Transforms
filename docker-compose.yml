@@ -1,0 +1,26 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist application data across container restarts
+      - ./data:/app/data
+    environment:
+      # Required API keys from host environment
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # Optional: Override default settings
+      # - APP_CLAUDE_MODEL=${APP_CLAUDE_MODEL:-claude-opus-4-5}
+      # - APP_CLAUDE_API_MAX_CONCURRENT=${APP_CLAUDE_API_MAX_CONCURRENT:-2}
+      # - APP_RESPONSE_TIMEOUT=${APP_RESPONSE_TIMEOUT:-300.0}
+      # - APP_SESSION_TTL=${APP_SESSION_TTL:-3600.0}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3

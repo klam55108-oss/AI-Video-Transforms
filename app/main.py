@@ -35,7 +35,9 @@ from app.api.errors import register_exception_handlers  # noqa: E402
 from app.api.routers import (  # noqa: E402
     chat_router,
     cost_router,
+    health_router,
     history_router,
+    jobs_router,
     kg,
     status_router,
     transcripts_router,
@@ -62,12 +64,14 @@ app.mount(
 
 # Mount API routers
 app.include_router(ui_router)
+app.include_router(health_router)
 app.include_router(chat_router)
 app.include_router(status_router)
 app.include_router(history_router)
 app.include_router(transcripts_router)
 app.include_router(cost_router)
 app.include_router(upload_router)
+app.include_router(jobs_router)
 app.include_router(kg.router)
 
 

@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     kg_poll_interval_ms: int = 5000
     status_poll_interval_ms: int = 3000
 
+    # Job queue configuration
+    job_max_concurrent: int = 2
+    job_poll_interval_ms: int = 1000
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -26,25 +26,27 @@
 | **Conversation** | Single exchange | Multi-turn |
 | **Streaming Input** | ✅ | ✅ |
 | **Interrupts** | ❌ | ✅ |
-| **Hooks** | ❌ | ✅ |
-| **Custom Tools** | ❌ | ✅ |
+| **Hooks** | ✅ (via options) | ✅ |
+| **Custom Tools** | ✅ (via mcp_servers) | ✅ |
+| **Plugins** | ✅ (via options) | ✅ |
 | **Continue Chat** | ❌ New session each time | ✅ Maintains conversation |
-| **Use Case** | One-off tasks | Interactive apps |
+| **Use Case** | One-off tasks, automation | Interactive apps |
 
 ### When to Use Each
 
 **Use `query()` for:**
 - One-off questions without conversation history
 - Independent tasks that don't require context
-- Simple automation scripts
+- Automation scripts with hooks and custom tools
 - Stateless environments (Lambda functions)
+- CI/CD pipelines and batch processing
 
 **Use `ClaudeSDKClient` for:**
 - Continuing conversations with context
 - Follow-up questions building on previous responses
 - Interactive applications and chat interfaces
 - When you need interrupt support
-- Custom tools and hooks
+- Long-running sessions with multiple exchanges
 
 ---
 
@@ -492,6 +494,83 @@ async for message in query(
     # Handle execution errors
     if message.type == "result" and message.subtype == "error_during_execution":
         print("Execution failed")
+```
+
+---
+
+## Plugins
+
+Plugins allow you to extend the SDK with custom functionality that can be shared across projects.
+
+### What Plugins Can Include
+
+- **Commands**: Custom slash commands
+- **Agents**: Specialized subagents for specific tasks
+- **Skills**: Model-invoked capabilities Claude uses autonomously
+- **Hooks**: Event handlers that respond to tool use
+- **MCP servers**: External tool integrations
+
+### Loading Plugins
+
+```python
+from claude_agent_sdk import query, ClaudeAgentOptions
+
+async for message in query(
+    prompt="Hello",
+    options=ClaudeAgentOptions(
+        plugins=[
+            {"type": "local", "path": "./my-plugin"},
+            {"type": "local", "path": "/absolute/path/to/another-plugin"}
+        ]
+    )
+):
+    print(message)
+```
+
+### Plugin Structure
+
+```
+my-plugin/
+├── .claude-plugin/
+│   └── plugin.json          # Required: plugin manifest
+├── commands/                 # Custom slash commands
+│   └── custom-cmd.md
+├── agents/                   # Custom agents
+│   └── specialist.md
+├── skills/                   # Agent Skills
+│   └── my-skill/
+│       └── SKILL.md
+├── hooks/                    # Event handlers
+│   └── hooks.json
+└── .mcp.json                # MCP server definitions
+```
+
+### Verifying Plugin Installation
+
+```python
+async for message in query(
+    prompt="Hello",
+    options=ClaudeAgentOptions(
+        plugins=[{"type": "local", "path": "./my-plugin"}]
+    )
+):
+    if message.type == "system" and message.subtype == "init":
+        print("Plugins:", message.data.get("plugins"))
+        print("Commands:", message.data.get("slash_commands"))
+```
+
+### Using Plugin Commands
+
+Plugin commands are namespaced: `plugin-name:command-name`
+
+```python
+async for message in query(
+    prompt="/my-plugin:custom-command",
+    options=ClaudeAgentOptions(
+        plugins=[{"type": "local", "path": "./my-plugin"}]
+    )
+):
+    print(message)
 ```
 
 ---

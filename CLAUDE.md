@@ -8,7 +8,7 @@ AI-powered video transcription and knowledge graph extraction.
 
 ```bash
 uv run python -m app.main              # Dev server → http://127.0.0.1:8000
-uv run pytest                          # 551 tests
+uv run pytest                          # 595 tests
 uv run mypy .                          # Type check (strict)
 uv run ruff check . && ruff format .   # Lint + format
 ```
@@ -26,8 +26,8 @@ OPENAI_API_KEY=sk-...            # gpt-4o-transcribe + Codex MCP (required)
 
 | Layer | Location | Responsibility |
 |-------|----------|----------------|
-| **API** | `app/api/` | 7 routers, deps, error handlers |
-| **Services** | `app/services/` | Session, Storage, Transcription, KnowledgeGraph |
+| **API** | `app/api/` | 8 routers, deps, error handlers |
+| **Services** | `app/services/` | Session, Storage, Transcription, KG, JobQueue |
 | **Core** | `app/core/` | SessionActor, StorageManager, cost tracking, config |
 | **Agent** | `app/agent/` | MCP tools + system prompts |
 | **KG** | `app/kg/` | Domain models, graph storage, extraction |
@@ -66,6 +66,15 @@ OPENAI_API_KEY=sk-...            # gpt-4o-transcribe + Codex MCP (required)
 - Concurrent bootstrap attempts are blocked (prevents data corruption)
 - **Rule**: Always use DomainProfile for extraction context
 - **Rule**: Default confidence is 0.5 (conservative) — not 1.0
+
+### Job Queue Service (`app/services/job_queue_service.py`)
+
+- Accessed via `get_services().job_queue` from ServiceContainer
+- In-memory job queue with background worker pool
+- Thread-safe storage using `asyncio.Lock`
+- Semaphore-based concurrency control (`APP_JOB_MAX_CONCURRENT`)
+- **Rule**: Jobs do NOT interact with SessionActor directly (isolation)
+- **Rule**: All exceptions caught and stored in `job.error`
 
 ### Configuration (`app/core/config.py`)
 

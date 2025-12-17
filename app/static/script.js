@@ -85,12 +85,19 @@ let fileInput = null;
 
 // KG State
 const KG_PROJECT_STORAGE_KEY = 'kg_current_project';
+const KG_VIEW_STORAGE_KEY = 'kg_current_view';
 // Poll interval from server config (fallback to default)
 const KG_POLL_INTERVAL_MS = window.APP_CONFIG?.KG_POLL_INTERVAL_MS || 5000;
 let kgCurrentProjectId = sessionStorage.getItem(KG_PROJECT_STORAGE_KEY) || null;
 let kgCurrentProject = null;
 let kgPollInterval = null;
 let kgDropdownFocusedIndex = -1;
+
+// KG Graph View State
+let kgCurrentView = localStorage.getItem(KG_VIEW_STORAGE_KEY) || 'list';
+let cytoscapeInstance = null;
+let selectedNodeData = null;
+let graphResizeObserver = null;
 
 // ============================================
 // Configuration
@@ -232,7 +239,9 @@ function copyToClipboard(text) {
 // Toast Notifications
 // ============================================
 
-function showToast(message, type = 'info') {
+function showToast(message, type = 'info', options = {}) {
+    const { hint = null, code = null, detail = null } = options;
+
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
 
@@ -245,31 +254,93 @@ function showToast(message, type = 'info') {
 
     const iconClass = iconMap[type] || 'ph-info';
 
-    toast.innerHTML = `
-        <div class="flex items-center gap-3">
-            <i class="ph-fill ${iconClass} text-lg opacity-80"></i>
-            <span class="text-sm font-medium">${escapeHtml(message)}</span>
-        </div>
-        <button class="ml-4 opacity-60 hover:opacity-100 transition-opacity">
-            <i class="ph-bold ph-x"></i>
-        </button>
+    // Build toast content
+    let toastContent = `
+        <div class="flex items-start gap-3 flex-1">
+            <i class="ph-fill ${iconClass} text-lg opacity-80 mt-0.5"></i>
+            <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium">${escapeHtml(message)}</div>
     `;
 
+    // Add hint if available
+    if (hint) {
+        toastContent += `
+                <div class="text-xs mt-1 opacity-75">
+                    <i class="ph-bold ph-lightbulb text-xs mr-1"></i>${escapeHtml(hint)}
+                </div>
+        `;
+    }
+
+    toastContent += `
+            </div>
+        </div>
+    `;
+
+    // Add action buttons container
+    toastContent += `<div class="flex items-center gap-2 ml-2">`;
+
+    // Add "Copy Debug Info" button for errors with code
+    if (type === 'error' && (code || detail)) {
+        toastContent += `
+            <button class="copy-debug-btn opacity-60 hover:opacity-100 transition-opacity text-xs px-2 py-1 rounded hover:bg-black/10" title="Copy debug info">
+                <i class="ph-bold ph-copy text-sm"></i>
+            </button>
+        `;
+    }
+
+    // Close button
+    toastContent += `
+            <button class="close-btn opacity-60 hover:opacity-100 transition-opacity">
+                <i class="ph-bold ph-x"></i>
+            </button>
+        </div>
+    `;
+
+    toast.innerHTML = toastContent;
+
     // Close button handler
-    toast.querySelector('button').onclick = () => {
-        toast.style.animation = 'toastFadeOut 0.2s forwards';
-        setTimeout(() => toast.remove(), 200);
-    };
+    const closeBtn = toast.querySelector('.close-btn');
+    if (closeBtn) {
+        closeBtn.onclick = () => {
+            toast.style.animation = 'toastFadeOut 0.2s forwards';
+            setTimeout(() => toast.remove(), 200);
+        };
+    }
+
+    // Copy debug info handler
+    const copyBtn = toast.querySelector('.copy-debug-btn');
+    if (copyBtn) {
+        copyBtn.onclick = async () => {
+            const debugInfo = {
+                message,
+                code,
+                detail,
+                timestamp: new Date().toISOString()
+            };
+            const debugText = JSON.stringify(debugInfo, null, 2);
+
+            try {
+                await copyToClipboard(debugText);
+                copyBtn.innerHTML = '<i class="ph-bold ph-check text-sm"></i>';
+                setTimeout(() => {
+                    copyBtn.innerHTML = '<i class="ph-bold ph-copy text-sm"></i>';
+                }, 1500);
+            } catch (err) {
+                console.error('Failed to copy debug info:', err);
+            }
+        };
+    }
 
     toastContainer.appendChild(toast);
 
-    // Auto dismiss after 4 seconds
+    // Auto dismiss after 4 seconds (6 seconds for errors with hints)
+    const dismissDelay = (type === 'error' && hint) ? 6000 : 4000;
     setTimeout(() => {
         if (toast.isConnected) {
             toast.style.animation = 'toastFadeOut 0.2s forwards';
             setTimeout(() => toast.remove(), 200);
         }
-    }, 4000);
+    }, dismissDelay);
 }
 
 // ============================================
@@ -509,8 +580,9 @@ async function deleteTranscript(id) {
 // ============================================
 
 /**
- * Handle KG API errors consistently.
+ * Handle KG API errors consistently with unified error schema.
  * Distinguishes network errors from server errors for better user feedback.
+ * Parses APIError schema with code, message, detail, hint, and retryable fields.
  */
 async function handleKGApiError(response, defaultMessage) {
     // Network error or server unavailable
@@ -518,25 +590,53 @@ async function handleKGApiError(response, defaultMessage) {
         throw new Error('Network error. Please check your connection and try again.');
     }
 
-    // Try to parse error details from response
+    // Try to parse structured error details from response
     let errorMessage = defaultMessage;
+    let errorHint = null;
+    let errorCode = null;
+    let isRetryable = false;
+
     try {
         const errorData = await response.json();
-        if (errorData.detail) {
+
+        // New unified error schema format
+        if (errorData.error) {
+            const error = errorData.error;
+            errorCode = error.code;
+            errorMessage = error.message || defaultMessage;
+            errorHint = error.hint;
+            isRetryable = error.retryable || false;
+
+            // Append detail to message if available (for debugging)
+            if (error.detail && error.detail !== errorMessage) {
+                errorMessage = `${errorMessage}: ${error.detail}`;
+            }
+        }
+        // Legacy format fallback (for backward compatibility)
+        else if (errorData.detail) {
             errorMessage = errorData.detail;
         }
     } catch {
         // Response wasn't JSON, use default message
     }
 
-    // Add status code context for debugging
-    if (response.status === 503) {
-        errorMessage = 'Server is busy. Please try again in a moment.';
-    } else if (response.status === 500) {
-        errorMessage = 'Server error. Please try again later.';
+    // Add status code context for debugging if we don't have structured error
+    if (!errorCode) {
+        if (response.status === 503) {
+            errorMessage = 'Server is busy. Please try again in a moment.';
+            isRetryable = true;
+        } else if (response.status === 500) {
+            errorMessage = 'Server error. Please try again later.';
+            isRetryable = true;
+        }
     }
 
-    throw new Error(errorMessage);
+    // Create error with hint attached for display
+    const error = new Error(errorMessage);
+    error.hint = errorHint;
+    error.code = errorCode;
+    error.retryable = isRetryable;
+    throw error;
 }
 
 const kgClient = {
@@ -707,6 +807,11 @@ async function loadKGProjects() {
     } catch (e) {
         console.error('Failed to load KG projects:', e);
         kgEmptyState?.classList.remove('hidden');
+        showToast(e.message, 'error', {
+            hint: e.hint,
+            code: e.code,
+            detail: e.detail
+        });
     }
 }
 
@@ -733,7 +838,11 @@ async function deleteKGProject(projectId, projectName) {
         showToast('Project deleted', 'success');
     } catch (e) {
         console.error('Delete project failed:', e);
-        showToast('Failed to delete project', 'error');
+        showToast(e.message, 'error', {
+            hint: e.hint,
+            code: e.code,
+            detail: e.detail
+        });
     }
 }
 
@@ -972,6 +1081,13 @@ function updateKGUI(project) {
     const hasData = project.thing_count > 0 || project.connection_count > 0;
     kgExport?.classList.toggle('hidden', !hasData);
 
+    // Show view toggle if we have data
+    const viewToggle = document.getElementById('kg-view-toggle');
+    viewToggle?.classList.toggle('hidden', !hasData);
+
+    // Show stats if we have data
+    kgStats?.classList.toggle('hidden', !hasData);
+
     if (kgPendingBadge) {
         if (project.pending_confirmations > 0) {
             kgPendingBadge.textContent = project.pending_confirmations;
@@ -1096,7 +1212,11 @@ async function createKGProject() {
         // selectKGProject handles updating the custom dropdown display
         await selectKGProject(project.project_id);
     } catch (e) {
-        showToast(e.message, 'error');
+        showToast(e.message, 'error', {
+            hint: e.hint,
+            code: e.code,
+            detail: e.detail
+        });
     }
 }
 
@@ -1126,7 +1246,11 @@ async function confirmKGDiscovery(discoveryId, confirmed) {
 
         showToast(confirmed ? 'Discovery confirmed' : 'Discovery rejected', 'success');
     } catch (e) {
-        showToast(e.message, 'error');
+        showToast(e.message, 'error', {
+            hint: e.hint,
+            code: e.code,
+            detail: e.detail
+        });
         buttons?.forEach(btn => btn.disabled = false);
     }
 }
@@ -1138,7 +1262,11 @@ async function exportKGGraph(format) {
         const result = await kgClient.exportGraph(kgCurrentProjectId, format);
         showToast(`Graph exported as ${result.filename}`, 'success');
     } catch (e) {
-        showToast(e.message, 'error');
+        showToast(e.message, 'error', {
+            hint: e.hint,
+            code: e.code,
+            detail: e.detail
+        });
     }
 }
 
@@ -1155,6 +1283,911 @@ function stopKGPolling() {
     if (kgPollInterval) {
         clearInterval(kgPollInterval);
         kgPollInterval = null;
+    }
+}
+
+// ============================================
+// KG View Toggle (List/Graph)
+// ============================================
+
+function toggleKGView(view) {
+    if (view === kgCurrentView) return;
+
+    kgCurrentView = view;
+    localStorage.setItem(KG_VIEW_STORAGE_KEY, view);
+
+    const chatContainer = document.getElementById('chat-messages');
+    const graphView = document.getElementById('kg-graph-view');
+    const listViewToggle = document.getElementById('kg-view-list-btn');
+    const graphViewToggle = document.getElementById('kg-view-graph-btn');
+    const headerControls = document.getElementById('graph-header-controls');
+    const headerTitle = document.getElementById('header-title');
+    const headerIcon = document.getElementById('header-icon');
+
+    if (view === 'graph') {
+        // Hide chat, show graph
+        chatContainer?.classList.add('hidden');
+        graphView?.classList.remove('hidden');
+
+        // Update button states
+        listViewToggle?.classList.remove('active');
+        graphViewToggle?.classList.add('active');
+
+        // Show header controls
+        headerControls?.classList.remove('hidden');
+        headerControls?.classList.add('flex');
+
+        // Update header title
+        if (headerTitle) headerTitle.textContent = 'Knowledge Graph';
+        if (headerIcon) {
+            headerIcon.className = 'ph-regular ph-graph text-[var(--text-tertiary)]';
+        }
+
+        // Initialize graph if project selected
+        if (kgCurrentProjectId) {
+            initKGGraph(kgCurrentProjectId);
+        }
+    } else {
+        // Show chat, hide graph
+        chatContainer?.classList.remove('hidden');
+        graphView?.classList.add('hidden');
+
+        // Update button states
+        listViewToggle?.classList.add('active');
+        graphViewToggle?.classList.remove('active');
+
+        // Hide header controls
+        headerControls?.classList.add('hidden');
+        headerControls?.classList.remove('flex');
+
+        // Restore header title
+        if (headerTitle) headerTitle.textContent = 'Transcription & Analysis';
+        if (headerIcon) {
+            headerIcon.className = 'ph-regular ph-hash text-[var(--text-tertiary)]';
+        }
+
+        // Close inspector when switching to list view
+        closeInspector();
+    }
+}
+
+// ============================================
+// KG Graph Visualization
+// ============================================
+
+async function initKGGraph(projectId) {
+    if (!window.cytoscape) {
+        showToast('Cytoscape library not loaded', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/kg/projects/${projectId}/graph-data`);
+        if (!response.ok) {
+            if (response.status === 404) {
+                renderEmptyGraph();
+                return;
+            }
+            throw new Error('Failed to load graph data');
+        }
+
+        const graphData = await response.json();
+        renderGraph(graphData);
+        updateGraphStats(graphData);
+    } catch (e) {
+        console.error('Failed to initialize graph:', e);
+        showToast(e.message, 'error');
+        renderEmptyGraph();
+    }
+}
+
+function renderGraph(data) {
+    const container = document.getElementById('kg-graph-container');
+    if (!container) return;
+
+    // Clear existing instance and observer
+    if (graphResizeObserver) {
+        graphResizeObserver.disconnect();
+        graphResizeObserver = null;
+    }
+    if (cytoscapeInstance) {
+        cytoscapeInstance.destroy();
+        cytoscapeInstance = null;
+    }
+
+    // Calculate node degrees for size scaling
+    const nodeDegrees = {};
+    data.nodes.forEach(n => { nodeDegrees[n.data.id] = 0; });
+    data.edges.forEach(e => {
+        nodeDegrees[e.data.source] = (nodeDegrees[e.data.source] || 0) + 1;
+        nodeDegrees[e.data.target] = (nodeDegrees[e.data.target] || 0) + 1;
+    });
+
+    // Find max degree for scaling
+    const maxDegree = Math.max(...Object.values(nodeDegrees), 1);
+    const minNodeSize = 30;
+    const maxNodeSize = 70;
+
+    // Add degree to node data
+    data.nodes.forEach(n => {
+        n.data.degree = nodeDegrees[n.data.id] || 0;
+    });
+
+    // Entity type colors (vibrant, accessible palette)
+    const typeColors = {
+        'Person': '#3b82f6',
+        'Character': '#3b82f6',
+        'Organization': '#10b981',
+        'Group': '#10b981',
+        'Event': '#f59e0b',
+        'Location': '#ef4444',
+        'Place': '#ef4444',
+        'Concept': '#8b5cf6',
+        'Theme': '#8b5cf6',
+        'Technology': '#06b6d4',
+        'Product': '#ec4899',
+        'Object': '#ec4899',
+        'default': '#64748b'
+    };
+
+    // Helper to get color for a type
+    const getTypeColor = (type) => typeColors[type] || typeColors.default;
+
+    // Helper to calculate node size based on degree
+    const getNodeSize = (degree) => {
+        const normalized = degree / maxDegree;
+        return minNodeSize + (maxNodeSize - minNodeSize) * Math.sqrt(normalized);
+    };
+
+    // Helper to truncate label
+    const truncateLabel = (label, maxLen = 12) => {
+        if (!label) return '';
+        return label.length > maxLen ? label.slice(0, maxLen - 1) + '…' : label;
+    };
+
+    // Initialize Cytoscape
+    cytoscapeInstance = cytoscape({
+        container: container,
+        elements: [...data.nodes, ...data.edges],
+        style: [
+            // Base node style
+            {
+                selector: 'node',
+                style: {
+                    'background-color': (ele) => getTypeColor(ele.data('type')),
+                    'background-opacity': 0.9,
+                    'label': (ele) => truncateLabel(ele.data('label')),
+                    'width': (ele) => getNodeSize(ele.data('degree')),
+                    'height': (ele) => getNodeSize(ele.data('degree')),
+                    'font-size': (ele) => Math.max(10, Math.min(14, 10 + ele.data('degree') * 0.3)),
+                    'text-valign': 'center',
+                    'text-halign': 'center',
+                    'color': '#ffffff',
+                    'text-outline-width': 2,
+                    'text-outline-color': (ele) => getTypeColor(ele.data('type')),
+                    'text-outline-opacity': 1,
+                    'overlay-padding': 6,
+                    'border-width': 2,
+                    'border-color': (ele) => getTypeColor(ele.data('type')),
+                    'border-opacity': 0.3,
+                    'transition-property': 'background-opacity, border-width, border-opacity, width, height',
+                    'transition-duration': '0.2s',
+                    'transition-timing-function': 'ease-out'
+                }
+            },
+            // Node hover state
+            {
+                selector: 'node:active',
+                style: {
+                    'overlay-opacity': 0.1
+                }
+            },
+            // Node selected state
+            {
+                selector: 'node:selected',
+                style: {
+                    'border-width': 4,
+                    'border-color': '#ffffff',
+                    'border-opacity': 1,
+                    'background-opacity': 1
+                }
+            },
+            // Highlighted node (neighbor of selected)
+            {
+                selector: 'node.highlighted',
+                style: {
+                    'border-width': 3,
+                    'border-color': '#ffffff',
+                    'border-opacity': 0.7,
+                    'background-opacity': 1
+                }
+            },
+            // Dimmed node (not connected to selected)
+            {
+                selector: 'node.dimmed',
+                style: {
+                    'background-opacity': 0.25,
+                    'text-opacity': 0.4,
+                    'border-opacity': 0.1
+                }
+            },
+            // Base edge style
+            {
+                selector: 'edge',
+                style: {
+                    'width': 2,
+                    'line-color': '#64748b',
+                    'line-opacity': 0.4,
+                    'target-arrow-color': '#64748b',
+                    'target-arrow-shape': 'triangle',
+                    'arrow-scale': 0.8,
+                    'curve-style': 'bezier',
+                    'control-point-step-size': 40,
+                    'transition-property': 'line-opacity, width, line-color',
+                    'transition-duration': '0.2s'
+                }
+            },
+            // Edge hover - show label with proper colors (NO CSS VARIABLES - Cytoscape uses Canvas!)
+            {
+                selector: 'edge:active',
+                style: {
+                    'label': 'data(label)',
+                    'font-size': 11,
+                    'font-weight': 'bold',
+                    'text-rotation': 'autorotate',
+                    'text-margin-y': -10,
+                    'color': '#ffffff',
+                    'text-outline-color': '#1e293b',
+                    'text-outline-width': 2,
+                    'text-background-color': '#1e293b',
+                    'text-background-opacity': 0.95,
+                    'text-background-padding': 6,
+                    'text-background-shape': 'roundrectangle',
+                    'line-opacity': 1,
+                    'width': 3,
+                    'z-index': 999
+                }
+            },
+            // Highlighted edge (connected to selected node) - FIXED: Use hex colors
+            {
+                selector: 'edge.highlighted',
+                style: {
+                    'line-color': '#f59e0b',
+                    'target-arrow-color': '#f59e0b',
+                    'line-opacity': 1,
+                    'width': 3,
+                    'label': 'data(label)',
+                    'font-size': 11,
+                    'font-weight': 'bold',
+                    'text-rotation': 'autorotate',
+                    'text-margin-y': -10,
+                    'color': '#ffffff',
+                    'text-outline-color': '#78350f',
+                    'text-outline-width': 2,
+                    'text-background-color': '#78350f',
+                    'text-background-opacity': 0.95,
+                    'text-background-padding': 6,
+                    'text-background-shape': 'roundrectangle',
+                    'z-index': 999
+                }
+            },
+            // Dimmed edge
+            {
+                selector: 'edge.dimmed',
+                style: {
+                    'line-opacity': 0.1,
+                    'label': ''
+                }
+            }
+        ],
+        layout: {
+            name: 'cose',
+            animate: true,
+            animationDuration: 800,
+            animationEasing: 'ease-out-cubic',
+            nodeRepulsion: function(node) {
+                // Higher repulsion for high-degree nodes
+                return 10000 + (node.data('degree') || 0) * 500;
+            },
+            idealEdgeLength: 120,
+            edgeElasticity: 80,
+            nestingFactor: 1.2,
+            gravity: 0.8,
+            numIter: 1500,
+            initialTemp: 250,
+            coolingFactor: 0.95,
+            minTemp: 1.0,
+            fit: true,
+            padding: 40
+        },
+        // Performance options
+        minZoom: 0.2,
+        maxZoom: 3,
+        wheelSensitivity: 0.3
+    });
+
+    // Node hover effect - highlight neighbors
+    cytoscapeInstance.on('mouseover', 'node', (evt) => {
+        const node = evt.target;
+        highlightNodeNeighborhood(node);
+    });
+
+    cytoscapeInstance.on('mouseout', 'node', () => {
+        // Only clear hover highlight if no node is selected
+        if (!selectedNodeData) {
+            clearHighlights();
+        }
+    });
+
+    // Node click handler
+    cytoscapeInstance.on('tap', 'node', async (evt) => {
+        const node = evt.target;
+        selectedNodeData = node.data();
+        highlightNodeNeighborhood(node, true); // Persistent highlight
+        await selectNode(selectedNodeData);
+    });
+
+    // Edge hover - show relationship type
+    cytoscapeInstance.on('mouseover', 'edge', (evt) => {
+        evt.target.addClass('hovered');
+    });
+
+    cytoscapeInstance.on('mouseout', 'edge', (evt) => {
+        evt.target.removeClass('hovered');
+    });
+
+    // Click on background to deselect
+    cytoscapeInstance.on('tap', (evt) => {
+        if (evt.target === cytoscapeInstance) {
+            clearHighlights();
+            closeInspector();
+        }
+    });
+
+    // Set up ResizeObserver to handle container size changes
+    // This ensures cytoscape redraws correctly when inspector panel opens/closes
+    graphResizeObserver = new ResizeObserver(() => {
+        if (cytoscapeInstance) {
+            cytoscapeInstance.resize();
+            // Optional: re-fit after resize for better UX (commented out to preserve user's zoom/pan)
+            // cytoscapeInstance.fit(null, 30);
+        }
+    });
+    graphResizeObserver.observe(container);
+
+    // Build type legend
+    buildTypeLegend(data.nodes);
+}
+
+// Highlight a node and its neighborhood
+function highlightNodeNeighborhood(node, persistent = false) {
+    if (!cytoscapeInstance) return;
+
+    const neighborhood = node.neighborhood().add(node);
+    const connectedEdges = node.connectedEdges();
+
+    // Clear previous highlights
+    cytoscapeInstance.elements().removeClass('highlighted dimmed');
+
+    // Dim all elements
+    cytoscapeInstance.elements().addClass('dimmed');
+
+    // Highlight neighborhood
+    neighborhood.removeClass('dimmed').addClass('highlighted');
+    connectedEdges.removeClass('dimmed').addClass('highlighted');
+
+    // The selected node itself shouldn't have .highlighted class, just .selected
+    node.removeClass('highlighted');
+}
+
+// Clear all highlights
+function clearHighlights() {
+    if (!cytoscapeInstance) return;
+    cytoscapeInstance.elements().removeClass('highlighted dimmed');
+}
+
+// Build the type legend based on actual types in the graph
+function buildTypeLegend(nodes) {
+    const legendContainer = document.getElementById('kg-type-legend');
+    if (!legendContainer) return;
+
+    // Count entities per type
+    const typeCounts = {};
+    nodes.forEach(n => {
+        const type = n.data.type || 'Unknown';
+        typeCounts[type] = (typeCounts[type] || 0) + 1;
+    });
+
+    // Sort by count descending
+    const sortedTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
+
+    // Type colors
+    const typeColors = {
+        'Person': '#3b82f6',
+        'Character': '#3b82f6',
+        'Organization': '#10b981',
+        'Group': '#10b981',
+        'Event': '#f59e0b',
+        'Location': '#ef4444',
+        'Place': '#ef4444',
+        'Concept': '#8b5cf6',
+        'Theme': '#8b5cf6',
+        'Technology': '#06b6d4',
+        'Product': '#ec4899',
+        'Object': '#ec4899',
+        'default': '#64748b'
+    };
+
+    // Build legend HTML
+    let html = '<div class="legend-title">Entity Types</div><div class="legend-items">';
+    sortedTypes.forEach(([type, count]) => {
+        const color = typeColors[type] || typeColors.default;
+        html += `
+            <button class="legend-item" data-type="${escapeHtml(type)}" onclick="filterByType('${escapeHtml(type)}')">
+                <span class="legend-dot" style="background-color: ${color}"></span>
+                <span class="legend-label">${escapeHtml(type)}</span>
+                <span class="legend-count">${count}</span>
+            </button>
+        `;
+    });
+    html += `
+        <button class="legend-item legend-reset" onclick="clearTypeFilter()">
+            <i class="ph-bold ph-arrow-counter-clockwise"></i>
+            <span class="legend-label">Show All</span>
+        </button>
+    </div>`;
+
+    legendContainer.innerHTML = html;
+    legendContainer.classList.remove('hidden');
+}
+
+// Filter graph by entity type
+function filterByType(type) {
+    if (!cytoscapeInstance) return;
+
+    // Update active state in legend
+    document.querySelectorAll('.legend-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.type === type);
+    });
+
+    // Show only nodes of this type and their edges
+    const matchingNodes = cytoscapeInstance.nodes().filter(n => n.data('type') === type);
+    const connectedEdges = matchingNodes.connectedEdges();
+    const connectedNodes = connectedEdges.connectedNodes();
+
+    cytoscapeInstance.elements().addClass('dimmed');
+    matchingNodes.removeClass('dimmed').addClass('filtered');
+    connectedEdges.removeClass('dimmed');
+    connectedNodes.removeClass('dimmed');
+}
+
+// Clear type filter
+function clearTypeFilter() {
+    if (!cytoscapeInstance) return;
+
+    document.querySelectorAll('.legend-item').forEach(item => {
+        item.classList.remove('active');
+    });
+
+    cytoscapeInstance.elements().removeClass('dimmed filtered');
+}
+
+// ============================================
+// Graph Search Functionality
+// ============================================
+
+let graphSearchData = []; // Cache of all nodes for searching
+let searchSelectedIndex = -1;
+
+function initGraphSearch() {
+    const searchInput = document.getElementById('kg-graph-search');
+    const clearBtn = document.getElementById('kg-search-clear');
+    const resultsContainer = document.getElementById('kg-search-results');
+
+    if (!searchInput) return;
+
+    // Debounced search
+    let searchTimeout;
+    searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
+
+        // Show/hide clear button
+        clearBtn?.classList.toggle('hidden', !query);
+
+        // Reset selection
+        searchSelectedIndex = -1;
+
+        // Debounce search
+        clearTimeout(searchTimeout);
+        if (query.length >= 1) {
+            searchTimeout = setTimeout(() => performGraphSearch(query), 150);
+        } else {
+            hideSearchResults();
+            clearHighlights();
+        }
+    });
+
+    // Keyboard navigation
+    searchInput.addEventListener('keydown', (e) => {
+        const results = resultsContainer?.querySelectorAll('.search-result-item') || [];
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            searchSelectedIndex = Math.min(searchSelectedIndex + 1, results.length - 1);
+            updateSearchSelection(results);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            searchSelectedIndex = Math.max(searchSelectedIndex - 1, 0);
+            updateSearchSelection(results);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (searchSelectedIndex >= 0 && results[searchSelectedIndex]) {
+                const nodeId = results[searchSelectedIndex].dataset.nodeId;
+                navigateToNode(nodeId);
+            } else if (results.length > 0) {
+                const nodeId = results[0].dataset.nodeId;
+                navigateToNode(nodeId);
+            }
+        } else if (e.key === 'Escape') {
+            hideSearchResults();
+            searchInput.blur();
+        }
+    });
+
+    // Clear button
+    clearBtn?.addEventListener('click', () => {
+        searchInput.value = '';
+        clearBtn.classList.add('hidden');
+        hideSearchResults();
+        clearHighlights();
+        searchInput.focus();
+    });
+
+    // Click outside to close
+    document.addEventListener('click', (e) => {
+        const container = document.getElementById('kg-search-container');
+        if (container && !container.contains(e.target)) {
+            hideSearchResults();
+        }
+    });
+}
+
+function performGraphSearch(query) {
+    if (!cytoscapeInstance) return;
+
+    const resultsContainer = document.getElementById('kg-search-results');
+    if (!resultsContainer) return;
+
+    const lowerQuery = query.toLowerCase();
+
+    // Search through nodes
+    const matches = [];
+    cytoscapeInstance.nodes().forEach(node => {
+        const data = node.data();
+        const label = (data.label || '').toLowerCase();
+        const aliases = (data.aliases || []).map(a => a.toLowerCase());
+        const type = (data.type || '').toLowerCase();
+
+        // Check label, aliases, and type
+        if (label.includes(lowerQuery) ||
+            aliases.some(a => a.includes(lowerQuery)) ||
+            type.includes(lowerQuery)) {
+            matches.push({
+                id: data.id,
+                label: data.label,
+                type: data.type,
+                degree: data.degree || 0,
+                matchScore: label.startsWith(lowerQuery) ? 2 : 1
+            });
+        }
+    });
+
+    // Sort by match score (prefix matches first), then by degree
+    matches.sort((a, b) => {
+        if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+        return b.degree - a.degree;
+    });
+
+    // Limit results
+    const topMatches = matches.slice(0, 8);
+
+    if (topMatches.length === 0) {
+        resultsContainer.innerHTML = '<div class="search-no-results">No entities found</div>';
+    } else {
+        // Type colors for result dots
+        const typeColors = {
+            'Person': '#3b82f6',
+            'Character': '#3b82f6',
+            'Organization': '#10b981',
+            'Group': '#10b981',
+            'Event': '#f59e0b',
+            'Location': '#ef4444',
+            'Place': '#ef4444',
+            'Concept': '#8b5cf6',
+            'Theme': '#8b5cf6',
+            'Technology': '#06b6d4',
+            'Product': '#ec4899',
+            'Object': '#ec4899',
+            'default': '#64748b'
+        };
+
+        resultsContainer.innerHTML = topMatches.map((match, idx) => {
+            const color = typeColors[match.type] || typeColors.default;
+            return `
+                <div class="search-result-item ${idx === searchSelectedIndex ? 'selected' : ''}"
+                     data-node-id="${escapeHtml(match.id)}"
+                     onclick="navigateToNode('${escapeHtml(match.id)}')">
+                    <span class="result-dot" style="background-color: ${color}"></span>
+                    <div class="result-info">
+                        <div class="result-name">${escapeHtml(match.label)}</div>
+                        <div class="result-type">${escapeHtml(match.type)}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    resultsContainer.classList.remove('hidden');
+}
+
+function updateSearchSelection(results) {
+    results.forEach((item, idx) => {
+        item.classList.toggle('selected', idx === searchSelectedIndex);
+    });
+
+    // Scroll selected item into view
+    if (searchSelectedIndex >= 0 && results[searchSelectedIndex]) {
+        results[searchSelectedIndex].scrollIntoView({ block: 'nearest' });
+    }
+}
+
+function navigateToNode(nodeId) {
+    if (!cytoscapeInstance) return;
+
+    const node = cytoscapeInstance.nodes(`[id = "${nodeId}"]`);
+    if (node.length === 0) return;
+
+    // Hide search results
+    hideSearchResults();
+
+    // Clear search input
+    const searchInput = document.getElementById('kg-graph-search');
+    if (searchInput) {
+        searchInput.value = '';
+        document.getElementById('kg-search-clear')?.classList.add('hidden');
+    }
+
+    // Animate to node
+    cytoscapeInstance.animate({
+        center: { eles: node },
+        zoom: 1.8
+    }, {
+        duration: 400,
+        easing: 'ease-out-cubic',
+        complete: async () => {
+            // Select the node
+            selectedNodeData = node.data();
+            highlightNodeNeighborhood(node, true);
+            await selectNode(selectedNodeData);
+        }
+    });
+}
+
+function hideSearchResults() {
+    const resultsContainer = document.getElementById('kg-search-results');
+    resultsContainer?.classList.add('hidden');
+    searchSelectedIndex = -1;
+}
+
+function renderEmptyGraph() {
+    const container = document.getElementById('kg-graph-container');
+    if (!container) return;
+
+    // Clean up observer and instance
+    if (graphResizeObserver) {
+        graphResizeObserver.disconnect();
+        graphResizeObserver = null;
+    }
+    if (cytoscapeInstance) {
+        cytoscapeInstance.destroy();
+        cytoscapeInstance = null;
+    }
+
+    container.innerHTML = `
+        <div class="flex items-center justify-center h-full text-center">
+            <div>
+                <i class="ph-light ph-graph text-6xl text-[var(--text-muted)] opacity-50"></i>
+                <p class="text-sm text-[var(--text-secondary)] mt-4">No graph data yet</p>
+                <p class="text-xs text-[var(--text-muted)] mt-2">Extract entities from a video to populate the graph</p>
+            </div>
+        </div>
+    `;
+}
+
+function changeGraphLayout(layout) {
+    if (!cytoscapeInstance) return;
+
+    const layoutOptions = {
+        name: layout,
+        animate: true,
+        animationDuration: 500,
+        fit: true,
+        padding: 30
+    };
+
+    if (layout === 'cose') {
+        layoutOptions.nodeRepulsion = 8000;
+        layoutOptions.idealEdgeLength = 100;
+        layoutOptions.edgeElasticity = 100;
+    }
+
+    cytoscapeInstance.layout(layoutOptions).run();
+
+    document.querySelectorAll('.graph-layout-option').forEach(opt => {
+        opt.classList.toggle('active', opt.dataset.layout === layout);
+    });
+
+    document.getElementById('graph-layout-dropdown')?.classList.add('hidden');
+}
+
+function fitGraphView() {
+    if (!cytoscapeInstance) return;
+    cytoscapeInstance.fit(null, 30);
+}
+
+function resetGraphView() {
+    if (!cytoscapeInstance) return;
+    cytoscapeInstance.zoom(1);
+    cytoscapeInstance.center();
+}
+
+function updateGraphStats(data) {
+    const nodes = data.nodes || [];
+    const edges = data.edges || [];
+
+    // Count unique entity types
+    const types = new Set(nodes.map(n => n.data.type));
+
+    document.getElementById('kg-stat-nodes').textContent = nodes.length;
+    document.getElementById('kg-stat-edges').textContent = edges.length;
+}
+
+// ============================================
+// Node Inspector Panel
+// ============================================
+
+async function selectNode(nodeData) {
+    if (!kgCurrentProjectId || !nodeData) return;
+
+    try {
+        // Highlight selected node
+        if (cytoscapeInstance) {
+            cytoscapeInstance.nodes().removeClass('selected');
+            cytoscapeInstance.nodes(`[id = "${nodeData.id}"]`).addClass('selected');
+        }
+
+        // Fetch neighbors
+        const response = await fetch(`/kg/projects/${kgCurrentProjectId}/nodes/${nodeData.id}/neighbors`);
+        if (!response.ok) {
+            throw new Error('Failed to load node neighbors');
+        }
+
+        const neighbors = await response.json();
+        updateInspector(nodeData, neighbors);
+        showInspector();
+    } catch (e) {
+        console.error('Failed to select node:', e);
+        showToast(e.message, 'error');
+    }
+}
+
+function updateInspector(nodeData, neighbors) {
+    const inspectorTitle = document.getElementById('kg-inspector-title');
+    const inspectorContent = document.getElementById('kg-inspector-content');
+
+    if (!inspectorTitle || !inspectorContent) return;
+
+    // Update title
+    inspectorTitle.textContent = nodeData.label;
+
+    // Build inspector content - using flex layout for proper space distribution
+    // Static fields (Type, Description, Aliases) stay fixed, Connections fills remaining space
+    let html = `
+        <div class="inspector-static-fields flex-shrink-0">
+            <div class="inspector-field">
+                <span class="label text-[10px] font-semibold text-[var(--text-muted)] uppercase">Type</span>
+                <span class="badge badge-${nodeData.type.toLowerCase()} mt-1 inline-block px-2 py-1 text-[10px] font-medium rounded">${nodeData.type}</span>
+            </div>
+    `;
+
+    // Description
+    if (nodeData.description) {
+        html += `
+            <div class="inspector-field mt-3">
+                <span class="label text-[10px] font-semibold text-[var(--text-muted)] uppercase">Description</span>
+                <p class="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed">${escapeHtml(nodeData.description)}</p>
+            </div>
+        `;
+    }
+
+    // Aliases
+    if (nodeData.aliases && nodeData.aliases.length > 0) {
+        html += `
+            <div class="inspector-field mt-3">
+                <span class="label text-[10px] font-semibold text-[var(--text-muted)] uppercase">Aliases</span>
+                <div class="flex flex-wrap gap-1 mt-1">
+                    ${nodeData.aliases.map(alias => `<span class="text-[10px] px-2 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">${escapeHtml(alias)}</span>`).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    html += `</div>`; // Close static fields wrapper
+
+    // Connections - this section grows to fill available space
+    if (neighbors && neighbors.length > 0) {
+        html += `
+            <div class="inspector-connections-section flex-1 min-h-0 mt-3 flex flex-col">
+                <span class="label text-[10px] font-semibold text-[var(--text-muted)] uppercase flex-shrink-0">Connections (${neighbors.length})</span>
+                <div class="mt-2 space-y-1 flex-1 overflow-y-auto min-h-0 pr-1">
+                    ${neighbors.map(neighbor => `
+                        <button onclick="selectNodeById('${neighbor.id}')"
+                                class="w-full text-left text-xs px-2 py-1.5 rounded bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                            <span class="font-medium">${escapeHtml(neighbor.label)}</span>
+                            <span class="text-[10px] text-[var(--text-muted)] ml-1">(${neighbor.entity_type})</span>
+                        </button>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    inspectorContent.innerHTML = html;
+}
+
+function showInspector() {
+    const inspector = document.getElementById('kg-node-inspector');
+    inspector?.classList.add('open');
+}
+
+function closeInspector() {
+    const inspector = document.getElementById('kg-node-inspector');
+    inspector?.classList.remove('open');
+
+    // Clear highlights
+    clearHighlights();
+
+    // Deselect nodes in graph
+    if (cytoscapeInstance) {
+        cytoscapeInstance.nodes().removeClass('selected');
+    }
+
+    selectedNodeData = null;
+}
+
+async function selectNodeById(nodeId) {
+    if (!kgCurrentProjectId) return;
+
+    try {
+        // Find node in graph
+        if (cytoscapeInstance) {
+            const node = cytoscapeInstance.nodes(`[id = "${nodeId}"]`);
+            if (node.length > 0) {
+                // Center on node
+                cytoscapeInstance.animate({
+                    center: { eles: node },
+                    zoom: 1.5
+                }, {
+                    duration: 300
+                });
+
+                // Trigger selection
+                selectedNodeData = node.data();
+                await selectNode(selectedNodeData);
+            }
+        }
+    } catch (e) {
+        console.error('Failed to select node by ID:', e);
     }
 }
 
@@ -1180,6 +2213,310 @@ function initKGEventListeners() {
 
     document.getElementById('kg-export-json')?.addEventListener('click', () => exportKGGraph('json'));
     document.getElementById('kg-export-graphml')?.addEventListener('click', () => exportKGGraph('graphml'));
+
+    // View toggle buttons
+    document.getElementById('kg-view-list-btn')?.addEventListener('click', () => toggleKGView('list'));
+    document.getElementById('kg-view-graph-btn')?.addEventListener('click', () => toggleKGView('graph'));
+
+    // Graph layout dropdown toggle
+    document.getElementById('graph-layout-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const dropdown = document.getElementById('graph-layout-dropdown');
+        dropdown?.classList.toggle('hidden');
+    });
+
+    // Close layout dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        const layoutSelector = document.querySelector('.graph-layout-selector');
+        const layoutDropdown = document.getElementById('graph-layout-dropdown');
+        if (layoutSelector && !layoutSelector.contains(e.target)) {
+            layoutDropdown?.classList.add('hidden');
+        }
+    });
+
+    // Inspector close button
+    document.getElementById('kg-inspector-close')?.addEventListener('click', closeInspector);
+
+    // Initialize graph search
+    initGraphSearch();
+
+    // Initialize sidebar collapse
+    initSidebarCollapse();
+
+    // Initialize header dropdowns
+    initHeaderDropdowns();
+}
+
+// ============================================
+// Sidebar Collapse/Expand
+// ============================================
+
+function initSidebarCollapse() {
+    const sidebar = document.getElementById('sidebar');
+    const collapseBtn = document.getElementById('sidebar-collapse-btn');
+    const expandBtn = document.getElementById('sidebar-expand-btn');
+
+    // Check for stored preference
+    const isCollapsed = localStorage.getItem('sidebar-collapsed') === 'true';
+    if (isCollapsed) {
+        collapseSidebar();
+    }
+
+    // Collapse button (in sidebar header)
+    collapseBtn?.addEventListener('click', collapseSidebar);
+
+    // Expand button (in main header)
+    expandBtn?.addEventListener('click', expandSidebar);
+}
+
+function collapseSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    sidebar?.classList.add('collapsed');
+    document.body.classList.add('sidebar-collapsed');
+    localStorage.setItem('sidebar-collapsed', 'true');
+}
+
+function expandSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    sidebar?.classList.remove('collapsed');
+    document.body.classList.remove('sidebar-collapsed');
+    localStorage.setItem('sidebar-collapsed', 'false');
+}
+
+// ============================================
+// Header Dropdowns
+// ============================================
+
+function initHeaderDropdowns() {
+    const layoutBtn = document.getElementById('header-layout-btn');
+    const layoutMenu = document.getElementById('header-layout-menu');
+
+    // Toggle layout dropdown
+    layoutBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        layoutMenu?.classList.toggle('hidden');
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('header-layout-dropdown');
+        if (dropdown && !dropdown.contains(e.target)) {
+            layoutMenu?.classList.add('hidden');
+        }
+    });
+
+    // Update active state on layout change
+    document.querySelectorAll('.header-dropdown-item[data-layout]').forEach(item => {
+        item.addEventListener('click', () => {
+            // Update active state
+            document.querySelectorAll('.header-dropdown-item[data-layout]').forEach(i => {
+                i.classList.remove('active');
+            });
+            item.classList.add('active');
+
+            // Close dropdown
+            layoutMenu?.classList.add('hidden');
+        });
+    });
+}
+
+// ============================================
+// Job Progress UI
+// ============================================
+
+const JOB_POLL_INTERVAL_MS = window.APP_CONFIG?.JOB_POLL_INTERVAL_MS || 1000;
+let jobProgressPollers = new Map();
+
+const STAGE_LABELS = {
+    'queued': 'Queued',
+    'downloading': 'Downloading video',
+    'extracting_audio': 'Extracting audio',
+    'transcribing': 'Transcribing',
+    'processing': 'Processing',
+    'finalizing': 'Finalizing'
+};
+
+function createJobProgressUI(jobId, title = 'Processing') {
+    const container = document.createElement('div');
+    container.id = `job-progress-${jobId}`;
+    container.className = 'job-progress-container';
+    container.innerHTML = `
+        <div class="job-progress-header">
+            <div class="job-progress-title">
+                <i class="ph-fill ph-spinner animate-spin"></i>
+                <span>${escapeHtml(title)}</span>
+            </div>
+            <button class="job-progress-cancel" data-job-id="${jobId}">
+                <i class="ph-bold ph-x-circle"></i> Cancel
+            </button>
+        </div>
+        <div class="job-progress-bar-container">
+            <div class="job-progress-bar animated" style="width: 0%"></div>
+        </div>
+        <div class="job-progress-info">
+            <span class="job-progress-stage">Initializing...</span>
+            <span class="job-progress-percent">0%</span>
+        </div>
+    `;
+
+    const cancelBtn = container.querySelector('.job-progress-cancel');
+    cancelBtn?.addEventListener('click', () => cancelJob(jobId));
+
+    const messageContainer = chatMessages.querySelector('div.space-y-6');
+    if (messageContainer) {
+        messageContainer.appendChild(container);
+        scrollToBottom();
+    }
+
+    startJobPolling(jobId);
+
+    return jobId;
+}
+
+async function startJobPolling(jobId) {
+    if (jobProgressPollers.has(jobId)) {
+        return;
+    }
+
+    const pollerId = setInterval(() => updateJobProgress(jobId), JOB_POLL_INTERVAL_MS);
+    jobProgressPollers.set(jobId, pollerId);
+
+    await updateJobProgress(jobId);
+}
+
+function stopJobPolling(jobId) {
+    const pollerId = jobProgressPollers.get(jobId);
+    if (pollerId) {
+        clearInterval(pollerId);
+        jobProgressPollers.delete(jobId);
+    }
+}
+
+async function updateJobProgress(jobId) {
+    try {
+        const response = await fetch(`/jobs/${jobId}`);
+
+        if (!response.ok) {
+            if (response.status === 404) {
+                stopJobPolling(jobId);
+                return;
+            }
+            throw new Error('Failed to fetch job status');
+        }
+
+        const job = await response.json();
+        renderJobProgress(job);
+
+        if (job.status === 'completed' || job.status === 'failed') {
+            stopJobPolling(jobId);
+            setTimeout(() => {
+                const container = document.getElementById(`job-progress-${jobId}`);
+                if (container) {
+                    container.style.opacity = '0';
+                    container.style.transform = 'translateY(-10px)';
+                    container.style.transition = 'all 0.3s ease';
+                    setTimeout(() => container.remove(), 300);
+                }
+            }, 3000);
+
+            if (job.status === 'completed') {
+                loadTranscripts();
+            }
+        }
+
+    } catch (e) {
+        console.error('Job progress update failed:', e);
+    }
+}
+
+function renderJobProgress(job) {
+    const container = document.getElementById(`job-progress-${job.id}`);
+    if (!container) return;
+
+    const progressBar = container.querySelector('.job-progress-bar');
+    const stageEl = container.querySelector('.job-progress-stage');
+    const percentEl = container.querySelector('.job-progress-percent');
+    const cancelBtn = container.querySelector('.job-progress-cancel');
+
+    if (progressBar) {
+        progressBar.style.width = `${job.progress}%`;
+        if (job.status === 'running') {
+            progressBar.classList.add('animated');
+        } else {
+            progressBar.classList.remove('animated');
+        }
+    }
+
+    if (stageEl) {
+        stageEl.textContent = STAGE_LABELS[job.stage] || job.stage;
+    }
+
+    if (percentEl) {
+        percentEl.textContent = `${job.progress}%`;
+    }
+
+    if (cancelBtn) {
+        cancelBtn.disabled = job.status !== 'pending' && job.status !== 'running';
+    }
+
+    if (job.status === 'completed') {
+        const existingStatus = container.querySelector('.job-progress-status');
+        if (!existingStatus) {
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'job-progress-status success';
+            statusDiv.innerHTML = '<i class="ph-fill ph-check-circle"></i><span>Completed successfully</span>';
+            container.appendChild(statusDiv);
+        }
+    } else if (job.status === 'failed') {
+        const existingStatus = container.querySelector('.job-progress-status');
+        if (!existingStatus) {
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'job-progress-status error';
+            const errorMsg = job.error || 'Job failed';
+            statusDiv.innerHTML = `<i class="ph-fill ph-x-circle"></i><span>${escapeHtml(errorMsg)}</span>`;
+            container.appendChild(statusDiv);
+        }
+    }
+}
+
+async function cancelJob(jobId) {
+    if (!confirm('Cancel this job?')) return;
+
+    try {
+        const response = await fetch(`/jobs/${jobId}`, { method: 'DELETE' });
+
+        if (!response.ok) {
+            throw new Error('Failed to cancel job');
+        }
+
+        stopJobPolling(jobId);
+
+        const container = document.getElementById(`job-progress-${jobId}`);
+        if (container) {
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'job-progress-status cancelled';
+            statusDiv.innerHTML = '<i class="ph-fill ph-warning-circle"></i><span>Cancelled</span>';
+            container.appendChild(statusDiv);
+
+            setTimeout(() => {
+                container.style.opacity = '0';
+                container.style.transform = 'translateY(-10px)';
+                container.style.transition = 'all 0.3s ease';
+                setTimeout(() => container.remove(), 300);
+            }, 2000);
+        }
+
+        showToast('Job cancelled', 'info');
+
+    } catch (e) {
+        console.error('Cancel job failed:', e);
+        showToast('Failed to cancel job', 'error');
+    }
+}
+
+function cleanupAllJobPollers() {
+    jobProgressPollers.forEach((pollerId) => clearInterval(pollerId));
+    jobProgressPollers.clear();
 }
 
 // ============================================
@@ -1763,6 +3100,7 @@ function initSidebarData() {
 window.addEventListener('beforeunload', () => {
     stopKGPolling();
     stopStatusPolling();
+    cleanupAllJobPollers();
 });
 
 // Also clean up when tab becomes hidden (e.g., user switches tabs)
@@ -1782,12 +3120,26 @@ document.addEventListener('visibilitychange', () => {
 
 // Run initialization when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
+    // Reset KG state for clean UX on page load
+    // Users should start fresh - project can be reselected, view defaults to list
+    kgCurrentProjectId = null;
+    kgCurrentProject = null;
+    kgCurrentView = 'list';
+    sessionStorage.removeItem(KG_PROJECT_STORAGE_KEY);
+    localStorage.setItem(KG_VIEW_STORAGE_KEY, 'list');
+
     initTheme();
     initMobileNav();
     initFileUpload();
     initEventListeners();
     initSidebarData();
     startStatusPolling();
+
+    // Initialize view toggle buttons to list view
+    const listBtn = document.getElementById('kg-view-list-btn');
+    const graphBtn = document.getElementById('kg-view-graph-btn');
+    listBtn?.classList.add('active');
+    graphBtn?.classList.remove('active');
 });
 
 // Initialize session

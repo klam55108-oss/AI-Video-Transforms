@@ -9,11 +9,11 @@ paths: app/api/**/*.py, app/models/**/*.py, app/main.py
 | File | Purpose |
 |------|---------|
 | `app/main.py` | Slim entry point (~80 lines), mounts routers |
-| `app/api/routers/` | 7 endpoint routers |
+| `app/api/routers/` | 8 endpoint routers |
 | `app/api/deps.py` | Dependency injection providers |
 | `app/api/errors.py` | Centralized error handlers |
 
-## Routers (7 total)
+## Routers (8 total)
 
 | Router | Prefix | Description |
 |--------|--------|-------------|
@@ -23,6 +23,7 @@ paths: app/api/**/*.py, app/models/**/*.py, app/main.py
 | `cost.py` | `/cost` | Token usage tracking |
 | `upload.py` | `/upload` | Video file uploads |
 | `kg.py` | `/kg` | Knowledge graph projects |
+| `jobs.py` | `/jobs` | Background job queue |
 | (ui) | `/` | Web dashboard |
 
 ## Endpoint Design
@@ -68,6 +69,8 @@ from app.core.session import SessionActor  # NEVER do this in routers
 | `app/models/requests.py` | API request schemas (CreateProjectRequest, BootstrapRequest, etc.) |
 | `app/models/service.py` | Service layer contracts |
 | `app/models/structured.py` | Agent output schemas |
+| `app/models/jobs.py` | Job queue models (Job, JobType, JobStatus, JobStage) |
+| `app/models/errors.py` | Unified error schema (APIError, ErrorCode) |
 
 ## Error Responses
 
@@ -86,10 +89,11 @@ All services accessed via `get_services()` in deps.py:
 
 ```python
 # Available services:
-get_services().session      # SessionService
-get_services().storage      # StorageService
+get_services().session       # SessionService
+get_services().storage       # StorageService
 get_services().transcription # TranscriptionService
-get_services().kg           # KnowledgeGraphService
+get_services().kg            # KnowledgeGraphService
+get_services().job_queue     # JobQueueService
 ```
 
 ## Session Management

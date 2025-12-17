@@ -94,6 +94,22 @@ class KnowledgeGraphService:
 4. **Confirm** — User approves/rejects discoveries
 5. **Active** — Subsequent transcripts use confirmed schema
 
+## Graph Visualization API
+
+The `GET /kg/projects/{id}/graph-data` endpoint returns Cytoscape.js-compatible data:
+
+```json
+{
+  "nodes": [{"data": {"id": "...", "label": "...", "type": "Person"}}],
+  "edges": [{"data": {"source": "...", "target": "...", "label": "works_for"}}]
+}
+```
+
+Frontend uses Cytoscape.js with:
+- Force-directed layout (cose algorithm)
+- Node colors by entity type (Person=blue, Organization=green, etc.)
+- Interactive search, filtering, and node inspector panel
+
 ## Critical Rules
 
 - ALWAYS use DomainProfile for extraction context
