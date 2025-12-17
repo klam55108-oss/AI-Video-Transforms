@@ -137,6 +137,21 @@ async def delete_session(
     return {"status": "success", "message": f"Session {session_id} closed"}
 
 
+# Health check endpoint for Docker/k8s
+health_router = APIRouter(tags=["health"])
+
+
+@health_router.get("/health")
+async def health_check() -> dict[str, str]:
+    """
+    Health check endpoint for monitoring and orchestration.
+
+    Returns:
+        Simple status response indicating service is running
+    """
+    return {"status": "ok"}
+
+
 # Status endpoint is at /status/{session_id}, not under /chat
 status_router = APIRouter(tags=["chat"])
 

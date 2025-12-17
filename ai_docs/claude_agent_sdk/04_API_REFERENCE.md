@@ -183,6 +183,83 @@ from typing import Literal
 SettingSource = Literal["user", "project", "local"]
 ```
 
+### HookMatcher
+
+```python
+from dataclasses import dataclass
+from typing import Callable, Any
+
+HookCallback = Callable[[dict[str, Any], str | None, HookContext], dict[str, Any]]
+
+@dataclass
+class HookMatcher:
+    hooks: list[HookCallback]
+    """Array of callback functions to execute when pattern matches."""
+
+    matcher: str | None = None
+    """Regex pattern to match tool names (e.g., 'Bash', 'Write|Edit', '^mcp__')."""
+
+    timeout: int = 60
+    """Timeout in seconds; increase for hooks with external API calls."""
+
+
+@dataclass
+class HookContext:
+    """Context passed to hook callbacks. Reserved for future use."""
+    pass  # Currently empty, reserved for future extensions
+```
+
+### CanUseTool
+
+```python
+from typing import TypedDict, Literal
+
+class CanUseToolResult(TypedDict, total=False):
+    behavior: Literal["allow", "deny"]
+    message: str | None  # Shown when denied
+    updatedInput: dict[str, Any] | None  # Modified tool input
+
+# Callback signature
+CanUseTool = Callable[[str, dict[str, Any]], Awaitable[CanUseToolResult]]
+```
+
+### Handling AskUserQuestion Tool
+
+When Claude uses `AskUserQuestion`, your `can_use_tool` callback receives special input:
+
+```python
+# Input structure
+{
+    "questions": [
+        {
+            "question": "Which database should we use?",
+            "header": "Database",
+            "options": [
+                {"label": "PostgreSQL", "description": "Relational, ACID compliant"},
+                {"label": "MongoDB", "description": "Document-based, flexible schema"}
+            ],
+            "multiSelect": False
+        }
+    ]
+}
+
+# Return answers in updatedInput.answers
+async def handle_ask_user(tool_name: str, input_data: dict) -> dict:
+    if tool_name == "AskUserQuestion":
+        # Present questions to user, get answers
+        answers = await present_questions_to_user(input_data["questions"])
+        return {
+            "behavior": "allow",
+            "updatedInput": {
+                "questions": input_data["questions"],
+                "answers": answers  # {"Which database?": "PostgreSQL"}
+            }
+        }
+    return {"behavior": "allow", "updatedInput": input_data}
+```
+
+**Note:** Multi-select answers are comma-separated strings (e.g., `"Feature1, Feature2"`).
+
 ### SandboxSettings
 
 ```python
@@ -601,11 +678,28 @@ usage = {
     "cache_creation_input_tokens": int,     # Cache creation
     "cache_read_input_tokens": int,         # Cache reads
     "service_tier": str,                    # e.g., "standard"
+
+    # Extended cache tracking (when using prompt caching)
+    "cache_creation": {
+        "ephemeral_5m_input_tokens": int,   # 5-minute cache
+        "ephemeral_1h_input_tokens": int    # 1-hour cache
+    }
 }
 
 # ResultMessage has total cost
 result.total_cost_usd  # Authoritative source!
 ```
+
+### Usage Fields Reference
+
+| Field | Description |
+|-------|-------------|
+| `input_tokens` | Base input tokens processed |
+| `output_tokens` | Tokens generated in response |
+| `cache_creation_input_tokens` | Tokens used to create cache entries |
+| `cache_read_input_tokens` | Tokens read from cache |
+| `service_tier` | Service tier used (e.g., "standard") |
+| `total_cost_usd` | Total cost in USD (only in ResultMessage) |
 
 ### Critical Rules
 

@@ -192,7 +192,11 @@ class TestErrorHandling:
         result = handle_endpoint_error(error, "test context")
 
         assert result.status_code == 504
-        assert "timed out" in result.detail.lower()
+        # Detail is now a dict with error schema
+        assert isinstance(result.detail, dict)
+        assert "error" in result.detail
+        assert result.detail["error"]["code"] == "REQUEST_TIMEOUT"
+        assert "timed out" in result.detail["error"]["message"].lower()
 
     def test_handle_endpoint_error_converts_closed_runtime_error(self):
         """Test that handle_endpoint_error converts closed session error to 410."""
@@ -202,17 +206,26 @@ class TestErrorHandling:
         result = handle_endpoint_error(error, "test context")
 
         assert result.status_code == 410
-        assert "closed" in result.detail.lower()
+        # Detail is now a dict with error schema
+        assert isinstance(result.detail, dict)
+        assert "error" in result.detail
+        assert result.detail["error"]["code"] == "SESSION_EXPIRED"
+        assert "expired" in result.detail["error"]["message"].lower()
 
     def test_handle_endpoint_error_converts_generic_to_500(self):
-        """Test that handle_endpoint_error converts generic errors to 500."""
+        """Test that handle_endpoint_error converts generic errors to 400 for ValueError."""
         from app.api.errors import handle_endpoint_error
 
         error = ValueError("Some internal error")
         result = handle_endpoint_error(error, "test context")
 
-        assert result.status_code == 500
-        assert "internal error" in result.detail.lower()
+        # ValueError is now treated as validation error (400), not 500
+        assert result.status_code == 400
+        # Detail is now a dict with error schema
+        assert isinstance(result.detail, dict)
+        assert "error" in result.detail
+        assert result.detail["error"]["code"] == "VALIDATION_ERROR"
+        assert "Some internal error" in result.detail["error"]["message"]
 
 
 class TestRequestModels:

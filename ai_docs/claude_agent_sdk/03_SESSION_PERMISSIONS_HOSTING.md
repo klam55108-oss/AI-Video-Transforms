@@ -267,19 +267,42 @@ options = ClaudeAgentOptions(
 
 ## Hooks System
 
-### Available Hook Events
+### Available Hook Events (Python SDK)
 
-| Event | Description | Python SDK Support |
-|-------|-------------|-------------------|
-| `PreToolUse` | Before tool execution | ✅ Supported |
-| `PostToolUse` | After tool execution | ✅ Supported |
-| `UserPromptSubmit` | When user sends prompt | ✅ Supported |
-| `Stop` | When execution stops | ✅ Supported |
-| `SubagentStop` | When subagent completes | ✅ Supported |
-| `PreCompact` | Before message compaction | ✅ Supported |
-| `SessionStart` | Session initialization | ❌ Not in Python SDK |
-| `SessionEnd` | Session completion | ❌ Not in Python SDK |
-| `Notification` | System notifications | ❌ Not in Python SDK |
+| Event | Supported | Trigger | Example Use Case |
+|-------|-----------|---------|------------------|
+| `PreToolUse` | ✅ | Tool call request (can block/modify) | Block dangerous shell commands |
+| `PostToolUse` | ✅ | Tool execution result | Log file changes to audit trail |
+| `UserPromptSubmit` | ✅ | User prompt submission | Inject additional context |
+| `Stop` | ✅ | Agent execution stop | Save session state |
+| `SubagentStop` | ✅ | Subagent completion | Aggregate results |
+| `PreCompact` | ✅ | Conversation compaction | Archive full transcript |
+| `PostToolUseFailure` | ❌ | Tool execution failure | *(Not available in Python SDK)* |
+| `SubagentStart` | ❌ | Subagent initialization | *(Not available in Python SDK)* |
+| `PermissionRequest` | ❌ | Permission dialog displayed | *(Not available in Python SDK)* |
+| `SessionStart` | ❌ | Session initialization | *(Not available in Python SDK)* |
+| `SessionEnd` | ❌ | Session termination | *(Not available in Python SDK)* |
+| `Notification` | ❌ | Agent status messages | *(Not available in Python SDK)* |
+
+### Hook Callback Input Fields
+
+**Common fields** (all hooks):
+- `hook_event_name`: The hook type (`PreToolUse`, `PostToolUse`, etc.)
+- `session_id`: Current session identifier
+- `transcript_path`: Path to conversation transcript
+- `cwd`: Current working directory
+
+**Hook-specific fields**:
+
+| Field | Type | Hooks |
+|-------|------|-------|
+| `tool_name` | `str` | PreToolUse, PostToolUse |
+| `tool_input` | `dict` | PreToolUse, PostToolUse |
+| `tool_response` | `Any` | PostToolUse |
+| `prompt` | `str` | UserPromptSubmit |
+| `stop_hook_active` | `bool` | Stop, SubagentStop |
+| `trigger` | `str` | PreCompact (`manual` or `auto`) |
+| `custom_instructions` | `str` | PreCompact |
 
 ### Hook Implementation
 
@@ -353,6 +376,25 @@ options = ClaudeAgentOptions(
 
 ### Hook Return Format
 
+**Top-level fields** (outside `hookSpecificOutput`):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `continue` | `bool` | Whether agent should continue (default: `True`) |
+| `stopReason` | `str` | Message shown when `continue=False` |
+| `suppressOutput` | `bool` | Hide stdout from transcript (default: `False`) |
+| `systemMessage` | `str` | Message injected for Claude to see |
+
+**Fields inside `hookSpecificOutput`**:
+
+| Field | Type | Hooks | Description |
+|-------|------|-------|-------------|
+| `hookEventName` | `str` | All | Required. Use `input.hook_event_name` |
+| `permissionDecision` | `'allow' \| 'deny' \| 'ask'` | PreToolUse | Controls tool execution |
+| `permissionDecisionReason` | `str` | PreToolUse | Explanation for decision |
+| `updatedInput` | `dict` | PreToolUse | Modified tool input (requires `allow`) |
+| `additionalContext` | `str` | PostToolUse, UserPromptSubmit | Context for conversation |
+
 ```python
 # Continue with default behavior
 return {}
@@ -366,11 +408,42 @@ return {
     }
 }
 
+# Allow with modified input
+return {
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'allow',
+        'updatedInput': {
+            **input_data['tool_input'],
+            'file_path': '/sandbox' + input_data['tool_input'].get('file_path', '')
+        }
+    }
+}
+
 # Add system message
 return {
     'systemMessage': 'Important: This operation was modified'
 }
+
+# Auto-approve read-only tools
+return {
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'allow',
+        'permissionDecisionReason': 'Read-only tool auto-approved'
+    }
+}
 ```
+
+### Permission Decision Flow
+
+When multiple hooks or rules apply:
+1. **Deny** rules checked first (any match = immediate denial)
+2. **Ask** rules checked second
+3. **Allow** rules checked third
+4. **Default to Ask** if nothing matches
+
+If any hook returns `deny`, the operation is blocked—other hooks returning `allow` won't override it.
 
 ---
 
@@ -407,6 +480,91 @@ options = ClaudeAgentOptions(sandbox=sandbox_config)
 2. **Restrict network access** - Limit to necessary endpoints only
 3. **Use excludedCommands** - Block known dangerous commands
 4. **Monitor violations** - Log but don't ignore sandbox violations
+
+---
+
+## Secure Deployment
+
+### Security Principles
+
+1. **Security Boundaries**: Place sensitive resources (credentials) outside the agent's environment
+2. **Least Privilege**: Restrict agent to only required capabilities
+3. **Defense in Depth**: Layer multiple controls
+
+### Credential Management: The Proxy Pattern
+
+**Never give agents direct access to API keys.** Instead, run a proxy outside the agent's boundary:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Agent Container                           │
+│   ┌─────────────┐                                           │
+│   │ Agent sends │ ─────▶ Unix Socket ─────┐                 │
+│   │ request     │        (no API key)     │                 │
+│   └─────────────┘                         │                 │
+└───────────────────────────────────────────┼─────────────────┘
+                                            │
+┌───────────────────────────────────────────▼─────────────────┐
+│                    Host (Trusted Zone)                       │
+│   ┌──────────────────────────────────────────────────────┐  │
+│   │                     Proxy                             │  │
+│   │   1. Validate request (domain allowlist)             │  │
+│   │   2. Inject credentials (API keys)                   │  │
+│   │   3. Log for audit                                   │  │
+│   │   4. Forward to external API                         │  │
+│   └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Configuring Proxy for API Calls
+
+```bash
+# Option 1: ANTHROPIC_BASE_URL (sampling requests only)
+export ANTHROPIC_BASE_URL="http://localhost:8080"
+
+# Option 2: HTTP_PROXY/HTTPS_PROXY (system-wide)
+export HTTP_PROXY="http://localhost:8080"
+export HTTPS_PROXY="http://localhost:8080"
+```
+
+### Isolation Technologies
+
+| Technology | Isolation | Performance | Complexity |
+|------------|-----------|-------------|------------|
+| **Sandbox Runtime** | Good (secure defaults) | Very low | Low |
+| **Containers (Docker)** | Setup dependent | Low | Medium |
+| **gVisor** | Excellent | Medium/High | Medium |
+| **VMs (Firecracker)** | Excellent | High | High |
+
+### Hardened Docker Configuration
+
+```bash
+docker run \
+  --cap-drop ALL \
+  --security-opt no-new-privileges \
+  --read-only \
+  --tmpfs /tmp:rw,noexec,nosuid,size=100m \
+  --network none \
+  --memory 2g \
+  --pids-limit 100 \
+  --user 1000:1000 \
+  -v /path/to/code:/workspace:ro \
+  -v /var/run/proxy.sock:/var/run/proxy.sock:ro \
+  agent-image
+```
+
+### Files to NEVER Mount
+
+| File | Risk |
+|------|------|
+| `.env`, `.env.local` | API keys, secrets |
+| `~/.git-credentials` | Git tokens |
+| `~/.aws/credentials` | AWS access keys |
+| `~/.config/gcloud/` | Google Cloud tokens |
+| `~/.azure/` | Azure credentials |
+| `~/.docker/config.json` | Registry auth |
+| `~/.kube/config` | Kubernetes credentials |
+| `*.pem`, `*.key` | Private keys |
 
 ---
 

@@ -472,3 +472,75 @@ async def get_neighbors(
 
     neighbors = kb.get_neighbors(node_id)
     return [n.model_dump() for n in neighbors]
+
+
+@router.get("/projects/{project_id}/graph-data")
+async def get_graph_data(
+    project_id: str = Depends(ValidatedProjectId()),
+    kg_service: KnowledgeGraphService = Depends(get_kg_service),
+) -> dict[str, Any]:
+    """
+    Get graph data in Cytoscape.js-compatible format.
+
+    Returns nodes and edges formatted for visualization with Cytoscape.js.
+    Nodes include label, type, and description. Edges include relationship
+    type and connect source to target nodes.
+
+    Args:
+        project_id: Target project ID
+        kg_service: Injected KG service
+
+    Returns:
+        Dict with "nodes" and "edges" arrays in Cytoscape format:
+        {
+            "nodes": [{"data": {"id": "...", "label": "...", "type": "..."}}],
+            "edges": [{"data": {"id": "...", "source": "...", "target": "...", "label": "..."}}]
+        }
+
+    Raises:
+        HTTPException: 404 if no graph data exists
+    """
+    project = await kg_service.get_project(project_id)
+    if not project or not project.kb_id:
+        raise HTTPException(status_code=404, detail="No graph data")
+
+    kb = load_knowledge_base(kg_service.kb_path / project.kb_id)
+    if not kb:
+        raise HTTPException(status_code=404, detail="Knowledge base not found")
+
+    # Convert nodes to Cytoscape format
+    cytoscape_nodes = []
+    for node in kb._nodes.values():
+        cytoscape_nodes.append(
+            {
+                "data": {
+                    "id": node.id,
+                    "label": node.label,
+                    "type": node.entity_type,
+                    "description": node.description or "",
+                    "aliases": node.aliases,
+                }
+            }
+        )
+
+    # Convert edges to Cytoscape format
+    cytoscape_edges = []
+    for edge in kb._edges.values():
+        # Get primary relationship type (use first one if multiple)
+        relationship_types = edge.get_relationship_types()
+        primary_label = relationship_types[0] if relationship_types else "related_to"
+
+        cytoscape_edges.append(
+            {
+                "data": {
+                    "id": edge.id,
+                    "source": edge.source_node_id,
+                    "target": edge.target_node_id,
+                    "label": primary_label,
+                    "relationship_type": primary_label,
+                    "relationship_types": relationship_types,
+                }
+            }
+        )
+
+    return {"nodes": cytoscape_nodes, "edges": cytoscape_edges}

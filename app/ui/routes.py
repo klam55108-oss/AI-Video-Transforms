@@ -38,5 +38,6 @@ async def read_root(request: Request) -> HTMLResponse:
         {
             "kg_poll_interval_ms": settings.kg_poll_interval_ms,
             "status_poll_interval_ms": settings.status_poll_interval_ms,
+            "job_poll_interval_ms": settings.job_poll_interval_ms,
         },
     )

@@ -14,6 +14,7 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI
 
+from app.services.job_queue_service import JobQueueService
 from app.services.kg_service import KnowledgeGraphService
 from app.services.session_service import SessionService
 from app.services.storage_service import StorageService
@@ -36,7 +37,9 @@ class ServiceContainer:
         self._session: SessionService | None = None
         self._transcription: TranscriptionService | None = None
         self._kg: KnowledgeGraphService | None = None
+        self._job_queue: JobQueueService | None = None
         self._cleanup_task: asyncio.Task[None] | None = None
+        self._job_processor_task: asyncio.Task[None] | None = None
 
     @property
     def storage(self) -> StorageService:
@@ -74,6 +77,15 @@ class ServiceContainer:
             )
         return self._kg
 
+    @property
+    def job_queue(self) -> JobQueueService:
+        """Get job queue service instance."""
+        if self._job_queue is None:
+            raise RuntimeError(
+                "ServiceContainer not initialized - call startup() first"
+            )
+        return self._job_queue
+
     async def startup(self) -> None:
         """
         Initialize all services and start background tasks.
@@ -90,9 +102,13 @@ class ServiceContainer:
         self._session = SessionService()
         self._transcription = TranscriptionService(self._storage)
         self._kg = KnowledgeGraphService(data_path=Path("data"))
+        self._job_queue = JobQueueService()
 
-        # Start background cleanup task
+        # Start background tasks
         self._cleanup_task = asyncio.create_task(self._session.run_cleanup_loop())
+        self._job_processor_task = asyncio.create_task(
+            self._job_queue.run_job_processor_loop(num_workers=2)
+        )
 
         logger.info("Service container started")
 
@@ -105,11 +121,22 @@ class ServiceContainer:
         """
         logger.info("Shutting down service container")
 
-        # Cancel cleanup task
+        # Shutdown job queue
+        if self._job_queue:
+            await self._job_queue.shutdown()
+
+        # Cancel background tasks
         if self._cleanup_task:
             self._cleanup_task.cancel()
             try:
                 await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+
+        if self._job_processor_task:
+            self._job_processor_task.cancel()
+            try:
+                await self._job_processor_task
             except asyncio.CancelledError:
                 pass
 
@@ -122,6 +149,7 @@ class ServiceContainer:
         self._session = None
         self._transcription = None
         self._kg = None
+        self._job_queue = None
 
         logger.info("Service container shutdown complete")
 
@@ -186,6 +214,7 @@ __all__ = [
     "ServiceContainer",
     "get_services",
     "services_lifespan",
+    "JobQueueService",
     "KnowledgeGraphService",
     "SessionService",
     "StorageService",

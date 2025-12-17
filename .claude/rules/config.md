@@ -33,6 +33,8 @@ All settings use the `APP_` prefix (automatically stripped by pydantic-settings)
 | `APP_KG_PROJECT_CACHE_MAX_SIZE` | `100` | LRU cache size for KG projects |
 | `APP_KG_POLL_INTERVAL_MS` | `5000` | Frontend KG status poll interval (ms) |
 | `APP_STATUS_POLL_INTERVAL_MS` | `3000` | Frontend agent status poll interval (ms) |
+| `APP_JOB_MAX_CONCURRENT` | `2` | Max concurrent background job execution |
+| `APP_JOB_POLL_INTERVAL_MS` | `1000` | Frontend job status poll interval (ms) |
 
 ## Settings Singleton
 

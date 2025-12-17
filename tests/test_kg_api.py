@@ -127,6 +127,11 @@ class MockKGService:
             self.pending_discoveries[project_id] = []
         self.pending_discoveries[project_id].append(discovery)
 
+    @property
+    def kb_path(self) -> Any:
+        """Mock kb_path property."""
+        return None
+
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # TEST: POST /kg/projects
@@ -827,5 +832,61 @@ class TestDeleteProject:
             assert response.status_code == 200
             # Verify discoveries are also removed
             assert "d15c0e123456" not in mock_service.pending_discoveries
+        finally:
+            app.dependency_overrides.pop(get_kg_service, None)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TEST: GET /kg/projects/{id}/graph-data
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestGetGraphData:
+    """Test GET /kg/projects/{id}/graph-data endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_get_graph_data_not_found_404(self) -> None:
+        """Test graph-data returns 404 for non-existent project."""
+        from app.main import app
+
+        mock_service = MockKGService()
+        app.dependency_overrides[get_kg_service] = lambda: mock_service
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.get("/kg/projects/abcdef123456/graph-data")
+
+            assert response.status_code == 404
+            assert response.json()["detail"] == "No graph data"
+        finally:
+            app.dependency_overrides.pop(get_kg_service, None)
+
+    @pytest.mark.asyncio
+    async def test_get_graph_data_empty_graph(self) -> None:
+        """Test graph-data returns 404 for project with no kb_id."""
+        from app.main import app
+
+        mock_service = MockKGService()
+        project = KGProject(
+            id="abc123def456",
+            name="Empty Project",
+            state=ProjectState.CREATED,
+            kb_id=None,
+        )
+        mock_service.add_project(project)
+        app.dependency_overrides[get_kg_service] = lambda: mock_service
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.get("/kg/projects/abc123def456/graph-data")
+
+            assert response.status_code == 404
+            assert response.json()["detail"] == "No graph data"
         finally:
             app.dependency_overrides.pop(get_kg_service, None)

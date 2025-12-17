@@ -20,7 +20,7 @@
 
 ## What is the Claude Agent SDK?
 
-The Claude Agent SDK provides **Claude Code as a library** - the same tools, agent loop, and context management that power Claude Code, but programmable in Python and TypeScript.
+The Claude Agent SDK provides **Claude Code as a library** - the same tools, agent loop, and context management that power Claude Code, but programmable in Python.
 
 ### Key Differences from Standard Claude API
 
@@ -66,7 +66,7 @@ The Claude Agent SDK provides **Claude Code as a library** - the same tools, age
 | **Write** | Create new files |
 | **Edit** | Make precise edits to existing files |
 | **Bash** | Run terminal commands, scripts, git operations |
-| **Glob** | Find files by pattern (`**/*.ts`, `src/**/*.py`) |
+| **Glob** | Find files by pattern (`**/*.py`, `src/**/*.json`) |
 | **Grep** | Search file contents with regex |
 | **WebSearch** | Search the web for current information |
 | **WebFetch** | Fetch and parse web page content |
@@ -76,13 +76,34 @@ The Claude Agent SDK provides **Claude Code as a library** - the same tools, age
 
 ### Additional Features
 
-- **Hooks**: Run custom code at key points (PreToolUse, PostToolUse, etc.)
+- **Hooks**: Run custom code at key points (PreToolUse, PostToolUse, Stop, etc.)
 - **Subagents**: Spawn specialized agents for focused subtasks
 - **MCP Integration**: Connect to external systems via Model Context Protocol
-- **Permissions**: Fine-grained control over tool access
+- **Permissions**: Fine-grained control over tool access with permission modes
 - **Sessions**: Maintain context across multiple exchanges, resume later
 - **Skills**: Filesystem-based specialized capabilities
 - **Plugins**: Extend with custom commands, agents, and MCP servers
+
+### Permission Modes (New in v0.1.0)
+
+| Mode | Description | Tool Behavior |
+|------|-------------|---------------|
+| `default` | Standard permission behavior | Normal permission checks apply |
+| `plan` | Planning mode - no execution | Read-only tools only **(Not yet in SDK)** |
+| `acceptEdits` | Auto-accept file edits | File operations auto-approved |
+| `bypassPermissions` | Bypass all checks | All tools run without prompts (⚠️ use with caution) |
+
+### Message Types
+
+| Type | Subtype | Description |
+|------|---------|-------------|
+| `system` | `init` | Session initialization (tools, MCP servers, plugins) |
+| `assistant` | - | Claude's response (text, tool_use blocks) |
+| `user` | - | User messages and tool results |
+| `result` | `success` | Successful completion with cumulative usage |
+| `result` | `error` | Error occurred during execution |
+| `result` | `error_during_execution` | Execution failed mid-way |
+| `result` | `interrupted` | Session was interrupted |
 
 ---
 
