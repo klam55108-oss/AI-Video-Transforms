@@ -74,6 +74,13 @@ htmlcov/
 CHANGELOG.md
 IMPLEMENTATION_SUMMARY.md
 
+# Agent swarm tracking documents (temporary, converted to proper docs)
+AGENT*_*.md
+app/static/js/AGENT*_*.md
+
+# Backup files
+*.bak
+
 # Analysis reports
 analysis/
 

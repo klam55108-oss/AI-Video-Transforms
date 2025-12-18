@@ -35,17 +35,17 @@ class TestErrorCode:
         """All error codes should be uppercase snake_case."""
         for code in ErrorCode:
             assert code.value.isupper(), f"Error code {code.value} should be uppercase"
-            assert "_" in code.value or len(
-                code.value.split("_")
-            ) == 1, f"Error code {code.value} should use snake_case"
+            assert "_" in code.value or len(code.value.split("_")) == 1, (
+                f"Error code {code.value} should use snake_case"
+            )
 
     def test_error_code_count(self) -> None:
         """Verify we have all expected error codes."""
         # Update this count when adding new error codes
         expected_count = 19
-        assert (
-            len(ErrorCode) == expected_count
-        ), f"Expected {expected_count} error codes, found {len(ErrorCode)}"
+        assert len(ErrorCode) == expected_count, (
+            f"Expected {expected_count} error codes, found {len(ErrorCode)}"
+        )
 
 
 class TestAPIError:
@@ -53,9 +53,7 @@ class TestAPIError:
 
     def test_minimal_error_creation(self) -> None:
         """Create error with only required fields."""
-        error = APIError(
-            code=ErrorCode.INTERNAL_ERROR, message="Something went wrong"
-        )
+        error = APIError(code=ErrorCode.INTERNAL_ERROR, message="Something went wrong")
         assert error.code == ErrorCode.INTERNAL_ERROR
         assert error.message == "Something went wrong"
         assert error.detail is None
@@ -79,9 +77,7 @@ class TestAPIError:
 
     def test_to_dict_minimal(self) -> None:
         """Convert minimal error to dict."""
-        error = APIError(
-            code=ErrorCode.INTERNAL_ERROR, message="Something went wrong"
-        )
+        error = APIError(code=ErrorCode.INTERNAL_ERROR, message="Something went wrong")
         result = error.to_dict()
 
         assert "error" in result
@@ -298,9 +294,9 @@ class TestErrorSchemaIntegration:
             internal_error(),
         ]
         for error in transient_errors:
-            assert (
-                error.retryable is True
-            ), f"{error.code} should be retryable (transient error)"
+            assert error.retryable is True, (
+                f"{error.code} should be retryable (transient error)"
+            )
 
         # Permanent errors should not be retryable
         permanent_errors = [
@@ -312,6 +308,6 @@ class TestErrorSchemaIntegration:
             file_not_found_error("test.txt"),
         ]
         for error in permanent_errors:
-            assert (
-                error.retryable is False
-            ), f"{error.code} should not be retryable (permanent error)"
+            assert error.retryable is False, (
+                f"{error.code} should not be retryable (permanent error)"
+            )

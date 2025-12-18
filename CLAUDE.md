@@ -2,8 +2,6 @@
 
 AI-powered video transcription and knowledge graph extraction.
 
-@README.md for full overview, API endpoints, and architecture.
-
 ## Quick Commands
 
 ```bash
@@ -16,97 +14,89 @@ uv run ruff check . && ruff format .   # Lint + format
 ## Environment
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-...    # Claude Agent SDK (required)
-OPENAI_API_KEY=sk-...            # gpt-4o-transcribe + Codex MCP (required)
+ANTHROPIC_API_KEY=sk-ant-...    # Required: Claude Agent SDK
+OPENAI_API_KEY=sk-...           # Required: gpt-4o-transcribe
 ```
 
 ## Architecture
 
 **3-tier modular monolith**: API → Services → Core
 
-| Layer | Location | Responsibility |
-|-------|----------|----------------|
-| **API** | `app/api/` | 8 routers, deps, error handlers |
-| **Services** | `app/services/` | Session, Storage, Transcription, KG, JobQueue |
-| **Core** | `app/core/` | SessionActor, StorageManager, cost tracking, config |
-| **Agent** | `app/agent/` | MCP tools + system prompts |
-| **KG** | `app/kg/` | Domain models, graph storage, extraction |
+| Layer | Location | Purpose |
+|-------|----------|---------|
+| API | `app/api/` | 8 routers, dependency injection, error handlers |
+| Services | `app/services/` | Session, Storage, KG, JobQueue |
+| Core | `app/core/` | SessionActor, config, cost tracking |
+| Agent | `app/agent/` | MCP tools, system prompts |
+| KG | `app/kg/` | Domain models, graph storage, extraction |
+| Frontend | `app/static/js/` | 26 ES modules (chat, kg, jobs, upload) |
 
 ## Critical Patterns
 
-### SessionActor (`app/core/session.py`)
+### SessionActor — NEVER access Claude SDK from concurrent tasks
 
-- **Problem**: Claude SDK fails with cancel scope errors when accessed from multiple asyncio tasks
-- **Solution**: Queue-based actor model — one dedicated task per session
-- **Rule**: NEVER access ClaudeSDKClient from concurrent tasks
-
-### Dependency Injection (`app/api/deps.py`)
-
-- Access services via: `Depends(get_session_service)`, `Depends(get_kg_service)`
-- Test mocking: `app.dependency_overrides[get_session_service] = mock`
-- **Rule**: NEVER use `patch()` for FastAPI dependencies — it doesn't work
-
-### MCP Tool Returns (`app/agent/`, `app/kg/tools/`)
-
-```python
-# Success
-{"content": [{"type": "text", "text": "..."}]}
-
-# Error (NEVER raise exceptions)
-{"success": False, "error": "message"}
+```
+HTTP Request → input_queue → [SessionActor] → response_queue → Response
 ```
 
-- **Rule**: NEVER raise exceptions that escape tools — they crash the agent loop
+Queue-based actor model prevents Claude SDK cancel scope errors. See `app/core/session.py`.
 
-### Knowledge Graph Service (`app/services/kg_service.py`)
+### MCP Tools — NEVER raise exceptions
 
-- Accessed via `get_services().kg` from ServiceContainer
-- Projects stored in `data/kg_projects/`
-- Bootstrap validates state: only `CREATED` projects can be bootstrapped
-- Concurrent bootstrap attempts are blocked (prevents data corruption)
-- **Rule**: Always use DomainProfile for extraction context
-- **Rule**: Default confidence is 0.5 (conservative) — not 1.0
+```python
+# ✅ Success
+return {"content": [{"type": "text", "text": "..."}]}
 
-### Job Queue Service (`app/services/job_queue_service.py`)
+# ✅ Error
+return {"success": False, "error": "message"}
+```
 
-- Accessed via `get_services().job_queue` from ServiceContainer
-- In-memory job queue with background worker pool
-- Thread-safe storage using `asyncio.Lock`
-- Semaphore-based concurrency control (`APP_JOB_MAX_CONCURRENT`)
-- **Rule**: Jobs do NOT interact with SessionActor directly (isolation)
-- **Rule**: All exceptions caught and stored in `job.error`
+Exceptions crash the agent loop. Always return structured responses.
 
-### Configuration (`app/core/config.py`)
+### FastAPI Dependencies — NEVER use patch()
 
-- All settings via `get_settings()` singleton
-- Environment variables with `APP_` prefix (e.g., `APP_CLAUDE_MODEL`)
-- Concurrency control: `APP_CLAUDE_API_MAX_CONCURRENT=2` (prevents cost blowouts)
-- **Rule**: NEVER hardcode configurable values — use `get_settings()`
+```python
+# ✅ Correct
+app.dependency_overrides[get_session_service] = lambda: mock
+
+# ❌ Wrong
+with patch("app.api.deps.get_session_service"):  # Doesn't work
+```
+
+### Configuration — NEVER hardcode values
+
+```python
+from app.core.config import get_settings
+settings = get_settings()  # Singleton with APP_ prefix env vars
+```
 
 ## Code Standards
 
 See `.claude/rules/` for detailed guidelines:
 
-| Rule File | Scope |
-|-----------|-------|
-| @.claude/rules/code-style.md | Type hints, formatting, imports |
-| @.claude/rules/config.md | Centralized configuration, concurrency |
-| @.claude/rules/fastapi.md | Router patterns, dependency injection |
-| @.claude/rules/testing.md | Pytest patterns, mocking |
-| @.claude/rules/mcp-tools.md | MCP tool development |
-| @.claude/rules/kg.md | Knowledge graph patterns |
-| @.claude/rules/frontend.md | Tailwind, vanilla JS, security |
+| Rule | Scope | Key Points |
+|------|-------|------------|
+| @.claude/rules/code-style.md | `**/*.py` | Type hints, `str \| None`, pathlib |
+| @.claude/rules/fastapi.md | `app/api/**` | Routers, Depends(), Pydantic |
+| @.claude/rules/testing.md | `tests/**` | pytest, dependency_overrides |
+| @.claude/rules/mcp-tools.md | `app/agent/**` | Tool structure, error handling |
+| @.claude/rules/kg.md | `app/kg/**` | Domain models, extraction |
+| @.claude/rules/frontend.md | `app/static/**` | XSS protection, ES modules |
+| @.claude/rules/config.md | — | Settings, env vars, caching |
 
 ## External MCP Servers
 
-Two servers in `mcp_servers/` (for Claude Code, not the app agent):
+For Claude Code (not the app agent):
 
-| Server | Purpose | Rule File |
-|--------|---------|-----------|
-| **codex/** | GPT-5.2 via OpenAI Responses API | @.claude/rules/codex-mcp.md |
-| **gemini/** | Gemini CLI wrapper | @.claude/rules/gemini-mcp.md |
+| Server | Purpose |
+|--------|---------|
+| `mcp_servers/codex/` | GPT-5.2 via OpenAI Responses API (@.claude/rules/codex-mcp.md) |
+| `mcp_servers/gemini/` | Gemini CLI wrapper (@.claude/rules/gemini-mcp.md) |
 
-## Git Workflow
+## Documentation
 
-- Run quality checks before commits: `uv run mypy . && uv run ruff check . && uv run pytest`
-- No attribution lines in commits (cleanup hook removes them)
+| Document | Purpose |
+|----------|---------|
+| @README.md | Project overview, quick start |
+| @FRONTEND.md | ES modules architecture (26 modules) |
+| @DOCKER.md | Container deployment |
