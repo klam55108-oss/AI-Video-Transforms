@@ -16,6 +16,7 @@ Testing Checklist Items:
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -115,6 +116,38 @@ class MockKGService:
             self.pending_discoveries.pop(project_id, None)
             return True
         return False
+
+    async def export_graph(
+        self, project_id: str, export_format: str = "graphml"
+    ) -> Any:
+        """Mock export returning a fake Path."""
+        from pathlib import Path
+
+        project = self.projects.get(project_id)
+        if not project or not project.kb_id:
+            return None
+        # Return a mock path
+        if export_format == "csv":
+            return Path(f"/tmp/{project_id}.csv.zip")
+        return Path(f"/tmp/{project_id}.{export_format}")
+
+    async def batch_export_graphs(
+        self, project_ids: list[str], export_format: str = "graphml"
+    ) -> Any:
+        """Mock batch export returning a fake Path."""
+        from pathlib import Path
+
+        # Check if any projects exist
+        valid_count = 0
+        for pid in project_ids:
+            project = self.projects.get(pid)
+            if project and project.kb_id:
+                valid_count += 1
+
+        if valid_count == 0:
+            return None
+
+        return Path("/tmp/batch_export_12345678.zip")
 
     # Helper methods for test setup
     def add_project(self, project: KGProject) -> None:
@@ -890,3 +923,349 @@ class TestGetGraphData:
             assert response.json()["detail"] == "No graph data"
         finally:
             app.dependency_overrides.pop(get_kg_service, None)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TEST: CSV EXPORT
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestCSVExport:
+    """Test CSV export functionality."""
+
+    @pytest.mark.asyncio
+    async def test_export_csv_format(self) -> None:
+        """Test CSV export returns ZIP file with .csv.zip extension."""
+        from app.main import app
+
+        mock_service = MockKGService()
+        project = KGProject(
+            id="abc123def456",
+            name="Test Project",
+            state=ProjectState.ACTIVE,
+            kb_id="kb001",
+        )
+        mock_service.add_project(project)
+        app.dependency_overrides[get_kg_service] = lambda: mock_service
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.post(
+                    "/kg/projects/abc123def456/export",
+                    json={"format": "csv"},
+                )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "exported"
+            assert data["format"] == "csv"
+            assert data["filename"].endswith(".csv.zip")
+        finally:
+            app.dependency_overrides.pop(get_kg_service, None)
+
+    @pytest.mark.asyncio
+    async def test_export_csv_no_graph_data(self) -> None:
+        """Test CSV export returns 404 when no graph data exists."""
+        from app.main import app
+
+        mock_service = MockKGService()
+        project = KGProject(
+            id="abc123def456",
+            name="Empty Project",
+            state=ProjectState.CREATED,
+            kb_id=None,
+        )
+        mock_service.add_project(project)
+        app.dependency_overrides[get_kg_service] = lambda: mock_service
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.post(
+                    "/kg/projects/abc123def456/export",
+                    json={"format": "csv"},
+                )
+
+            assert response.status_code == 404
+            assert response.json()["detail"] == "No graph data to export"
+        finally:
+            app.dependency_overrides.pop(get_kg_service, None)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TEST: BATCH EXPORT
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestBatchExport:
+    """Test batch export functionality."""
+
+    @pytest.mark.asyncio
+    async def test_batch_export_multiple_projects(self) -> None:
+        """Test batch export with multiple valid projects."""
+        from app.main import app
+
+        mock_service = MockKGService()
+        project1 = KGProject(
+            id="proj001",
+            name="Project One",
+            state=ProjectState.ACTIVE,
+            kb_id="kb001",
+        )
+        project2 = KGProject(
+            id="proj002",
+            name="Project Two",
+            state=ProjectState.ACTIVE,
+            kb_id="kb002",
+        )
+        mock_service.add_project(project1)
+        mock_service.add_project(project2)
+        app.dependency_overrides[get_kg_service] = lambda: mock_service
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.post(
+                    "/kg/projects/batch-export",
+                    json={
+                        "project_ids": ["proj001", "proj002"],
+                        "format": "graphml",
+                    },
+                )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "exported"
+            assert data["format"] == "graphml"
+            assert data["project_count"] == 2
+            assert "batch_export" in data["filename"]
+            assert data["filename"].endswith(".zip")
+        finally:
+            app.dependency_overrides.pop(get_kg_service, None)
+
+    @pytest.mark.asyncio
+    async def test_batch_export_with_invalid_project_id(self) -> None:
+        """Test batch export skips invalid projects and continues."""
+        from app.main import app
+
+        mock_service = MockKGService()
+        project1 = KGProject(
+            id="proj001",
+            name="Valid Project",
+            state=ProjectState.ACTIVE,
+            kb_id="kb001",
+        )
+        mock_service.add_project(project1)
+        app.dependency_overrides[get_kg_service] = lambda: mock_service
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.post(
+                    "/kg/projects/batch-export",
+                    json={
+                        "project_ids": ["proj001", "invalid_id"],
+                        "format": "json",
+                    },
+                )
+
+            # Should succeed with valid project
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "exported"
+        finally:
+            app.dependency_overrides.pop(get_kg_service, None)
+
+    @pytest.mark.asyncio
+    async def test_batch_export_empty_list(self) -> None:
+        """Test batch export with empty project list returns 400."""
+        from app.main import app
+
+        mock_service = MockKGService()
+        app.dependency_overrides[get_kg_service] = lambda: mock_service
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.post(
+                    "/kg/projects/batch-export",
+                    json={"project_ids": [], "format": "graphml"},
+                )
+
+            assert response.status_code == 422  # Pydantic validation error
+        finally:
+            app.dependency_overrides.pop(get_kg_service, None)
+
+    @pytest.mark.asyncio
+    async def test_batch_export_all_invalid_projects(self) -> None:
+        """Test batch export returns 404 when all projects are invalid."""
+        from app.main import app
+
+        mock_service = MockKGService()
+        # Add projects without kb_id
+        project1 = KGProject(
+            id="proj001",
+            name="Empty Project 1",
+            state=ProjectState.CREATED,
+            kb_id=None,
+        )
+        project2 = KGProject(
+            id="proj002",
+            name="Empty Project 2",
+            state=ProjectState.CREATED,
+            kb_id=None,
+        )
+        mock_service.add_project(project1)
+        mock_service.add_project(project2)
+        app.dependency_overrides[get_kg_service] = lambda: mock_service
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.post(
+                    "/kg/projects/batch-export",
+                    json={
+                        "project_ids": ["proj001", "proj002"],
+                        "format": "csv",
+                    },
+                )
+
+            assert response.status_code == 404
+            assert "No projects could be exported" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.pop(get_kg_service, None)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TEST: GET /kg/exports/{filename} (Download)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestDownloadExport:
+    """Test GET /kg/exports/{filename} download endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_download_export_not_found_404(self) -> None:
+        """Test download returns 404 for non-existent file."""
+        from app.main import app
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as client:
+            response = await client.get("/kg/exports/nonexistent.json")
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Export file not found"
+
+    @pytest.mark.asyncio
+    async def test_download_export_invalid_filename_400(self) -> None:
+        """Test download returns 400 for invalid filename format (special chars)."""
+        from app.main import app
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as client:
+            # Filename with spaces and special characters
+            response = await client.get("/kg/exports/test file!@#.json")
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Invalid filename format"
+
+    @pytest.mark.asyncio
+    async def test_download_export_invalid_extension_400(self) -> None:
+        """Test download returns 400 for disallowed file extension."""
+        from app.main import app
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as client:
+            response = await client.get("/kg/exports/test.txt")
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Invalid filename format"
+
+    @pytest.mark.asyncio
+    async def test_download_export_success(self, tmp_path: Path) -> None:
+        """Test successful file download returns correct content."""
+        from app.core.config import get_settings
+        from app.main import app
+
+        # Create test export file
+        settings = get_settings()
+        export_dir = Path(settings.data_path) / "exports"
+        export_dir.mkdir(parents=True, exist_ok=True)
+
+        test_content = '{"nodes": [], "edges": []}'
+        test_file = export_dir / "testproject.json"
+        test_file.write_text(test_content)
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.get("/kg/exports/testproject.json")
+
+            assert response.status_code == 200
+            assert response.text == test_content
+            assert response.headers["content-type"] == "application/json"
+            assert 'attachment' in response.headers["content-disposition"]
+            assert 'testproject.json' in response.headers["content-disposition"]
+        finally:
+            # Cleanup
+            if test_file.exists():
+                test_file.unlink()
+
+    @pytest.mark.asyncio
+    async def test_download_export_path_traversal_blocked(self) -> None:
+        """Test that path traversal attempts are blocked by regex pattern.
+
+        Tests filenames that would reach the endpoint (no path separators).
+        Filenames with / or \\ are handled at URL routing level by FastAPI.
+        """
+        from app.main import app
+
+        # Attack vectors that reach our endpoint (no path separators)
+        # These test the regex pattern validation
+        malicious_filenames = [
+            "..passwd.json",  # Starts with dots
+            "test..json",  # Double dots in middle
+            "test file.json",  # Space in filename
+            "test@file.json",  # Special character @
+            "test#file.json",  # Special character #
+            "test!file.json",  # Special character !
+            "test$.json",  # Dollar sign
+            "test;cmd.json",  # Semicolon (command injection)
+            "test`cmd`.json",  # Backticks (command injection)
+            "test|cmd.json",  # Pipe (command injection)
+            "test<>.json",  # Angle brackets
+            "test*.json",  # Wildcard
+            "test?.json",  # Single char wildcard
+        ]
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as client:
+            for malicious in malicious_filenames:
+                response = await client.get(f"/kg/exports/{malicious}")
+                assert response.status_code == 400, (
+                    f"Malicious filename not blocked: {malicious}"
+                )
+                assert response.json()["detail"] == "Invalid filename format"

@@ -95,6 +95,19 @@ class ExportRequest(BaseModel):
 
     format: str = Field(
         default="graphml",
-        pattern="^(graphml|json)$",
-        description="Export format: 'graphml' or 'json'",
+        pattern="^(graphml|json|csv)$",
+        description="Export format: 'graphml', 'json', or 'csv'",
+    )
+
+
+class BatchExportRequest(BaseModel):
+    """Request model for batch exporting multiple projects."""
+
+    project_ids: list[str] = Field(
+        ..., min_length=1, description="List of project IDs to export"
+    )
+    format: str = Field(
+        default="graphml",
+        pattern="^(graphml|json|csv)$",
+        description="Export format: 'graphml', 'json', or 'csv'",
     )

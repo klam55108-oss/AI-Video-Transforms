@@ -69,7 +69,10 @@ async function exportKGGraph(format) {
 
     try {
         const result = await kgClient.exportGraph(state.kgCurrentProjectId, format);
-        showToast(`Graph exported as ${result.filename}`, 'success');
+
+        // Trigger browser download by navigating to the download endpoint
+        triggerDownload(result.filename);
+        showToast(`Downloading ${result.filename}`, 'success');
     } catch (e) {
         showToast(e.message, 'error', {
             hint: e.hint,
@@ -79,4 +82,121 @@ async function exportKGGraph(format) {
     }
 }
 
-export { createKGProject, confirmKGDiscovery, exportKGGraph };
+/**
+ * Trigger a browser download for an exported file.
+ * Creates a temporary anchor element to initiate the download.
+ */
+function triggerDownload(filename) {
+    const downloadUrl = `/kg/exports/${encodeURIComponent(filename)}`;
+
+    // Create temporary anchor to trigger download
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+/**
+ * Show the batch export modal for format selection.
+ * Uses a proper modal dialog instead of browser prompt() for better UX.
+ */
+function showBatchExportModal() {
+    const modal = document.getElementById('batch-export-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+}
+
+/**
+ * Hide the batch export modal.
+ */
+function hideBatchExportModal() {
+    const modal = document.getElementById('batch-export-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+/**
+ * Initialize batch export modal event listeners.
+ * Called from main.js during DOMContentLoaded.
+ */
+function initBatchExportModal() {
+    const modal = document.getElementById('batch-export-modal');
+    const cancelBtn = document.getElementById('batch-export-cancel');
+    const formatBtns = document.querySelectorAll('.batch-export-option');
+
+    // Cancel button
+    cancelBtn?.addEventListener('click', hideBatchExportModal);
+
+    // Click outside to close
+    modal?.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            hideBatchExportModal();
+        }
+    });
+
+    // Escape key to close
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !modal?.classList.contains('hidden')) {
+            hideBatchExportModal();
+        }
+    });
+
+    // Format selection buttons
+    formatBtns.forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const format = btn.dataset.format;
+            hideBatchExportModal();
+            await executeBatchExport(format);
+        });
+    });
+}
+
+/**
+ * Open batch export modal (entry point).
+ * Shows modal for format selection, actual export happens on selection.
+ */
+async function batchExportKGProjects() {
+    // Pre-check: verify there are projects to export
+    const projects = await kgClient.listProjects();
+    if (!projects?.projects?.length) {
+        showToast('No projects to export', 'warning');
+        return;
+    }
+
+    showBatchExportModal();
+}
+
+/**
+ * Execute batch export with selected format.
+ * Called after user selects format from modal.
+ */
+async function executeBatchExport(format) {
+    try {
+        const projects = await kgClient.listProjects();
+        const projectIds = projects.projects.map(p => p.project_id);
+
+        const result = await kgClient.batchExportProjects(projectIds, format);
+
+        // Trigger browser download
+        triggerDownload(result.filename);
+        showToast(
+            `Downloading ${result.project_count} projects as ${result.filename}`,
+            'success'
+        );
+    } catch (e) {
+        showToast(e.message, 'error', {
+            hint: e.hint,
+            code: e.code,
+            detail: e.detail
+        });
+    }
+}
+
+export { createKGProject, confirmKGDiscovery, exportKGGraph, batchExportKGProjects, initBatchExportModal };

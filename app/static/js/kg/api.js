@@ -198,6 +198,25 @@ const kgClient = {
             }
             throw e;
         }
+    },
+
+    async batchExportProjects(projectIds, format) {
+        try {
+            const response = await fetch('/kg/projects/batch-export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_ids: projectIds, format })
+            });
+            if (!response.ok) {
+                await handleKGApiError(response, 'Batch export failed');
+            }
+            return response.json();
+        } catch (e) {
+            if (e.name === 'TypeError') {
+                throw new Error('Network error. Could not export projects.');
+            }
+            throw e;
+        }
     }
 };
 

@@ -198,22 +198,41 @@
                         </div>
 
                         <!-- Export Buttons -->
-                        <div id="kg-export" class="hidden flex gap-2">
+                        <div id="kg-export" class="hidden space-y-2">
+                            <div class="flex gap-2">
+                                <button type="button"
+                                        id="kg-export-json"
+                                        class="flex-1 text-[10px] px-2 py-1.5 rounded-md font-medium
+                                               border border-[var(--sidebar-border)] text-[var(--sidebar-text-secondary)]
+                                               hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all"
+                                        aria-label="Export graph as JSON">
+                                    <i class="ph-bold ph-brackets-curly mr-1"></i>JSON
+                                </button>
+                                <button type="button"
+                                        id="kg-export-csv"
+                                        class="flex-1 text-[10px] px-2 py-1.5 rounded-md font-medium
+                                               border border-[var(--sidebar-border)] text-[var(--sidebar-text-secondary)]
+                                               hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all"
+                                        aria-label="Export graph as CSV">
+                                    <i class="ph-bold ph-table mr-1"></i>CSV
+                                </button>
+                                <button type="button"
+                                        id="kg-export-graphml"
+                                        class="flex-1 text-[10px] px-2 py-1.5 rounded-md font-medium
+                                               border border-[var(--sidebar-border)] text-[var(--sidebar-text-secondary)]
+                                               hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all"
+                                        aria-label="Export graph as GraphML">
+                                    <i class="ph-bold ph-share-network mr-1"></i>GraphML
+                                </button>
+                            </div>
+                            <!-- Batch Export Button -->
                             <button type="button"
-                                    id="kg-export-json"
-                                    class="flex-1 text-[10px] px-2 py-1.5 rounded-md font-medium
-                                           border border-[var(--sidebar-border)] text-[var(--sidebar-text-secondary)]
+                                    id="kg-batch-export"
+                                    class="w-full text-[10px] px-2 py-1.5 rounded-md font-medium
+                                           border border-dashed border-[var(--sidebar-border)] text-[var(--sidebar-text-muted)]
                                            hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all"
-                                    aria-label="Export graph as JSON">
-                                <i class="ph-bold ph-brackets-curly mr-1"></i>JSON
-                            </button>
-                            <button type="button"
-                                    id="kg-export-graphml"
-                                    class="flex-1 text-[10px] px-2 py-1.5 rounded-md font-medium
-                                           border border-[var(--sidebar-border)] text-[var(--sidebar-text-secondary)]
-                                           hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all"
-                                    aria-label="Export graph as GraphML">
-                                <i class="ph-bold ph-share-network mr-1"></i>GraphML
+                                    aria-label="Export all projects">
+                                <i class="ph-bold ph-download-simple mr-1"></i>Export All Projects
                             </button>
                         </div>
 
@@ -475,6 +494,55 @@
             </div>
         </div>
     </main>
+
+    <!-- Batch Export Modal -->
+    <div id="batch-export-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div class="bg-[var(--bg-primary)] rounded-xl shadow-2xl border border-[var(--border-subtle)] w-full max-w-sm mx-4 overflow-hidden">
+            <div class="px-5 py-4 border-b border-[var(--border-subtle)]">
+                <h3 class="text-base font-semibold text-[var(--text-primary)]">
+                    <i class="ph-bold ph-download-simple mr-2 text-[var(--accent-primary)]"></i>
+                    Export All Projects
+                </h3>
+            </div>
+            <div class="px-5 py-4">
+                <p class="text-sm text-[var(--text-secondary)] mb-4">
+                    Choose export format for all projects:
+                </p>
+                <div class="space-y-2">
+                    <button type="button" data-format="json"
+                            class="batch-export-option w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-[var(--border-subtle)] hover:border-[var(--accent-primary)] hover:bg-[var(--bg-secondary)] transition-all text-left">
+                        <i class="ph-bold ph-brackets-curly text-lg text-blue-500"></i>
+                        <div>
+                            <div class="font-medium text-[var(--text-primary)]">JSON</div>
+                            <div class="text-xs text-[var(--text-muted)]">Structured data format</div>
+                        </div>
+                    </button>
+                    <button type="button" data-format="csv"
+                            class="batch-export-option w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-[var(--border-subtle)] hover:border-[var(--accent-primary)] hover:bg-[var(--bg-secondary)] transition-all text-left">
+                        <i class="ph-bold ph-file-csv text-lg text-green-500"></i>
+                        <div>
+                            <div class="font-medium text-[var(--text-primary)]">CSV</div>
+                            <div class="text-xs text-[var(--text-muted)]">Spreadsheet compatible</div>
+                        </div>
+                    </button>
+                    <button type="button" data-format="graphml"
+                            class="batch-export-option w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-[var(--border-subtle)] hover:border-[var(--accent-primary)] hover:bg-[var(--bg-secondary)] transition-all text-left">
+                        <i class="ph-bold ph-share-network text-lg text-purple-500"></i>
+                        <div>
+                            <div class="font-medium text-[var(--text-primary)]">GraphML</div>
+                            <div class="text-xs text-[var(--text-muted)]">For Gephi, Neo4j, yEd</div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+            <div class="px-5 py-3 bg-[var(--bg-secondary)] border-t border-[var(--border-subtle)] flex justify-end">
+                <button type="button" id="batch-export-cancel"
+                        class="px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
 
     <script type="module" src="/static/js/main.js"></script>
 </body>

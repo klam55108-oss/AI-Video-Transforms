@@ -14,11 +14,15 @@ Follows existing router patterns (chat.py, transcripts.py).
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import FileResponse
 
 from app.api.deps import ValidatedProjectId, get_kg_service
+from app.core.config import get_settings
 from app.kg.domain import DiscoveryStatus, ProjectState
 from app.kg.persistence import load_knowledge_base
 from app.models.api import (
@@ -28,6 +32,7 @@ from app.models.api import (
     ProjectStatusResponse,
 )
 from app.models.requests import (
+    BatchExportRequest,
     BootstrapRequest,
     ConfirmDiscoveryRequest,
     CreateProjectRequest,
@@ -403,6 +408,128 @@ async def export_graph(
         "filename": export_path.name,
         "format": request.format,
     }
+
+
+@router.post("/projects/batch-export")
+async def batch_export_graphs(
+    request: BatchExportRequest,
+    kg_service: KnowledgeGraphService = Depends(get_kg_service),
+) -> dict[str, Any]:
+    """
+    Export multiple projects to a single ZIP file.
+
+    Each project gets its own subfolder named by project ID.
+    Invalid or missing projects are skipped with a warning logged.
+
+    Args:
+        request: BatchExportRequest with project_ids and format
+        kg_service: Injected KG service
+
+    Returns:
+        Dict with status, filename, format, and project_count
+
+    Raises:
+        HTTPException: 400 if project_ids list is empty
+        HTTPException: 404 if no projects could be exported
+    """
+    if not request.project_ids:
+        raise HTTPException(status_code=400, detail="No project IDs provided")
+
+    # Enforce max projects limit to prevent resource exhaustion
+    settings = get_settings()
+    max_projects = settings.batch_export_max_projects
+    if len(request.project_ids) > max_projects:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many projects. Maximum is {max_projects}, got {len(request.project_ids)}",
+        )
+
+    export_path = await kg_service.batch_export_graphs(
+        request.project_ids, export_format=request.format
+    )
+
+    if not export_path:
+        raise HTTPException(
+            status_code=404,
+            detail="No projects could be exported (all invalid or empty)",
+        )
+
+    return {
+        "status": "exported",
+        "filename": export_path.name,
+        "format": request.format,
+        "project_count": len(request.project_ids),
+    }
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# DOWNLOAD ENDPOINT
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Allowed export filename pattern: project_id.format or batch_export_timestamp.zip
+EXPORT_FILENAME_PATTERN = re.compile(
+    r"^[a-zA-Z0-9_-]+\.(json|graphml|csv\.zip|zip)$"
+)
+
+
+@router.get("/exports/{filename}")
+async def download_export(filename: str) -> FileResponse:
+    """
+    Download an exported file.
+
+    Serves export files from the data/exports directory with proper
+    Content-Disposition headers to trigger browser download.
+
+    Args:
+        filename: Name of the export file (e.g., "proj123.json", "proj123.csv.zip")
+
+    Returns:
+        FileResponse with attachment disposition for browser download
+
+    Raises:
+        HTTPException: 400 if filename format is invalid
+        HTTPException: 404 if file not found
+    """
+    # Security: Validate filename format to prevent path traversal
+    if not EXPORT_FILENAME_PATTERN.match(filename):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid filename format",
+        )
+
+    # Construct safe path within exports directory
+    settings = get_settings()
+    export_dir = Path(settings.data_path) / "exports"
+    file_path = export_dir / filename
+
+    # Resolve to catch any path traversal attempts
+    # Use is_relative_to() for cleaner semantics (Python 3.9+)
+    try:
+        resolved = file_path.resolve()
+        if not resolved.is_relative_to(export_dir.resolve()):
+            raise HTTPException(status_code=400, detail="Invalid filename")
+    except (OSError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Export file not found")
+
+    # Determine media type based on extension
+    if filename.endswith(".json"):
+        media_type = "application/json"
+    elif filename.endswith(".graphml"):
+        media_type = "application/xml"
+    elif filename.endswith(".zip"):
+        media_type = "application/zip"
+    else:
+        media_type = "application/octet-stream"
+
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/projects/{project_id}/nodes")

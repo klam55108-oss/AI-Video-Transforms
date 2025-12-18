@@ -88,6 +88,10 @@ Functions exposed for HTML `onclick` handlers (prefixed to avoid conflicts):
 window.kg_selectKGProject = selectKGProject;
 window.kg_deleteKGProject = deleteKGProject;
 
+// KG export functions
+window.exportKGGraph = exportKGGraph;
+window.batchExportKGProjects = batchExportKGProjects;
+
 // Other modules
 window.loadSession = loadSession;
 window.cancelJob = cancelJob;

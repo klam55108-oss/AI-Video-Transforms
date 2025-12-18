@@ -13,13 +13,16 @@ Follows existing service patterns (SessionService, StorageService).
 from __future__ import annotations
 
 import asyncio
+import csv
 import json
 import logging
 import os
 import shutil
 import tempfile
+import zipfile
 from collections import OrderedDict
 from datetime import datetime, timezone
+from io import StringIO
 from pathlib import Path
 from typing import Any
 
@@ -986,12 +989,12 @@ Call all bootstrap tools in order to build a complete domain profile.
         """
         Export a project's knowledge graph to file.
 
-        Supports GraphML format (default) for use with visualization tools
-        like Gephi, yEd, or Cytoscape. Also supports JSON export.
+        Supports GraphML, JSON, and CSV formats. CSV export creates a ZIP
+        file containing nodes.csv and edges.csv.
 
         Args:
             project_id: ID of the project to export
-            export_format: Export format - "graphml" (default) or "json"
+            export_format: Export format - "graphml", "json", or "csv"
 
         Returns:
             Path to the exported file, or None if no graph data exists
@@ -1012,6 +1015,8 @@ Call all bootstrap tools in order to build a complete domain profile.
 
         if export_format == "graphml":
             export_graphml(kb, output_file)
+        elif export_format == "csv":
+            output_file = self._export_csv(kb, project_id, export_path)
         else:
             # JSON export
             output_file = output_file.with_suffix(".json")
@@ -1024,6 +1029,294 @@ Call all bootstrap tools in order to build a complete domain profile.
 
         logger.info(f"Exported graph for project {project_id} to {output_file}")
         return output_file
+
+    def _export_csv(
+        self, kb: KnowledgeBase, project_id: str, export_path: Path
+    ) -> Path:
+        """
+        Export knowledge base to CSV format inside a ZIP file.
+
+        Creates a ZIP file containing nodes.csv and edges.csv.
+
+        Args:
+            kb: KnowledgeBase to export
+            project_id: Project identifier for filename
+            export_path: Directory to write export file
+
+        Returns:
+            Path to the created ZIP file
+        """
+        zip_file = export_path / f"{project_id}.csv.zip"
+
+        with zipfile.ZipFile(zip_file, "w", zipfile.ZIP_DEFLATED) as zf:
+            # Export nodes.csv
+            nodes_csv = self._create_nodes_csv(kb)
+            zf.writestr("nodes.csv", nodes_csv)
+
+            # Export edges.csv
+            edges_csv = self._create_edges_csv(kb)
+            zf.writestr("edges.csv", edges_csv)
+
+        return zip_file
+
+    def _create_nodes_csv(self, kb: KnowledgeBase) -> str:
+        """
+        Create CSV content for nodes.
+
+        Generates a CSV string with the following columns:
+        - id: Unique node identifier (UUID)
+        - label: Display name for the node
+        - entity_type: Type category (Person, Organization, etc.)
+        - aliases: Semicolon-separated alternative names
+        - description: Node description text
+        - source_ids: Semicolon-separated source video IDs
+
+        Args:
+            kb: KnowledgeBase to export nodes from
+
+        Returns:
+            CSV-formatted string with header row and node data
+        """
+        output = StringIO()
+        writer = csv.writer(output)
+
+        # Write header
+        writer.writerow(
+            ["id", "label", "entity_type", "aliases", "description", "source_ids"]
+        )
+
+        # Write node rows
+        for node in kb._nodes.values():
+            writer.writerow(
+                [
+                    node.id,
+                    node.label,
+                    node.entity_type,
+                    ";".join(node.aliases) if node.aliases else "",
+                    node.description or "",
+                    ";".join(node.source_ids) if node.source_ids else "",
+                ]
+            )
+
+        return output.getvalue()
+
+    def _create_edges_csv(self, kb: KnowledgeBase) -> str:
+        """
+        Create CSV content for edges.
+
+        Generates a CSV string with the following columns:
+        - id: Unique edge identifier (UUID)
+        - source_node_id: ID of the source node
+        - target_node_id: ID of the target node
+        - relationship_type: Primary relationship type
+        - relationship_types: Semicolon-separated all relationship types
+        - source_ids: Semicolon-separated source video IDs
+
+        Args:
+            kb: KnowledgeBase to export edges from
+
+        Returns:
+            CSV-formatted string with header row and edge data
+        """
+        output = StringIO()
+        writer = csv.writer(output)
+
+        # Write header
+        writer.writerow(
+            [
+                "id",
+                "source_node_id",
+                "target_node_id",
+                "relationship_type",
+                "relationship_types",
+                "source_ids",
+            ]
+        )
+
+        # Write edge rows
+        for edge in kb._edges.values():
+            rel_types = edge.get_relationship_types()
+            primary_type = rel_types[0] if rel_types else ""
+            source_ids = set()
+            for rel in edge.relationships:
+                source_ids.add(rel.source_id)
+
+            writer.writerow(
+                [
+                    edge.id,
+                    edge.source_node_id,
+                    edge.target_node_id,
+                    primary_type,
+                    ";".join(rel_types),
+                    ";".join(sorted(source_ids)),
+                ]
+            )
+
+        return output.getvalue()
+
+    async def batch_export_graphs(
+        self, project_ids: list[str], export_format: str = "graphml"
+    ) -> Path | None:
+        """
+        Export multiple projects to a single ZIP file.
+
+        Each project gets its own subfolder named by project ID.
+        Invalid or missing projects are skipped with a warning.
+
+        Args:
+            project_ids: List of project IDs to export
+            export_format: Export format - "graphml", "json", or "csv"
+
+        Returns:
+            Path to the ZIP file, or None if no projects could be exported
+        """
+        if not project_ids:
+            return None
+
+        # Create exports directory
+        export_path = self.data_path / "exports"
+        export_path.mkdir(parents=True, exist_ok=True)
+
+        # Create batch export ZIP
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        export_timestamp_iso = datetime.now(timezone.utc).isoformat()
+        zip_file = export_path / f"batch_export_{timestamp}.zip"
+
+        exported_count = 0
+        exported_projects: list[dict[str, str]] = []
+
+        with zipfile.ZipFile(zip_file, "w", zipfile.ZIP_DEFLATED) as zf:
+            for project_id in project_ids:
+                try:
+                    project = await self.get_project(project_id)
+                    if not project or not project.kb_id:
+                        logger.warning(
+                            f"Skipping project {project_id}: no graph data"
+                        )
+                        continue
+
+                    kb = load_knowledge_base(self.kb_path / project.kb_id)
+                    if not kb:
+                        logger.warning(
+                            f"Skipping project {project_id}: KB not found"
+                        )
+                        continue
+
+                    # Export based on format
+                    if export_format == "graphml":
+                        content = self._create_graphml_content(kb)
+                        zf.writestr(
+                            f"{project_id}/{project_id}.graphml", content
+                        )
+                    elif export_format == "csv":
+                        zf.writestr(
+                            f"{project_id}/nodes.csv", self._create_nodes_csv(kb)
+                        )
+                        zf.writestr(
+                            f"{project_id}/edges.csv", self._create_edges_csv(kb)
+                        )
+                    else:  # json
+                        data = {
+                            "nodes": [n.model_dump() for n in kb._nodes.values()],
+                            "edges": [e.model_dump() for e in kb._edges.values()],
+                            "sources": [
+                                s.model_dump() for s in kb._sources.values()
+                            ],
+                        }
+                        zf.writestr(
+                            f"{project_id}/{project_id}.json",
+                            json.dumps(data, indent=2, default=str),
+                        )
+
+                    exported_count += 1
+                    exported_projects.append({
+                        "project_id": project_id,
+                        "name": project.name,
+                    })
+                    logger.info(f"Added project {project_id} to batch export")
+
+                except Exception as e:
+                    logger.error(
+                        f"Error exporting project {project_id}: {e}", exc_info=True
+                    )
+                    continue
+
+            # Add manifest.json with export metadata
+            if exported_count > 0:
+                manifest = {
+                    "export_timestamp": export_timestamp_iso,
+                    "format": export_format,
+                    "format_version": "1.0",
+                    "project_count": exported_count,
+                    "projects": exported_projects,
+                }
+                zf.writestr(
+                    "manifest.json",
+                    json.dumps(manifest, indent=2),
+                )
+
+        if exported_count == 0:
+            # Remove empty ZIP file
+            zip_file.unlink()
+            return None
+
+        logger.info(
+            f"Batch exported {exported_count} projects to {zip_file.name}"
+        )
+        return zip_file
+
+    def _create_graphml_content(self, kb: KnowledgeBase) -> str:
+        """Create GraphML content as string."""
+        # Use a temporary file to generate GraphML
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".graphml", delete=False
+        ) as tmp:
+            tmp_path = Path(tmp.name)
+
+        try:
+            export_graphml(kb, tmp_path)
+            content = tmp_path.read_text()
+            return content
+        finally:
+            tmp_path.unlink()
+
+    async def cleanup_old_exports(self) -> int:
+        """
+        Remove export files older than the configured TTL.
+
+        Called periodically to prevent disk space buildup from
+        old export files. Uses APP_EXPORT_TTL_HOURS setting.
+
+        Returns:
+            Number of files deleted
+        """
+        settings = get_settings()
+        export_path = self.data_path / "exports"
+
+        if not export_path.exists():
+            return 0
+
+        ttl_seconds = settings.export_ttl_hours * 3600
+        now = datetime.now(timezone.utc).timestamp()
+        deleted_count = 0
+
+        for file_path in export_path.iterdir():
+            if not file_path.is_file():
+                continue
+
+            try:
+                file_age = now - file_path.stat().st_mtime
+                if file_age > ttl_seconds:
+                    file_path.unlink()
+                    deleted_count += 1
+                    logger.debug(f"Deleted old export: {file_path.name}")
+            except OSError as e:
+                logger.warning(f"Failed to delete old export {file_path}: {e}")
+
+        if deleted_count > 0:
+            logger.info(f"Cleaned up {deleted_count} old export files")
+
+        return deleted_count
 
     async def get_graph_stats(self, project_id: str) -> dict[str, Any] | None:
         """
