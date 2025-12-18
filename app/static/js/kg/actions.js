@@ -69,7 +69,10 @@ async function exportKGGraph(format) {
 
     try {
         const result = await kgClient.exportGraph(state.kgCurrentProjectId, format);
-        showToast(`Graph exported as ${result.filename}`, 'success');
+
+        // Trigger browser download by navigating to the download endpoint
+        triggerDownload(result.filename);
+        showToast(`Downloading ${result.filename}`, 'success');
     } catch (e) {
         showToast(e.message, 'error', {
             hint: e.hint,
@@ -79,4 +82,62 @@ async function exportKGGraph(format) {
     }
 }
 
-export { createKGProject, confirmKGDiscovery, exportKGGraph };
+/**
+ * Trigger a browser download for an exported file.
+ * Creates a temporary anchor element to initiate the download.
+ */
+function triggerDownload(filename) {
+    const downloadUrl = `/kg/exports/${encodeURIComponent(filename)}`;
+
+    // Create temporary anchor to trigger download
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+async function batchExportKGProjects() {
+    // Get all project IDs from the project list
+    const projects = await kgClient.listProjects();
+    if (!projects?.projects?.length) {
+        showToast('No projects to export', 'warning');
+        return;
+    }
+
+    const projectIds = projects.projects.map(p => p.project_id);
+
+    // Prompt user for export format
+    const format = prompt(
+        'Export format:\n• json - JSON files\n• csv - CSV spreadsheets\n• graphml - GraphML for Gephi/Neo4j\n\nEnter format:',
+        'json'
+    );
+
+    if (!format || !['json', 'csv', 'graphml'].includes(format.toLowerCase())) {
+        if (format !== null) {
+            showToast('Invalid format. Use: json, csv, or graphml', 'error');
+        }
+        return;
+    }
+
+    try {
+        const result = await kgClient.batchExportProjects(projectIds, format.toLowerCase());
+
+        // Trigger browser download
+        triggerDownload(result.filename);
+        showToast(
+            `Downloading ${result.project_count} projects as ${result.filename}`,
+            'success'
+        );
+    } catch (e) {
+        showToast(e.message, 'error', {
+            hint: e.hint,
+            code: e.code,
+            detail: e.detail
+        });
+    }
+}
+
+export { createKGProject, confirmKGDiscovery, exportKGGraph, batchExportKGProjects };

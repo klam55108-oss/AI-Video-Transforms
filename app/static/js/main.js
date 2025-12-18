@@ -58,6 +58,7 @@ import {
     createKGProject,
     confirmKGDiscovery,
     exportKGGraph,
+    batchExportKGProjects,
     // Polling
     startKGPolling,
     stopKGPolling,
@@ -103,6 +104,7 @@ window.kg_selectKGProject = selectKGProject;
 window.kg_confirmKGDiscovery = confirmKGDiscovery;
 window.createKGProject = createKGProject;
 window.exportKGGraph = exportKGGraph;
+window.batchExportKGProjects = batchExportKGProjects;
 
 // KG Graph Controls (used in HTML onclick)
 window.changeGraphLayout = changeGraphLayout;
@@ -216,9 +218,13 @@ function initEventListeners() {
 
     // KG Export buttons
     const exportJsonBtn = document.getElementById('kg-export-json');
+    const exportCsvBtn = document.getElementById('kg-export-csv');
     const exportGraphmlBtn = document.getElementById('kg-export-graphml');
+    const batchExportBtn = document.getElementById('kg-batch-export');
     exportJsonBtn?.addEventListener('click', () => exportKGGraph('json'));
+    exportCsvBtn?.addEventListener('click', () => exportKGGraph('csv'));
     exportGraphmlBtn?.addEventListener('click', () => exportKGGraph('graphml'));
+    batchExportBtn?.addEventListener('click', batchExportKGProjects);
 
     // Chat form submission
     const chatForm = document.getElementById('chat-form');

@@ -20,7 +20,7 @@ inspector.setGraphModule(graph);
 export { handleKGApiError, kgClient } from './api.js';
 export { updateKGUI, updateKGStateBadge, updateKGActionButton, updateKGConfirmations, renderKGConfirmations, updateKGStats } from './ui.js';
 export { startKGPolling, stopKGPolling, refreshKGProjectStatus } from './polling.js';
-export { createKGProject, confirmKGDiscovery, exportKGGraph } from './actions.js';
+export { createKGProject, confirmKGDiscovery, exportKGGraph, batchExportKGProjects } from './actions.js';
 export { selectNode, updateInspector, showInspector, closeInspector, selectNodeById } from './inspector.js';
 export {
     initKGGraph,

@@ -208,7 +208,8 @@ export const kgClient = {
     getConfirmations(projectId),
     confirmDiscovery(projectId, discoveryId, confirmed),
     getGraphStats(projectId),
-    exportGraph(projectId, format),
+    exportGraph(projectId, format),        // Single project export
+    batchExportProjects(projectIds, format), // Multi-project batch export
     deleteProject(projectId)
 };
 ```
@@ -315,6 +316,7 @@ window.kg_selectNodeById
 // KG Actions
 window.createKGProject
 window.exportKGGraph
+window.batchExportKGProjects  // Export all projects as single ZIP
 
 // KG Graph Controls
 window.changeGraphLayout
