@@ -59,6 +59,7 @@ import {
     confirmKGDiscovery,
     exportKGGraph,
     batchExportKGProjects,
+    initBatchExportModal,
     // Polling
     startKGPolling,
     stopKGPolling,
@@ -332,6 +333,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize graph search
     initGraphSearch();
+
+    // Initialize batch export modal
+    initBatchExportModal();
 
     // Initialize view toggle buttons to list view
     const listBtn = document.getElementById('kg-view-list-btn');

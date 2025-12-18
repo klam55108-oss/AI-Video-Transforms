@@ -99,31 +99,90 @@ function triggerDownload(filename) {
     document.body.removeChild(a);
 }
 
+/**
+ * Show the batch export modal for format selection.
+ * Uses a proper modal dialog instead of browser prompt() for better UX.
+ */
+function showBatchExportModal() {
+    const modal = document.getElementById('batch-export-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+}
+
+/**
+ * Hide the batch export modal.
+ */
+function hideBatchExportModal() {
+    const modal = document.getElementById('batch-export-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+/**
+ * Initialize batch export modal event listeners.
+ * Called from main.js during DOMContentLoaded.
+ */
+function initBatchExportModal() {
+    const modal = document.getElementById('batch-export-modal');
+    const cancelBtn = document.getElementById('batch-export-cancel');
+    const formatBtns = document.querySelectorAll('.batch-export-option');
+
+    // Cancel button
+    cancelBtn?.addEventListener('click', hideBatchExportModal);
+
+    // Click outside to close
+    modal?.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            hideBatchExportModal();
+        }
+    });
+
+    // Escape key to close
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !modal?.classList.contains('hidden')) {
+            hideBatchExportModal();
+        }
+    });
+
+    // Format selection buttons
+    formatBtns.forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const format = btn.dataset.format;
+            hideBatchExportModal();
+            await executeBatchExport(format);
+        });
+    });
+}
+
+/**
+ * Open batch export modal (entry point).
+ * Shows modal for format selection, actual export happens on selection.
+ */
 async function batchExportKGProjects() {
-    // Get all project IDs from the project list
+    // Pre-check: verify there are projects to export
     const projects = await kgClient.listProjects();
     if (!projects?.projects?.length) {
         showToast('No projects to export', 'warning');
         return;
     }
 
-    const projectIds = projects.projects.map(p => p.project_id);
+    showBatchExportModal();
+}
 
-    // Prompt user for export format
-    const format = prompt(
-        'Export format:\n• json - JSON files\n• csv - CSV spreadsheets\n• graphml - GraphML for Gephi/Neo4j\n\nEnter format:',
-        'json'
-    );
-
-    if (!format || !['json', 'csv', 'graphml'].includes(format.toLowerCase())) {
-        if (format !== null) {
-            showToast('Invalid format. Use: json, csv, or graphml', 'error');
-        }
-        return;
-    }
-
+/**
+ * Execute batch export with selected format.
+ * Called after user selects format from modal.
+ */
+async function executeBatchExport(format) {
     try {
-        const result = await kgClient.batchExportProjects(projectIds, format.toLowerCase());
+        const projects = await kgClient.listProjects();
+        const projectIds = projects.projects.map(p => p.project_id);
+
+        const result = await kgClient.batchExportProjects(projectIds, format);
 
         // Trigger browser download
         triggerDownload(result.filename);
@@ -140,4 +199,4 @@ async function batchExportKGProjects() {
     }
 }
 
-export { createKGProject, confirmKGDiscovery, exportKGGraph, batchExportKGProjects };
+export { createKGProject, confirmKGDiscovery, exportKGGraph, batchExportKGProjects, initBatchExportModal };

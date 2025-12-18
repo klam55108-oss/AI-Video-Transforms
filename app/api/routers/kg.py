@@ -435,6 +435,15 @@ async def batch_export_graphs(
     if not request.project_ids:
         raise HTTPException(status_code=400, detail="No project IDs provided")
 
+    # Enforce max projects limit to prevent resource exhaustion
+    settings = get_settings()
+    max_projects = settings.batch_export_max_projects
+    if len(request.project_ids) > max_projects:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many projects. Maximum is {max_projects}, got {len(request.project_ids)}",
+        )
+
     export_path = await kg_service.batch_export_graphs(
         request.project_ids, export_format=request.format
     )
@@ -494,9 +503,10 @@ async def download_export(filename: str) -> FileResponse:
     file_path = export_dir / filename
 
     # Resolve to catch any path traversal attempts
+    # Use is_relative_to() for cleaner semantics (Python 3.9+)
     try:
         resolved = file_path.resolve()
-        if not str(resolved).startswith(str(export_dir.resolve())):
+        if not resolved.is_relative_to(export_dir.resolve()):
             raise HTTPException(status_code=400, detail="Invalid filename")
     except (OSError, ValueError):
         raise HTTPException(status_code=400, detail="Invalid filename")

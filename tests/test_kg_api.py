@@ -1231,3 +1231,41 @@ class TestDownloadExport:
             # Cleanup
             if test_file.exists():
                 test_file.unlink()
+
+    @pytest.mark.asyncio
+    async def test_download_export_path_traversal_blocked(self) -> None:
+        """Test that path traversal attempts are blocked by regex pattern.
+
+        Tests filenames that would reach the endpoint (no path separators).
+        Filenames with / or \\ are handled at URL routing level by FastAPI.
+        """
+        from app.main import app
+
+        # Attack vectors that reach our endpoint (no path separators)
+        # These test the regex pattern validation
+        malicious_filenames = [
+            "..passwd.json",  # Starts with dots
+            "test..json",  # Double dots in middle
+            "test file.json",  # Space in filename
+            "test@file.json",  # Special character @
+            "test#file.json",  # Special character #
+            "test!file.json",  # Special character !
+            "test$.json",  # Dollar sign
+            "test;cmd.json",  # Semicolon (command injection)
+            "test`cmd`.json",  # Backticks (command injection)
+            "test|cmd.json",  # Pipe (command injection)
+            "test<>.json",  # Angle brackets
+            "test*.json",  # Wildcard
+            "test?.json",  # Single char wildcard
+        ]
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as client:
+            for malicious in malicious_filenames:
+                response = await client.get(f"/kg/exports/{malicious}")
+                assert response.status_code == 400, (
+                    f"Malicious filename not blocked: {malicious}"
+                )
+                assert response.json()["detail"] == "Invalid filename format"

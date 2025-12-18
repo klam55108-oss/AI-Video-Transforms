@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     job_max_concurrent: int = 2
     job_poll_interval_ms: int = 1000
 
+    # Export configuration
+    export_ttl_hours: int = 24  # Auto-cleanup exports older than this
+    batch_export_max_projects: int = 50  # Max projects in single batch export
+
 
 @lru_cache
 def get_settings() -> Settings:

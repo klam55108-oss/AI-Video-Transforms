@@ -1060,7 +1060,23 @@ Call all bootstrap tools in order to build a complete domain profile.
         return zip_file
 
     def _create_nodes_csv(self, kb: KnowledgeBase) -> str:
-        """Create CSV content for nodes."""
+        """
+        Create CSV content for nodes.
+
+        Generates a CSV string with the following columns:
+        - id: Unique node identifier (UUID)
+        - label: Display name for the node
+        - entity_type: Type category (Person, Organization, etc.)
+        - aliases: Semicolon-separated alternative names
+        - description: Node description text
+        - source_ids: Semicolon-separated source video IDs
+
+        Args:
+            kb: KnowledgeBase to export nodes from
+
+        Returns:
+            CSV-formatted string with header row and node data
+        """
         output = StringIO()
         writer = csv.writer(output)
 
@@ -1085,7 +1101,23 @@ Call all bootstrap tools in order to build a complete domain profile.
         return output.getvalue()
 
     def _create_edges_csv(self, kb: KnowledgeBase) -> str:
-        """Create CSV content for edges."""
+        """
+        Create CSV content for edges.
+
+        Generates a CSV string with the following columns:
+        - id: Unique edge identifier (UUID)
+        - source_node_id: ID of the source node
+        - target_node_id: ID of the target node
+        - relationship_type: Primary relationship type
+        - relationship_types: Semicolon-separated all relationship types
+        - source_ids: Semicolon-separated source video IDs
+
+        Args:
+            kb: KnowledgeBase to export edges from
+
+        Returns:
+            CSV-formatted string with header row and edge data
+        """
         output = StringIO()
         writer = csv.writer(output)
 
@@ -1147,9 +1179,11 @@ Call all bootstrap tools in order to build a complete domain profile.
 
         # Create batch export ZIP
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        export_timestamp_iso = datetime.now(timezone.utc).isoformat()
         zip_file = export_path / f"batch_export_{timestamp}.zip"
 
         exported_count = 0
+        exported_projects: list[dict[str, str]] = []
 
         with zipfile.ZipFile(zip_file, "w", zipfile.ZIP_DEFLATED) as zf:
             for project_id in project_ids:
@@ -1195,6 +1229,10 @@ Call all bootstrap tools in order to build a complete domain profile.
                         )
 
                     exported_count += 1
+                    exported_projects.append({
+                        "project_id": project_id,
+                        "name": project.name,
+                    })
                     logger.info(f"Added project {project_id} to batch export")
 
                 except Exception as e:
@@ -1202,6 +1240,20 @@ Call all bootstrap tools in order to build a complete domain profile.
                         f"Error exporting project {project_id}: {e}", exc_info=True
                     )
                     continue
+
+            # Add manifest.json with export metadata
+            if exported_count > 0:
+                manifest = {
+                    "export_timestamp": export_timestamp_iso,
+                    "format": export_format,
+                    "format_version": "1.0",
+                    "project_count": exported_count,
+                    "projects": exported_projects,
+                }
+                zf.writestr(
+                    "manifest.json",
+                    json.dumps(manifest, indent=2),
+                )
 
         if exported_count == 0:
             # Remove empty ZIP file
@@ -1227,6 +1279,44 @@ Call all bootstrap tools in order to build a complete domain profile.
             return content
         finally:
             tmp_path.unlink()
+
+    async def cleanup_old_exports(self) -> int:
+        """
+        Remove export files older than the configured TTL.
+
+        Called periodically to prevent disk space buildup from
+        old export files. Uses APP_EXPORT_TTL_HOURS setting.
+
+        Returns:
+            Number of files deleted
+        """
+        settings = get_settings()
+        export_path = self.data_path / "exports"
+
+        if not export_path.exists():
+            return 0
+
+        ttl_seconds = settings.export_ttl_hours * 3600
+        now = datetime.now(timezone.utc).timestamp()
+        deleted_count = 0
+
+        for file_path in export_path.iterdir():
+            if not file_path.is_file():
+                continue
+
+            try:
+                file_age = now - file_path.stat().st_mtime
+                if file_age > ttl_seconds:
+                    file_path.unlink()
+                    deleted_count += 1
+                    logger.debug(f"Deleted old export: {file_path.name}")
+            except OSError as e:
+                logger.warning(f"Failed to delete old export {file_path}: {e}")
+
+        if deleted_count > 0:
+            logger.info(f"Cleaned up {deleted_count} old export files")
+
+        return deleted_count
 
     async def get_graph_stats(self, project_id: str) -> dict[str, Any] | None:
         """

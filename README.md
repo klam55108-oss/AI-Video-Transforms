@@ -3,7 +3,7 @@
 > Transform videos into searchable transcripts and knowledge graphs through an intelligent AI chat interface.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-611%20passing-brightgreen.svg)](#development)
+[![Tests](https://img.shields.io/badge/tests-612%20passing-brightgreen.svg)](#development)
 [![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#development)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -97,7 +97,7 @@ HTTP Request → input_queue → [SessionActor] → response_queue → Response
 | **Knowledge Graph** | NetworkX, Cytoscape.js |
 | **Media** | FFmpeg, pydub, yt-dlp |
 | **Frontend** | ES Modules, Tailwind CSS, Marked.js, DOMPurify |
-| **Quality** | mypy (strict), ruff, pytest (611 tests) |
+| **Quality** | mypy (strict), ruff, pytest (612 tests) |
 
 ---
 
@@ -114,7 +114,7 @@ app/
 ├── static/js/       # 26 ES modules (chat, kg, jobs, upload)
 └── templates/       # Jinja2 HTML
 
-tests/               # 611 tests across 29 modules
+tests/               # 612 tests across 29 modules
 data/                # Runtime storage
 ```
 

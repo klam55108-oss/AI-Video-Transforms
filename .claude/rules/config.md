@@ -36,6 +36,8 @@ All settings use the `APP_` prefix (automatically stripped by pydantic-settings)
 | `APP_STATUS_POLL_INTERVAL_MS` | `3000` | Frontend agent status poll interval (ms) |
 | `APP_JOB_MAX_CONCURRENT` | `2` | Max concurrent background job execution |
 | `APP_JOB_POLL_INTERVAL_MS` | `1000` | Frontend job status poll interval (ms) |
+| `APP_EXPORT_TTL_HOURS` | `24` | Auto-cleanup exports older than this |
+| `APP_BATCH_EXPORT_MAX_PROJECTS` | `50` | Max projects in single batch export |
 
 ## Settings Singleton
 
