@@ -2,6 +2,7 @@
 // ============================================
 
 import { state } from '../core/state.js';
+import { DEFAULT_TYPE_COLOR } from '../core/config.js';
 import { highlightNodeNeighborhood, clearHighlights } from './graph.js';
 import { selectNode } from './inspector.js';
 
@@ -335,21 +336,11 @@ function getFilteredNodeCount() {
 }
 
 function getTypeColors() {
-    return {
-        'Person': '#3b82f6',
-        'Character': '#3b82f6',
-        'Organization': '#10b981',
-        'Group': '#10b981',
-        'Event': '#f59e0b',
-        'Location': '#ef4444',
-        'Place': '#ef4444',
-        'Concept': '#8b5cf6',
-        'Theme': '#8b5cf6',
-        'Technology': '#06b6d4',
-        'Product': '#ec4899',
-        'Object': '#ec4899',
-        'default': '#64748b'
-    };
+    // Use dynamic type colors from graph initialization (stored in state)
+    // Types are determined during domain bootstrap, not hardcoded!
+    const colors = state.kgTypeColors || {};
+    // Add default fallback
+    return { ...colors, default: DEFAULT_TYPE_COLOR };
 }
 
 export {

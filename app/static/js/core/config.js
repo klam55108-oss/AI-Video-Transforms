@@ -6,6 +6,25 @@
 export const MAX_RETRIES = 2;
 export const RETRY_DELAY_MS = 1000;
 
+// Color palette for dynamic KG entity types (vibrant, accessible colors)
+// Types are DYNAMICALLY determined during domain bootstrap - not hardcoded!
+// This palette is used to assign colors to whatever types the domain has.
+export const TYPE_COLOR_PALETTE = [
+    '#3b82f6',  // Blue
+    '#10b981',  // Green
+    '#f59e0b',  // Amber
+    '#ef4444',  // Red
+    '#8b5cf6',  // Purple
+    '#06b6d4',  // Cyan
+    '#ec4899',  // Pink
+    '#f97316',  // Orange
+    '#14b8a6',  // Teal
+    '#a855f7',  // Violet
+    '#84cc16',  // Lime
+    '#0ea5e9',  // Sky
+];
+export const DEFAULT_TYPE_COLOR = '#64748b';  // Gray fallback
+
 // Storage keys
 export const THEME_STORAGE_KEY = 'videoagent-theme';
 export const KG_PROJECT_STORAGE_KEY = 'kg_current_project';

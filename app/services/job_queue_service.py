@@ -222,12 +222,12 @@ class JobQueueService:
         Args:
             job_id: Job identifier
         """
-        # Get job metadata
+        # Get job metadata (defensive copy to avoid race conditions)
         async with self._jobs_lock:
             job = self._jobs.get(job_id)
             if not job:
                 return
-            metadata = job.metadata
+            metadata = job.metadata.copy()
 
         video_source = metadata.get("video_source")
         if not video_source:
@@ -283,6 +283,9 @@ class JobQueueService:
         if not result.get("success"):
             raise RuntimeError(result.get("error", "Transcription failed"))
 
+        # Update progress: TRANSCRIBING complete → 70%
+        await self.update_progress(job_id, JobStage.TRANSCRIBING, 70)
+
         # Update progress: FINALIZING → 90%
         await self.update_progress(job_id, JobStage.FINALIZING, 90)
 
@@ -291,12 +294,13 @@ class JobQueueService:
         source_type = SourceType.YOUTUBE if is_youtube else SourceType.LOCAL
 
         # Create temp file for transcript if no output_file was specified
+        temp_file_path: Path | None = None
         if not output_file:
-            temp_dir = Path("data/transcripts")
+            temp_dir = get_settings().data_path / "transcripts"
             temp_dir.mkdir(parents=True, exist_ok=True)
-            temp_file = temp_dir / f"transcript_{job_id[:8]}.txt"
-            temp_file.write_text(transcription_text, encoding="utf-8")
-            output_file = str(temp_file)
+            temp_file_path = temp_dir / f"transcript_{job_id[:8]}.txt"
+            temp_file_path.write_text(transcription_text, encoding="utf-8")
+            output_file = str(temp_file_path)
 
         # Save transcript via TranscriptionService
         from app.services import get_services
@@ -308,6 +312,13 @@ class JobQueueService:
             source_type=source_type,
             session_id=session_id,
         )
+
+        # Clean up temp file after successful save to library
+        if temp_file_path and temp_file_path.exists():
+            try:
+                temp_file_path.unlink()
+            except OSError:
+                logger.warning(f"Failed to clean up temp file: {temp_file_path}")
 
         # Mark as completed
         async with self._jobs_lock:

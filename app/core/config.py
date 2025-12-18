@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -13,6 +14,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="APP_", env_file=".env", extra="ignore"
     )
+
+    # Data storage path
+    data_path: Path = Path("data")
 
     # Claude model configuration
     claude_model: str = "claude-opus-4-5"

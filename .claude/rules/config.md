@@ -22,6 +22,7 @@ All settings use the `APP_` prefix (automatically stripped by pydantic-settings)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `APP_DATA_PATH` | `data` | Base path for data storage |
 | `APP_CLAUDE_MODEL` | `claude-opus-4-5` | Claude model ID |
 | `APP_CLAUDE_API_MAX_CONCURRENT` | `2` | Max concurrent Claude API calls |
 | `APP_RESPONSE_TIMEOUT` | `300.0` | Agent response timeout (seconds) |
