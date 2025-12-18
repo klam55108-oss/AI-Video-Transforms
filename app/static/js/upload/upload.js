@@ -16,10 +16,12 @@ import { sendMessage } from '../chat/send.js';
 let fileInput = null;
 
 // ============================================
-// Element References
+// Element References (Lazy Lookup)
 // ============================================
 
-const attachBtn = document.getElementById('attach-btn');
+function getAttachBtn() {
+    return document.getElementById('attach-btn');
+}
 
 // ============================================
 // Upload Initialization
@@ -34,6 +36,7 @@ export function initFileUpload() {
     document.body.appendChild(fileInput);
 
     // Wire up attachment button
+    const attachBtn = getAttachBtn();
     if (attachBtn) {
         attachBtn.addEventListener('click', () => {
             if (state.isProcessing) {
@@ -77,6 +80,22 @@ export async function handleFileSelect(e) {
             method: 'POST',
             body: formData
         });
+
+        // Check response.ok before parsing JSON to handle non-JSON error responses
+        if (!response.ok) {
+            let errorMessage = 'Upload failed';
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorData.detail || errorMessage;
+            } catch {
+                // Response wasn't JSON - use status text
+                errorMessage = `Upload failed: ${response.status} ${response.statusText}`;
+            }
+            removeLoading(loadingId);
+            showToast(errorMessage, 'error');
+            addMessage(`**Upload Error:** ${errorMessage}`, 'agent');
+            return;
+        }
 
         const data = await response.json();
         removeLoading(loadingId);

@@ -8,16 +8,19 @@ import { copyToClipboard } from '../core/utils.js';
 import { showToast } from '../ui/toast.js';
 
 // ============================================
-// Element References
+// Element References (Lazy Lookup)
 // ============================================
 
-const chatMessages = document.getElementById('chat-messages');
+function getChatMessages() {
+    return document.getElementById('chat-messages');
+}
 
 // ============================================
 // Empty State Management
 // ============================================
 
 export function showEmptyState() {
+    const chatMessages = getChatMessages();
     const emptyState = document.getElementById('empty-state');
     const messageContainer = chatMessages?.querySelector('div.space-y-6');
     if (emptyState) {
@@ -29,6 +32,7 @@ export function showEmptyState() {
 }
 
 export function hideEmptyState() {
+    const chatMessages = getChatMessages();
     const emptyState = document.getElementById('empty-state');
     const messageContainer = chatMessages?.querySelector('div.space-y-6');
     if (emptyState) {
@@ -44,6 +48,8 @@ export function hideEmptyState() {
 // ============================================
 
 export function scrollToBottom() {
+    const chatMessages = getChatMessages();
+    if (!chatMessages) return;
     const scrollHeight = chatMessages.scrollHeight;
     chatMessages.scrollTo({
         top: scrollHeight,
@@ -199,6 +205,9 @@ export function addMessage(text, sender, usage = null) {
     container.appendChild(avatar);
     container.appendChild(contentWrapper);
 
+    const chatMessages = getChatMessages();
+    if (!chatMessages) return;
+
     let listContainer = chatMessages.querySelector('div.space-y-6');
     if (!listContainer) {
         listContainer = document.createElement('div');
@@ -232,6 +241,9 @@ export function showLoading() {
             </div>
         </div>
     `;
+
+    const chatMessages = getChatMessages();
+    if (!chatMessages) return id;
 
     let listContainer = chatMessages.querySelector('div.space-y-6');
     if (!listContainer) {

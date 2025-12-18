@@ -8,10 +8,12 @@ import { escapeHtml } from '../core/utils.js';
 import { showToast } from '../ui/toast.js';
 
 // ============================================
-// Element References
+// Element References (Lazy Lookup)
 // ============================================
 
-const chatMessages = document.getElementById('chat-messages');
+function getChatMessages() {
+    return document.getElementById('chat-messages');
+}
 
 // ============================================
 // Job State
@@ -62,8 +64,9 @@ export function createJobProgressUI(jobId, title = 'Processing') {
     const cancelBtn = container.querySelector('.job-progress-cancel');
     cancelBtn?.addEventListener('click', () => cancelJob(jobId));
 
-    const messageContainer = chatMessages.querySelector('div.space-y-6');
-    if (messageContainer) {
+    const chatMessages = getChatMessages();
+    const messageContainer = chatMessages?.querySelector('div.space-y-6');
+    if (messageContainer && chatMessages) {
         messageContainer.appendChild(container);
         // Scroll to bottom
         const scrollHeight = chatMessages.scrollHeight;

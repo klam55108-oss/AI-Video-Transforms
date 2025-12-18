@@ -1,7 +1,8 @@
 // KG Graph Visualization
 // ============================================
 
-import { state } from '../core/state.js';
+import { state, KG_VIEW_STORAGE_KEY } from '../core/state.js';
+import { escapeHtml } from '../core/utils.js';
 import { showToast } from '../ui/toast.js';
 
 // Circular dependency resolution - inspector module will call setInspectorModule
@@ -11,13 +12,6 @@ function setInspectorModule(module) {
     inspectorModule = module;
 }
 
-// escapeHtml utility (temporary - will import from utils once available)
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
 // KG View Toggle (List/Graph)
 // ============================================
 
@@ -25,7 +19,7 @@ function toggleKGView(view) {
     if (view === state.kgCurrentView) return;
 
     state.kgCurrentView = view;
-    localStorage.setItem(state.KG_VIEW_STORAGE_KEY, view);
+    localStorage.setItem(KG_VIEW_STORAGE_KEY, view);
 
     const chatContainer = document.getElementById('chat-messages');
     const graphView = document.getElementById('kg-graph-view');
