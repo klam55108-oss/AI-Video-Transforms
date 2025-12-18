@@ -236,7 +236,6 @@ class JobQueueService:
                 f"Transcription job {job_id} missing video_source, using placeholder"
             )
             await self.update_progress(job_id, JobStage.PROCESSING, 50)
-            await asyncio.sleep(0.5)
             async with self._jobs_lock:
                 if job_id in self._jobs:
                     job = self._jobs[job_id]
@@ -263,12 +262,10 @@ class JobQueueService:
         # Update progress: QUEUED → 0%
         await self.update_progress(job_id, JobStage.QUEUED, 0)
 
-        # Create a progress callback to update job progress during transcription
-        async def progress_callback(stage: JobStage, progress: int) -> None:
-            await self.update_progress(job_id, stage, progress)
-
-        # Run transcription in thread pool (blocking I/O)
-        # We'll use a wrapper to track progress
+        # Update progress based on source type
+        # Note: Fine-grained progress tracking (per-segment) would require
+        # refactoring _perform_transcription to accept a callback, which is
+        # a larger architectural change deferred to future iterations.
         await self.update_progress(
             job_id, JobStage.DOWNLOADING if is_youtube else JobStage.EXTRACTING_AUDIO, 10
         )
@@ -341,10 +338,8 @@ class JobQueueService:
         Args:
             job_id: Job identifier
         """
-        # Placeholder: mark as completed
+        # Placeholder: mark as completed immediately
         await self.update_progress(job_id, JobStage.PROCESSING, 50)
-        await asyncio.sleep(1)
-
         async with self._jobs_lock:
             if job_id in self._jobs:
                 job = self._jobs[job_id]
@@ -362,10 +357,8 @@ class JobQueueService:
         Args:
             job_id: Job identifier
         """
-        # Placeholder: mark as completed
+        # Placeholder: mark as completed immediately
         await self.update_progress(job_id, JobStage.PROCESSING, 50)
-        await asyncio.sleep(1)
-
         async with self._jobs_lock:
             if job_id in self._jobs:
                 job = self._jobs[job_id]

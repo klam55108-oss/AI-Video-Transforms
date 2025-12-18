@@ -1211,6 +1211,23 @@ button:focus {
 }
 
 /* ==============================================
+   KEYBOARD HINTS
+   ============================================== */
+
+.keyboard-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: help;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.keyboard-hint:hover {
+    opacity: 1;
+}
+
+/* ==============================================
    COLLAPSIBLE PANELS
    ============================================== */
 

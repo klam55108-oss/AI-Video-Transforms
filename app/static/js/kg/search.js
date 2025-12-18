@@ -10,8 +10,12 @@ let graphSearchData = []; // Cache of all nodes for searching
 let searchSelectedIndex = -1;
 let activeTypeFilters = new Set(); // Active entity type filters
 
-// escapeHtml utility (temporary - will import from utils once available)
+// escapeHtml utility - uses DOMPurify if available, falls back to textContent
 function escapeHtml(text) {
+    if (typeof DOMPurify !== 'undefined') {
+        return DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
+    }
+    // Fallback: use textContent for escaping
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
@@ -151,22 +155,8 @@ function performGraphSearch(query) {
     if (topMatches.length === 0) {
         resultsContainer.innerHTML = '<div class="search-no-results">No entities found</div>';
     } else {
-        // Type colors for result dots
-        const typeColors = {
-            'Person': '#3b82f6',
-            'Character': '#3b82f6',
-            'Organization': '#10b981',
-            'Group': '#10b981',
-            'Event': '#f59e0b',
-            'Location': '#ef4444',
-            'Place': '#ef4444',
-            'Concept': '#8b5cf6',
-            'Theme': '#8b5cf6',
-            'Technology': '#06b6d4',
-            'Product': '#ec4899',
-            'Object': '#ec4899',
-            'default': '#64748b'
-        };
+        // Use shared type colors (defined in getTypeColors())
+        const typeColors = getTypeColors();
 
         resultsContainer.innerHTML = topMatches.map((match, idx) => {
             const color = typeColors[match.type] || typeColors.default;

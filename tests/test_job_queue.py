@@ -479,7 +479,7 @@ class TestTranscriptionJobIntegration:
         self, tmp_path: Path
     ) -> None:
         """Test transcription job with proper metadata creates transcript."""
-        from unittest.mock import MagicMock, Mock, patch
+        from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
         from app.models.jobs import JobType
 
@@ -499,6 +499,19 @@ class TestTranscriptionJobIntegration:
         mock_segment.__len__ = lambda self: 300000  # 5 min
         mock_segment.__getitem__ = lambda self, key: mock_segment
         mock_segment.export = MagicMock()
+
+        # Mock TranscriptionService.save_transcript (async method)
+        mock_transcript_metadata = MagicMock()
+        mock_transcript_metadata.id = "test-transcript-id"
+        mock_transcript_metadata.filename = "test.txt"
+
+        mock_transcription_service = MagicMock()
+        mock_transcription_service.save_transcript = AsyncMock(
+            return_value=mock_transcript_metadata
+        )
+
+        mock_services = MagicMock()
+        mock_services.transcription = mock_transcription_service
 
         # Start background processor
         processor_task = asyncio.create_task(
@@ -524,36 +537,45 @@ class TestTranscriptionJobIntegration:
                                             "os.environ",
                                             {"OPENAI_API_KEY": "test-key"},
                                         ):
-                                            # Create a transcription job
-                                            job = await job_service.create_job(
-                                                JobType.TRANSCRIPTION,
-                                                metadata={
-                                                    "video_source": str(video_file),
-                                                    "language": "en",
-                                                    "temperature": 0.0,
-                                                },
-                                            )
+                                            with patch(
+                                                "app.services.get_services",
+                                                return_value=mock_services,
+                                            ):
+                                                # Create a transcription job
+                                                job = await job_service.create_job(
+                                                    JobType.TRANSCRIPTION,
+                                                    metadata={
+                                                        "video_source": str(video_file),
+                                                        "language": "en",
+                                                        "temperature": 0.0,
+                                                    },
+                                                )
 
-                                            # Wait for processing
-                                            for _ in range(100):  # Max 10 seconds
-                                                await asyncio.sleep(0.1)
-                                                current = await job_service.get_job(
+                                                # Wait for processing
+                                                for _ in range(100):  # Max 10 seconds
+                                                    await asyncio.sleep(0.1)
+                                                    current = await job_service.get_job(
+                                                        job.id
+                                                    )
+                                                    if (
+                                                        current
+                                                        and current.status
+                                                        == JobStatus.COMPLETED
+                                                    ):
+                                                        break
+
+                                                # Verify job completed
+                                                completed = await job_service.get_job(
                                                     job.id
                                                 )
-                                                if (
-                                                    current
-                                                    and current.status
+                                                assert completed is not None
+                                                assert (
+                                                    completed.status
                                                     == JobStatus.COMPLETED
-                                                ):
-                                                    break
-
-                                            # Verify job completed
-                                            completed = await job_service.get_job(job.id)
-                                            assert completed is not None
-                                            assert completed.status == JobStatus.COMPLETED
-                                            assert completed.progress == 100
-                                            assert completed.result is not None
-                                            assert "transcript_id" in completed.result
+                                                )
+                                                assert completed.progress == 100
+                                                assert completed.result is not None
+                                                assert "transcript_id" in completed.result
 
         finally:
             # Cleanup

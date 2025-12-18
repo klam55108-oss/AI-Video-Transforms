@@ -445,11 +445,17 @@
                         ></textarea>
 
                         <!-- Send Button -->
-                        <button type="submit" id="send-btn" class="input-btn input-btn-primary" title="Send message">
+                        <button type="submit" id="send-btn" class="input-btn input-btn-primary" title="Send message (Ctrl+Enter)">
                             <i class="ph-bold ph-paper-plane-right text-lg"></i>
                         </button>
                     </div>
                     <p class="text-center text-[10px] text-[var(--text-muted)] mt-3">
+                        <span class="keyboard-hint" title="Keyboard shortcuts: Ctrl+Enter to send, Escape to close panels">
+                            <i class="ph ph-keyboard text-xs"></i>
+                            <span class="hidden sm:inline">Ctrl+Enter to send</span>
+                            <span class="sm:hidden">⌘↵</span>
+                        </span>
+                        <span class="mx-2">·</span>
                         Agent may produce inaccurate information. Please verify important data.
                     </p>
                 </form>
