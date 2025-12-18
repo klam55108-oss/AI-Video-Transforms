@@ -249,6 +249,19 @@
                     <p class="text-xs text-[var(--sidebar-text-muted)] px-2 py-1">Loading...</p>
                 </div>
             </div>
+
+            <!-- Jobs Section (Collapsible) -->
+            <div id="jobs-section">
+                <button type="button" id="jobs-toggle" class="panel-toggle text-sm font-medium text-[var(--sidebar-text-secondary)]">
+                    <i class="ph-fill ph-queue text-lg mr-3 text-[var(--sidebar-text-muted)]"></i>
+                    <span>Jobs</span>
+                    <span id="jobs-count-badge" class="hidden ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-[var(--accent-primary)] text-white">0</span>
+                    <i id="jobs-caret" class="ph-bold ph-caret-right panel-caret text-[var(--sidebar-text-muted)]"></i>
+                </button>
+                <div id="jobs-list" class="panel-content ml-8 mt-1 space-y-1 sidebar-scroll">
+                    <p id="jobs-empty" class="text-xs text-[var(--sidebar-text-muted)] px-2 py-1">No active jobs</p>
+                </div>
+            </div>
         </nav>
 
         <!-- User Profile Footer -->

@@ -41,7 +41,7 @@ docker-compose up -d
 | Feature | Description |
 |---------|-------------|
 | **Video Transcription** | Local videos and YouTube URLs via gpt-4o-transcribe |
-| **Background Jobs** | Async job queue with real-time progress tracking |
+| **Background Jobs** | Async job queue with sidebar tracking, progress bars, and auto-continuation |
 | **Knowledge Graphs** | Auto-bootstrap domain schemas, extract entities/relationships |
 | **Graph Visualization** | Interactive Cytoscape.js with search, type filtering, node inspector |
 | **Transcript Library** | Save, search, and download transcripts |

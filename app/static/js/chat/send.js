@@ -8,6 +8,52 @@ import { MAX_RETRIES, RETRY_DELAY_MS } from '../core/config.js';
 import { sleep } from '../core/utils.js';
 import { addMessage, showLoading, removeLoading } from './messages.js';
 import { showToast } from '../ui/toast.js';
+import { createJobProgressUI, loadJobs } from '../jobs/jobs.js';
+
+// ============================================
+// Job Detection Patterns
+// ============================================
+
+// Pattern to detect job ID in agent responses
+// Handles: "Job ID: xxx", "Job ID `xxx`", "job: xxx", "Job ID: `xxx`"
+const JOB_ID_PATTERN = /(?:job[:\s]+|Job ID[:\s]*)[`]?([a-f0-9-]{36})[`]?/gi;
+
+// ============================================
+// Job Detection
+// ============================================
+
+/**
+ * Detect job IDs in agent response and create progress UI
+ * @param {string} responseText - Agent response text
+ */
+function detectAndTrackJobs(responseText) {
+    if (!responseText) return;
+
+    // Find all job IDs in the response
+    const matches = [...responseText.matchAll(JOB_ID_PATTERN)];
+    const jobIds = [...new Set(matches.map(m => m[1]))];
+
+    if (jobIds.length === 0) return;
+
+    // Determine job type from response context
+    const isTranscription = /transcri/i.test(responseText);
+    const title = isTranscription ? 'Transcribing' : 'Processing';
+
+    // Create progress UI for each detected job
+    for (const jobId of jobIds) {
+        createJobProgressUI(jobId, title);
+    }
+
+    // Refresh the jobs sidebar panel
+    loadJobs();
+
+    // Show toast notification
+    if (jobIds.length === 1) {
+        showToast('Background job started', 'info');
+    } else {
+        showToast(`${jobIds.length} background jobs started`, 'info');
+    }
+}
 
 // ============================================
 // Message Sending
@@ -89,6 +135,9 @@ export async function sendMessage(message, showInUI = true) {
             const data = await response.json();
             removeLoading(loadingId);
             addMessage(data.response, 'agent', data.usage);
+
+            // Detect job creation in response and show progress UI
+            detectAndTrackJobs(data.response);
 
             // Refresh transcripts list if panel is open
             // Note: This creates a circular dependency - loadTranscripts will be injected at runtime

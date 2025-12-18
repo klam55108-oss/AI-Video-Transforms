@@ -264,12 +264,38 @@ class SessionActor:
                 parsed = StructuredAgentResponse.model_validate(
                     message.structured_output
                 )
-                return [parsed.message]
-            except Exception:
-                pass  # Fall through to text extraction
+                if parsed.message:  # Only return if message is non-empty
+                    return [parsed.message]
+                else:
+                    logger.warning(
+                        f"Session {self.session_id}: Structured output has empty message"
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"Session {self.session_id}: Failed to parse structured output: {e}"
+                )
+                # Fall through to text extraction
 
         # Fallback to TextBlock content
-        return [block.text for block in message.content if isinstance(block, TextBlock)]
+        text_blocks = [
+            block.text for block in message.content if isinstance(block, TextBlock)
+        ]
+
+        if text_blocks:
+            return text_blocks
+
+        # Last resort: try to extract any text from the raw output
+        if hasattr(message, "structured_output") and message.structured_output:
+            raw_output = message.structured_output
+            if isinstance(raw_output, dict) and "message" in raw_output:
+                msg = raw_output.get("message")
+                if msg:
+                    logger.info(
+                        f"Session {self.session_id}: Using raw message from structured output"
+                    )
+                    return [str(msg)]
+
+        return []
 
     def _extract_usage_from_message(
         self, message: AssistantMessage
@@ -496,6 +522,16 @@ class SessionActor:
 
                         # Use error message if there was an error, otherwise use response
                         final_text = response_error or "\n".join(full_text)
+
+                        # Ensure we always have some response text
+                        if not final_text.strip():
+                            logger.warning(
+                                f"Session {self.session_id}: Empty response text, using fallback"
+                            )
+                            final_text = (
+                                "I've processed your request. "
+                                "Please check the Jobs panel for any background tasks."
+                            )
 
                         # Return cumulative session usage (aggregated across all messages)
                         await self.response_queue.put(

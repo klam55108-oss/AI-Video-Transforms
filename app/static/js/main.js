@@ -33,7 +33,7 @@ import { loadTranscripts, toggleTranscriptsPanel, downloadTranscript, deleteTran
 // ============================================
 // Jobs Module Imports
 // ============================================
-import { cleanupAllJobPollers, cancelJob } from './jobs/jobs.js';
+import { cleanupAllJobPollers, cancelJob, toggleJobsPanel, loadJobs } from './jobs/jobs.js';
 
 // ============================================
 // Upload Module Imports
@@ -121,6 +121,10 @@ window.kg_clearAllFilters = clearAllFilters;
 
 // Jobs
 window.cancelJob = cancelJob;
+window.loadJobs = loadJobs;
+
+// Chat (for job completion callback)
+window.sendMessage = sendMessage;
 
 // ============================================
 // Keyboard Shortcuts
@@ -171,9 +175,11 @@ function initEventListeners() {
     // Sidebar panel toggles
     const historyToggle = document.getElementById('history-toggle');
     const transcriptsToggle = document.getElementById('transcripts-toggle');
+    const jobsToggle = document.getElementById('jobs-toggle');
 
     historyToggle?.addEventListener('click', toggleHistoryPanel);
     transcriptsToggle?.addEventListener('click', toggleTranscriptsPanel);
+    jobsToggle?.addEventListener('click', toggleJobsPanel);
 
     // KG Panel toggle
     state.kgToggle?.addEventListener('click', toggleKGPanel);

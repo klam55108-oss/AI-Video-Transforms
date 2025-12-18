@@ -2282,6 +2282,135 @@ button:focus {
 }
 
 /* ==============================================
+   SIDEBAR JOB ITEMS
+   ============================================== */
+
+.sidebar-job-item {
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: var(--sidebar-hover);
+    margin-bottom: 6px;
+    transition: all 0.2s ease;
+}
+
+.sidebar-job-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-job-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.sidebar-job-icon {
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+}
+
+.sidebar-job-type {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--sidebar-text-primary);
+    text-transform: capitalize;
+    flex: 1;
+}
+
+.sidebar-job-cancel {
+    padding: 2px 4px;
+    background: transparent;
+    border: none;
+    color: var(--sidebar-text-muted);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+    opacity: 0;
+}
+
+.sidebar-job-item:hover .sidebar-job-cancel {
+    opacity: 1;
+}
+
+.sidebar-job-cancel:hover {
+    color: var(--status-error);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.sidebar-job-progress {
+    height: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+
+.sidebar-job-progress-bar {
+    height: 100%;
+    background: var(--accent-primary);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+.sidebar-job-progress-bar.animated {
+    background: linear-gradient(
+        90deg,
+        var(--accent-primary),
+        #4dd4ff,
+        var(--accent-primary)
+    );
+    background-size: 200% 100%;
+    animation: sidebar-job-shimmer 1.5s ease infinite;
+}
+
+@keyframes sidebar-job-shimmer {
+    0% { background-position: -100% 0; }
+    100% { background-position: 100% 0; }
+}
+
+.sidebar-job-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sidebar-job-stage {
+    font-size: 10px;
+    color: var(--sidebar-text-muted);
+}
+
+.sidebar-job-percent {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent-primary);
+}
+
+.sidebar-job-error {
+    font-size: 9px;
+    color: var(--status-error);
+    margin-top: 4px;
+    padding: 4px 6px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 4px;
+}
+
+/* Light theme overrides for sidebar jobs */
+[data-theme="light"] .sidebar-job-progress {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .sidebar-job-progress-bar.animated {
+    background: linear-gradient(
+        90deg,
+        var(--accent-primary),
+        #66e0ff,
+        var(--accent-primary)
+    );
+    background-size: 200% 100%;
+}
+
+/* ==============================================
    KG GRAPH VISUALIZATION CONTAINER
    ============================================== */
 
