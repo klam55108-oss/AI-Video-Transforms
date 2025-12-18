@@ -70,6 +70,16 @@ from app.core.config import get_settings
 settings = get_settings()  # Singleton with APP_ prefix env vars
 ```
 
+### Job Auto-Continuation — Seamless async workflow
+
+```
+Agent creates job → Frontend detects Job ID → Sidebar shows progress
+                                                      ↓
+Agent auto-responds with results ← Hidden callback message ← Job completes
+```
+
+When background jobs complete, `triggerJobCompletionCallback()` sends a hidden message to the agent. This creates seamless conversation flow where async work automatically continues the chat.
+
 ## Code Standards
 
 See `.claude/rules/` for detailed guidelines:

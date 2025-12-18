@@ -313,12 +313,9 @@ class JobQueueService:
             session_id=session_id,
         )
 
-        # Clean up temp file after successful save to library
-        if temp_file_path and temp_file_path.exists():
-            try:
-                temp_file_path.unlink()
-            except OSError:
-                logger.warning(f"Failed to clean up temp file: {temp_file_path}")
+        # Note: Do NOT delete the transcript file - save_transcript() registers
+        # the file path in metadata, it doesn't copy the content elsewhere.
+        # The file at temp_file_path IS the permanent transcript storage.
 
         # Mark as completed
         async with self._jobs_lock:

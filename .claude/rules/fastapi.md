@@ -32,6 +32,26 @@ paths: app/api/**/*.py, app/models/**/*.py, app/main.py
 - Validate all inputs with Pydantic models
 - Return Pydantic models or `dict` responses
 
+### Route Ordering (CRITICAL)
+
+FastAPI matches routes in declaration order. Place specific routes BEFORE parameterized routes:
+
+```python
+# ✅ CORRECT: List route first
+@router.get("")
+async def list_jobs(): ...
+
+@router.get("/{job_id}")
+async def get_job(job_id: str): ...
+
+# ❌ WRONG: Parameterized route first catches everything
+@router.get("/{job_id}")  # GET /jobs matches with job_id=""
+async def get_job(job_id: str): ...
+
+@router.get("")  # Never reached!
+async def list_jobs(): ...
+```
+
 ## Dependency Injection (CRITICAL)
 
 ```python

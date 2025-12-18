@@ -63,6 +63,22 @@ const element = document.getElementById('my-element');  // Fragile timing
 - Handle unified error schema (code, message, detail, hint, retryable)
 - Show cost/usage data from response
 
+## Job Sidebar & Auto-Continuation
+
+Jobs panel provides real-time tracking with auto-continuation callbacks:
+
+```javascript
+// Sidebar tracks all active jobs with live progress
+loadJobs();           // Fetch and render sidebar
+toggleJobsPanel();    // Expand/collapse
+
+// Auto-continuation: when job completes, trigger agent callback
+triggerJobCompletionCallback(job);  // Sends hidden message to agent
+triggerJobFailureCallback(job);     // Handles errors via agent
+```
+
+**Pattern**: `window.sendMessage(message, false)` sends without UI display, enabling seamless agent responses.
+
 ## Global Window Exports
 
 Functions exposed for HTML `onclick` handlers (prefixed to avoid conflicts):
@@ -75,6 +91,8 @@ window.kg_deleteKGProject = deleteKGProject;
 // Other modules
 window.loadSession = loadSession;
 window.cancelJob = cancelJob;
+window.loadJobs = loadJobs;
+window.sendMessage = sendMessage;  // For job callbacks
 ```
 
 ## File Uploads

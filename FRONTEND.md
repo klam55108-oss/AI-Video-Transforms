@@ -109,11 +109,14 @@ export function scrollToBottom();
 **Security**: All agent messages sanitized via DOMPurify before rendering.
 
 #### `chat/send.js`
-Message sending with retry logic.
+Message sending with retry logic and job detection.
 
 ```javascript
 export async function sendMessage(message, showInUI = true);
+export function detectAndTrackJobs(responseText);
 ```
+
+**Job Detection**: After receiving agent responses, `detectAndTrackJobs()` scans for job IDs using regex (`/job(?:\s+id)?[:\s]+([a-f0-9-]{36})/gi`). Detected jobs automatically get progress UI in chat and sidebar tracking.
 
 **Error Handling**:
 - `503` (Server Busy) → Retry with exponential backoff
@@ -149,12 +152,22 @@ export function renderStatus(status);
 ### Jobs Module
 
 #### `jobs/jobs.js`
-Background job progress tracking.
+Background job progress tracking with sidebar panel and auto-continuation.
 
 ```javascript
+// Chat area progress UI
 export function createJobProgressUI(jobId, title);
+export function updateJobProgress(jobId, job);
 export function startJobPolling(jobId);
 export function stopJobPolling(jobId);
+
+// Sidebar panel
+export function toggleJobsPanel();
+export function loadJobs();
+export function startSidebarPolling();
+export function stopSidebarPolling();
+
+// Job actions
 export function cancelJob(jobId);
 export function cleanupAllJobPollers();
 ```
@@ -162,6 +175,8 @@ export function cleanupAllJobPollers();
 **Job Stages**: `queued`, `downloading`, `extracting_audio`, `transcribing`, `processing`, `finalizing`
 
 **Job Statuses**: `pending`, `running`, `completed`, `failed`, `cancelled`
+
+**Auto-Continuation**: When jobs complete, `triggerJobCompletionCallback()` sends a hidden message to the agent requesting it show results and offer next steps. This creates a seamless workflow where background jobs automatically continue the conversation.
 
 ### Upload Module
 
@@ -308,6 +323,8 @@ window.resetGraphView
 
 // Jobs
 window.cancelJob
+window.loadJobs
+window.sendMessage   // Enables job callbacks to trigger agent messages
 ```
 
 ---
@@ -340,6 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadHistory();
     loadTranscripts();
     loadKGProjects();
+    loadJobs();  // Initialize jobs sidebar
 
     // 7. Start status polling
     startStatusPolling();
