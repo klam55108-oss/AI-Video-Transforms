@@ -10,8 +10,10 @@ Execute the `Workflow` and `Report` sections to understand the codebase then sum
 
 1. Run `git ls-files` to list all files in the repository.
 2. Read `README.md` for an overview of the project.
-3. Read `CLAUDE.md` for project-specific patterns and commands.
-4. Read Claude Agent SDK documentation in order:
+3. Read `DOCKER.md` for deployment instructions.
+4. Read `FRONTEND.md` for frontend architecture.
+5. Read `CLAUDE.md` for project-specific patterns and commands.
+6. Read Claude Agent SDK documentation in order:
    - `ai_docs/claude_agent_sdk/01_OVERVIEW_QUICKSTART.md` - Installation, setup, migration
    - `ai_docs/claude_agent_sdk/02_CORE_API_TOOLS.md` - Core API, custom tools, MCP, subagents
    - `ai_docs/claude_agent_sdk/03_SESSION_PERMISSIONS_HOSTING.md` - Sessions, permissions, hosting

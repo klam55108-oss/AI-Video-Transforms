@@ -9,6 +9,24 @@ import { state } from '../core/state.js';
 export async function loadHistory() {
     const historyList = document.getElementById('history-list');
 
+    // Show skeleton loader
+    if (historyList) {
+        historyList.innerHTML = `
+            <div class="skeleton-loader">
+                <div class="skeleton-line h-4 w-3/4"></div>
+                <div class="skeleton-line h-3 w-1/2 mt-1"></div>
+            </div>
+            <div class="skeleton-loader">
+                <div class="skeleton-line h-4 w-2/3"></div>
+                <div class="skeleton-line h-3 w-1/2 mt-1"></div>
+            </div>
+            <div class="skeleton-loader">
+                <div class="skeleton-line h-4 w-3/4"></div>
+                <div class="skeleton-line h-3 w-1/2 mt-1"></div>
+            </div>
+        `;
+    }
+
     try {
         const response = await fetch('/history');
         if (!response.ok) throw new Error('Failed to load history');

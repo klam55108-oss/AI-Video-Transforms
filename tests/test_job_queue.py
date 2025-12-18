@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -468,3 +469,163 @@ class TestJobQueueServiceIntegration:
         # processor runs in the service container's lifecycle and may have
         # multiple jobs queued from other tests. The isolated processing
         # test (test_job_processing_lifecycle) validates actual execution.
+
+
+class TestTranscriptionJobIntegration:
+    """Integration tests for transcription job processing."""
+
+    @pytest.mark.asyncio
+    async def test_transcription_job_with_valid_metadata(
+        self, tmp_path: Path
+    ) -> None:
+        """Test transcription job with proper metadata creates transcript."""
+        from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+        from app.models.jobs import JobType
+
+        job_service = JobQueueService()
+
+        # Create a mock video file
+        video_file = tmp_path / "test.mp4"
+        video_file.write_bytes(b"fake video data")
+
+        # Mock the transcription components
+        mock_client = MagicMock()
+        mock_client.audio.transcriptions.create.return_value = MagicMock(
+            text="Test transcription"
+        )
+
+        mock_segment = MagicMock()
+        mock_segment.__len__ = lambda self: 300000  # 5 min
+        mock_segment.__getitem__ = lambda self, key: mock_segment
+        mock_segment.export = MagicMock()
+
+        # Mock TranscriptionService.save_transcript (async method)
+        mock_transcript_metadata = MagicMock()
+        mock_transcript_metadata.id = "test-transcript-id"
+        mock_transcript_metadata.filename = "test.txt"
+
+        mock_transcription_service = MagicMock()
+        mock_transcription_service.save_transcript = AsyncMock(
+            return_value=mock_transcript_metadata
+        )
+
+        mock_services = MagicMock()
+        mock_services.transcription = mock_transcription_service
+
+        # Start background processor
+        processor_task = asyncio.create_task(
+            job_service.run_job_processor_loop(num_workers=1)
+        )
+
+        try:
+            with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
+                with patch(
+                    "subprocess.run", return_value=Mock(returncode=0, stderr=b"")
+                ):
+                    with patch(
+                        "app.agent.transcribe_tool.OpenAI", return_value=mock_client
+                    ):
+                        with patch(
+                            "app.agent.transcribe_tool.AudioSegment.from_mp3",
+                            return_value=mock_segment,
+                        ):
+                            with patch("os.path.getsize", return_value=1024):
+                                with patch("builtins.open", MagicMock()):
+                                    with patch("os.remove"):
+                                        with patch.dict(
+                                            "os.environ",
+                                            {"OPENAI_API_KEY": "test-key"},
+                                        ):
+                                            with patch(
+                                                "app.services.get_services",
+                                                return_value=mock_services,
+                                            ):
+                                                # Create a transcription job
+                                                job = await job_service.create_job(
+                                                    JobType.TRANSCRIPTION,
+                                                    metadata={
+                                                        "video_source": str(video_file),
+                                                        "language": "en",
+                                                        "temperature": 0.0,
+                                                    },
+                                                )
+
+                                                # Wait for processing
+                                                for _ in range(100):  # Max 10 seconds
+                                                    await asyncio.sleep(0.1)
+                                                    current = await job_service.get_job(
+                                                        job.id
+                                                    )
+                                                    if (
+                                                        current
+                                                        and current.status
+                                                        == JobStatus.COMPLETED
+                                                    ):
+                                                        break
+
+                                                # Verify job completed
+                                                completed = await job_service.get_job(
+                                                    job.id
+                                                )
+                                                assert completed is not None
+                                                assert (
+                                                    completed.status
+                                                    == JobStatus.COMPLETED
+                                                )
+                                                assert completed.progress == 100
+                                                assert completed.result is not None
+                                                assert "transcript_id" in completed.result
+
+        finally:
+            # Cleanup
+            await job_service.shutdown()
+            processor_task.cancel()
+            try:
+                await processor_task
+            except asyncio.CancelledError:
+                pass
+
+    @pytest.mark.asyncio
+    async def test_transcription_job_handles_errors_gracefully(self) -> None:
+        """Test transcription job handles errors and marks job as failed."""
+        from app.models.jobs import JobType
+
+        job_service = JobQueueService()
+
+        # Start background processor
+        processor_task = asyncio.create_task(
+            job_service.run_job_processor_loop(num_workers=1)
+        )
+
+        try:
+            # Create a job with invalid video source
+            job = await job_service.create_job(
+                JobType.TRANSCRIPTION,
+                metadata={
+                    "video_source": "/nonexistent/file.mp4",
+                },
+            )
+
+            # Wait for processing
+            for _ in range(50):  # Max 5 seconds
+                await asyncio.sleep(0.1)
+                current = await job_service.get_job(job.id)
+                if current and current.status in (JobStatus.COMPLETED, JobStatus.FAILED):
+                    break
+
+            # Verify job failed with error
+            failed = await job_service.get_job(job.id)
+            assert failed is not None
+            assert failed.status == JobStatus.FAILED
+            assert failed.error is not None
+            assert "not found" in failed.error.lower()
+
+        finally:
+            # Cleanup
+            await job_service.shutdown()
+            processor_task.cancel()
+            try:
+                await processor_task
+            except asyncio.CancelledError:
+                pass

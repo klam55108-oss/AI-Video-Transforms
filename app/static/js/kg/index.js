@@ -37,7 +37,7 @@ export {
     renderEmptyGraph,
     updateGraphStats
 } from './graph.js';
-export { initGraphSearch, performGraphSearch, navigateToNode, hideSearchResults } from './search.js';
+export { initGraphSearch, performGraphSearch, navigateToNode, hideSearchResults, toggleTypeFilter, clearAllFilters } from './search.js';
 export {
     toggleKGPanel,
     loadKGProjects,
@@ -57,6 +57,8 @@ export {
 window.kg_confirmKGDiscovery = actions.confirmKGDiscovery;
 window.kg_filterByType = graph.filterByType;
 window.kg_clearTypeFilter = graph.clearTypeFilter;
+window.kg_toggleTypeFilter = search.toggleTypeFilter;
+window.kg_clearAllFilters = search.clearAllFilters;
 window.kg_navigateToNode = search.navigateToNode;
 window.kg_selectNodeById = inspector.selectNodeById;
 window.kg_handleDropdownSelect = panel.handleDropdownSelect;

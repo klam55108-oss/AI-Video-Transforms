@@ -7,7 +7,6 @@ to text using OpenAI's gpt-4o-transcribe model with quality enhancement features
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import re
@@ -380,7 +379,8 @@ def _perform_transcription(
 
 @tool(
     "transcribe_video",
-    "Transcribe audio from a video file or YouTube URL to text using OpenAI gpt-4o-transcribe. "
+    "Create a background job to transcribe audio from a video file or YouTube URL. "
+    "Returns immediately with a job ID for tracking progress. "
     "Supports local video files (mp4, mkv, avi, etc.) and YouTube URLs. "
     "Automatically handles long videos by splitting into segments with context chaining. "
     "Requires OPENAI_API_KEY environment variable and FFmpeg installed.",
@@ -411,17 +411,20 @@ def _perform_transcription(
                 "description": "Sampling temperature 0-1. Lower values (0.0) give more "
                 "deterministic results. Default: 0.0",
             },
+            "session_id": {
+                "type": "string",
+                "description": "Optional session ID to link the transcript to a chat session",
+            },
         },
         "required": ["video_source"],
     },
 )
 async def transcribe_video(args: dict[str, Any]) -> dict[str, Any]:
     """
-    Transcribe video to text using OpenAI gpt-4o-transcribe.
+    Create a background transcription job.
 
-    This tool extracts audio from video files using FFmpeg or downloads from YouTube,
-    splits long audio into manageable segments with context chaining, and transcribes
-    using OpenAI's gpt-4o-transcribe model with quality enhancement features.
+    This tool creates an asynchronous job to transcribe video/audio. The job runs
+    in the background, allowing the user to monitor progress via the Jobs panel.
 
     Args:
         args: Dictionary containing:
@@ -430,62 +433,62 @@ async def transcribe_video(args: dict[str, Any]) -> dict[str, Any]:
             - language: Language code for transcription (optional, improves accuracy)
             - prompt: Context prompt to guide transcription style (optional)
             - temperature: Sampling temperature 0-1 (optional, default 0.0)
+            - session_id: Session ID to link transcript (optional)
 
     Returns:
-        Structured response with transcription results or error message
+        Structured response with job ID for progress tracking
     """
-    video_source = args.get("video_source")
-    if not video_source:
+    try:
+        video_source = args.get("video_source")
+        if not video_source:
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Error: video_source parameter is required",
+                    }
+                ]
+            }
+
+        # Get job queue service
+        from app.models.jobs import JobType
+        from app.services import get_services
+
+        job_service = get_services().job_queue
+
+        # Create job with metadata
+        job = await job_service.create_job(
+            job_type=JobType.TRANSCRIPTION,
+            metadata={
+                "video_source": video_source,
+                "output_file": args.get("output_file"),
+                "language": args.get("language"),
+                "prompt": args.get("prompt"),
+                "temperature": args.get("temperature", 0.0),
+                "session_id": args.get("session_id"),
+            },
+        )
+
         return {
             "content": [
                 {
                     "type": "text",
-                    "text": "Error: video_source parameter is required",
+                    "text": f"Started transcription job: {job.id}\n\n"
+                    f"Source: {video_source}\n"
+                    f"Job ID: {job.id}\n\n"
+                    "You can monitor progress in the Jobs panel. "
+                    "The transcript will be automatically saved to the library when complete.",
                 }
             ]
         }
 
-    output_file = args.get("output_file")
-    language = args.get("language")
-    prompt = args.get("prompt")
-    temperature = args.get("temperature", 0.0)
-
-    # Run the blocking transcription in a thread pool
-    result = await asyncio.to_thread(
-        _perform_transcription,
-        video_source=video_source,
-        output_file=output_file,
-        language=language,
-        prompt=prompt,
-        temperature=temperature,
-    )
-
-    if result["success"]:
-        response_parts = [
-            "Transcription completed successfully.",
-            f"Source: {result['source']} ({result['source_type']})",
-            f"Segments processed: {result['segments_processed']}",
-        ]
-        if result.get("output_file"):
-            response_parts.append(f"Saved to: {result['output_file']}")
-        response_parts.append("")
-        response_parts.append("--- TRANSCRIPTION ---")
-        response_parts.append(result["transcription"])
-
+    except Exception as e:
+        logger.error(f"Failed to create transcription job: {e}", exc_info=True)
         return {
             "content": [
                 {
                     "type": "text",
-                    "text": "\n".join(response_parts),
-                }
-            ]
-        }
-    else:
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": f"Transcription failed: {result['error']}",
+                    "text": f"Failed to create transcription job: {str(e)}",
                 }
             ]
         }

@@ -34,6 +34,17 @@ function toggleKGPanel() {
 }
 
 async function loadKGProjects() {
+    // Show skeleton loader in dropdown
+    if (state.kgDropdownList) {
+        state.kgDropdownList.innerHTML = `
+            <li class="kg-dropdown-option px-3 py-2">
+                <div class="skeleton-loader">
+                    <div class="skeleton-line h-3 w-3/4"></div>
+                </div>
+            </li>
+        `;
+    }
+
     try {
         const data = await kgClient.listProjects();
         renderKGProjectList(data.projects || []);

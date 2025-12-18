@@ -1183,6 +1183,51 @@ button:focus {
 }
 
 /* ==============================================
+   SKELETON LOADERS
+   ============================================== */
+
+.skeleton-loader {
+    padding: 8px 12px;
+}
+
+.skeleton-line {
+    background: linear-gradient(90deg,
+        var(--bg-tertiary) 25%,
+        var(--bg-elevated) 50%,
+        var(--bg-tertiary) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.skeleton-line:last-child {
+    margin-bottom: 0;
+}
+
+@keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ==============================================
+   KEYBOARD HINTS
+   ============================================== */
+
+.keyboard-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: help;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.keyboard-hint:hover {
+    opacity: 1;
+}
+
+/* ==============================================
    COLLAPSIBLE PANELS
    ============================================== */
 
@@ -1630,6 +1675,46 @@ button:focus {
     .sidebar-overlay.open {
         opacity: 1;
         pointer-events: auto;
+    }
+
+    /* Graph Search Bar - Mobile */
+    .graph-search-bar {
+        width: calc(100% - 24px);
+        max-width: 280px;
+    }
+
+    .graph-search-bar:focus-within {
+        width: calc(100% - 24px);
+        max-width: 320px;
+    }
+
+    /* Filter Chips - Mobile */
+    .filter-chips-container {
+        max-width: calc(100% - 24px);
+        top: 56px;
+    }
+
+    /* Graph Legend - Mobile */
+    .graph-legend {
+        max-width: 180px;
+        max-height: 200px;
+    }
+
+    /* Inspector Panel - Mobile */
+    .inspector-panel.open {
+        width: 100%;
+        max-width: none;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: auto;
+        height: 60vh;
+        border-radius: 16px 16px 0 0;
+    }
+
+    /* Chat Input - Mobile */
+    .input-textarea {
+        font-size: 16px; /* Prevents zoom on iOS */
     }
 }
 
@@ -2295,6 +2380,74 @@ button:focus {
 
 .search-clear-btn.hidden {
     display: none;
+}
+
+.match-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+    white-space: nowrap;
+    margin-left: auto;
+    padding-left: 8px;
+}
+
+.match-count.hidden {
+    display: none;
+}
+
+/* ==============================================
+   FILTER CHIPS
+   ============================================== */
+
+.filter-chips-container {
+    position: absolute;
+    top: 60px;
+    left: 12px;
+    z-index: 14;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: 500px;
+}
+
+.filter-chips-container.hidden {
+    display: none;
+}
+
+.filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: var(--card-bg);
+    border: 1px solid var(--chip-color, var(--card-border));
+    border-radius: 16px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: var(--shadow-sm);
+}
+
+.filter-chip:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--chip-color);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.filter-chip span {
+    color: var(--chip-color);
+}
+
+.filter-chip i {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.filter-chip:hover i {
+    color: var(--text-primary);
 }
 
 /* ==============================================

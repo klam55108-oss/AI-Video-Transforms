@@ -4,6 +4,7 @@
 import { state, KG_VIEW_STORAGE_KEY } from '../core/state.js';
 import { escapeHtml } from '../core/utils.js';
 import { showToast } from '../ui/toast.js';
+import { TYPE_COLOR_PALETTE, DEFAULT_TYPE_COLOR } from '../core/config.js';
 
 // Circular dependency resolution - inspector module will call setInspectorModule
 let inspectorModule = null;
@@ -139,25 +140,19 @@ function renderGraph(data) {
         n.data.degree = nodeDegrees[n.data.id] || 0;
     });
 
-    // Entity type colors (vibrant, accessible palette)
-    const typeColors = {
-        'Person': '#3b82f6',
-        'Character': '#3b82f6',
-        'Organization': '#10b981',
-        'Group': '#10b981',
-        'Event': '#f59e0b',
-        'Location': '#ef4444',
-        'Place': '#ef4444',
-        'Concept': '#8b5cf6',
-        'Theme': '#8b5cf6',
-        'Technology': '#06b6d4',
-        'Product': '#ec4899',
-        'Object': '#ec4899',
-        'default': '#64748b'
-    };
+    // Build dynamic type→color mapping from actual graph data
+    // Types are determined during domain bootstrap, not hardcoded!
+    const uniqueTypes = [...new Set(data.nodes.map(n => n.data.type).filter(Boolean))];
+    const typeColors = {};
+    uniqueTypes.forEach((type, idx) => {
+        typeColors[type] = TYPE_COLOR_PALETTE[idx % TYPE_COLOR_PALETTE.length];
+    });
+
+    // Store mapping in state for use by search/filter
+    state.kgTypeColors = typeColors;
 
     // Helper to get color for a type
-    const getTypeColor = (type) => typeColors[type] || typeColors.default;
+    const getTypeColor = (type) => typeColors[type] || DEFAULT_TYPE_COLOR;
 
     // Helper to calculate node size based on degree
     const getNodeSize = (degree) => {
@@ -431,29 +426,15 @@ function buildTypeLegend(nodes) {
     // Sort by count descending
     const sortedTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
 
-    // Type colors
-    const typeColors = {
-        'Person': '#3b82f6',
-        'Character': '#3b82f6',
-        'Organization': '#10b981',
-        'Group': '#10b981',
-        'Event': '#f59e0b',
-        'Location': '#ef4444',
-        'Place': '#ef4444',
-        'Concept': '#8b5cf6',
-        'Theme': '#8b5cf6',
-        'Technology': '#06b6d4',
-        'Product': '#ec4899',
-        'Object': '#ec4899',
-        'default': '#64748b'
-    };
+    // Use dynamic type colors from graph initialization (stored in state)
+    const typeColors = state.kgTypeColors || {};
 
     // Build legend HTML
     let html = '<div class="legend-title">Entity Types</div><div class="legend-items">';
     sortedTypes.forEach(([type, count]) => {
-        const color = typeColors[type] || typeColors.default;
+        const color = typeColors[type] || DEFAULT_TYPE_COLOR;
         html += `
-            <button class="legend-item" data-type="${escapeHtml(type)}" onclick="window.kg_filterByType('${escapeHtml(type)}')">
+            <button class="legend-item" data-type="${escapeHtml(type)}" onclick="window.kg_toggleTypeFilter('${escapeHtml(type)}')">
                 <span class="legend-dot" style="background-color: ${color}"></span>
                 <span class="legend-label">${escapeHtml(type)}</span>
                 <span class="legend-count">${count}</span>
@@ -461,9 +442,9 @@ function buildTypeLegend(nodes) {
         `;
     });
     html += `
-        <button class="legend-item legend-reset" onclick="window.kg_clearTypeFilter()">
+        <button class="legend-item legend-reset" onclick="window.kg_clearAllFilters()">
             <i class="ph-bold ph-arrow-counter-clockwise"></i>
-            <span class="legend-label">Show All</span>
+            <span class="legend-label">Clear Filters</span>
         </button>
     </div>`;
 

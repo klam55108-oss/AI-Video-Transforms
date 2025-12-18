@@ -8,6 +8,20 @@ import { showToast } from '../ui/toast.js';
 export async function loadTranscripts() {
     const transcriptsList = document.getElementById('transcripts-list');
 
+    // Show skeleton loader
+    if (transcriptsList) {
+        transcriptsList.innerHTML = `
+            <div class="skeleton-loader">
+                <div class="skeleton-line h-4 w-2/3"></div>
+                <div class="skeleton-line h-3 w-1/2 mt-1"></div>
+            </div>
+            <div class="skeleton-loader">
+                <div class="skeleton-line h-4 w-3/4"></div>
+                <div class="skeleton-line h-3 w-1/2 mt-1"></div>
+            </div>
+        `;
+    }
+
     try {
         const response = await fetch('/transcripts');
         if (!response.ok) throw new Error('Failed to load transcripts');

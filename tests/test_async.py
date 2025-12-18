@@ -20,20 +20,38 @@ class TestTranscriptionAsyncWrapper:
     """Test that transcription doesn't block the event loop."""
 
     @pytest.mark.asyncio
-    async def test_transcription_uses_to_thread(self):
-        """Verify transcription is wrapped with asyncio.to_thread."""
-        # Read the transcribe_tool.py to verify the pattern exists
+    async def test_transcription_uses_job_queue(self):
+        """Verify transcription uses async job queue pattern (not blocking).
+
+        P1-6 upgraded from asyncio.to_thread to JobQueueService for
+        non-blocking transcription with progress tracking.
+        """
+        # Read the transcribe_tool.py to verify the job queue pattern
         import app.agent.transcribe_tool as transcribe_module
         import inspect
 
         source = inspect.getsource(transcribe_module)
 
-        # Verify asyncio.to_thread is used for _perform_transcription
-        assert "asyncio.to_thread" in source, (
-            "transcribe_tool.py should use asyncio.to_thread"
+        # Verify job queue pattern is used (replaces asyncio.to_thread)
+        # Uses get_services().job_queue pattern for dependency injection
+        assert "get_services" in source, (
+            "transcribe_tool.py should use get_services() for job queue access"
+        )
+        assert "job_queue" in source or "job_service" in source, (
+            "transcribe_tool.py should access job_queue from services"
+        )
+        assert "create_job" in source, (
+            "Should create job for non-blocking transcription"
+        )
+        assert "JobType.TRANSCRIPTION" in source, (
+            "Should use proper JobType enum for transcription jobs"
         )
         assert "_perform_transcription" in source, (
-            "Should have _perform_transcription function"
+            "Should have _perform_transcription function for actual work"
+        )
+        # Old blocking pattern should NOT be in the tool anymore
+        assert "await asyncio.to_thread" not in source, (
+            "transcribe_tool.py should NOT use asyncio.to_thread (use job queue)"
         )
 
     @pytest.mark.asyncio

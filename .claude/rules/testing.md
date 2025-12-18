@@ -10,7 +10,7 @@ paths: tests/**/*.py
 - Fixtures defined in `tests/conftest.py`
 - Run: `uv run pytest` or `uv run pytest -v` for verbose
 
-## Test Organization (595 tests across 29 modules)
+## Test Organization (601 tests across 29 modules)
 
 ### Core Tests
 | File | Description |

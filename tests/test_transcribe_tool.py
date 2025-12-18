@@ -519,3 +519,139 @@ class TestYouTubeUrlDetection:
     def test_youtube_url_detection(self, url: str, expected: bool) -> None:
         """Test YouTube URL pattern matching."""
         assert _is_youtube_url(url) == expected
+
+
+# =============================================================================
+# Job Queue Integration Tests
+# =============================================================================
+
+
+class TestTranscribeVideoJobQueue:
+    """Integration tests for job queue pattern in transcribe_video tool.
+
+    These tests verify that transcribe_video() creates background jobs
+    and returns job IDs, rather than performing blocking transcription.
+
+    Note: The @tool decorator wraps the function in SdkMcpTool. We access
+    the original async function via transcribe_video.handler for testing.
+    """
+
+    @pytest.mark.asyncio
+    async def test_transcribe_video_creates_job_and_returns_job_id(self) -> None:
+        """Verify transcribe_video creates a job and returns the job ID."""
+        from datetime import datetime
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.models.jobs import Job, JobStage, JobStatus, JobType
+
+        # Create a mock job that would be returned by job_service.create_job
+        mock_job = Job(
+            id="test-job-123",
+            type=JobType.TRANSCRIPTION,
+            status=JobStatus.PENDING,
+            stage=JobStage.QUEUED,
+            progress=0,
+            created_at=datetime.utcnow(),
+            metadata={"video_source": "test.mp4"},
+        )
+
+        # Mock the job queue service
+        mock_job_service = MagicMock()
+        mock_job_service.create_job = AsyncMock(return_value=mock_job)
+
+        # Mock get_services to return our mock
+        mock_services = MagicMock()
+        mock_services.job_queue = mock_job_service
+
+        # Access the underlying handler through the SdkMcpTool wrapper
+        # Patch at the import source (app.services), not the local module
+        with patch("app.services.get_services", return_value=mock_services):
+            result = await transcribe_video.handler({"video_source": "test.mp4"})
+
+        # Verify job was created with correct type
+        mock_job_service.create_job.assert_called_once()
+        call_kwargs = mock_job_service.create_job.call_args[1]
+        assert call_kwargs["job_type"] == JobType.TRANSCRIPTION
+        assert call_kwargs["metadata"]["video_source"] == "test.mp4"
+
+        # Verify response contains job ID
+        assert "content" in result
+        response_text = result["content"][0]["text"]
+        assert "test-job-123" in response_text
+        assert "Job ID:" in response_text
+
+    @pytest.mark.asyncio
+    async def test_transcribe_video_passes_all_metadata(self) -> None:
+        """Verify all parameters are passed to job metadata."""
+        from datetime import datetime
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.models.jobs import Job, JobStage, JobStatus, JobType
+
+        mock_job = Job(
+            id="job-with-params",
+            type=JobType.TRANSCRIPTION,
+            status=JobStatus.PENDING,
+            stage=JobStage.QUEUED,
+            progress=0,
+            created_at=datetime.utcnow(),
+            metadata={},
+        )
+
+        mock_job_service = MagicMock()
+        mock_job_service.create_job = AsyncMock(return_value=mock_job)
+
+        mock_services = MagicMock()
+        mock_services.job_queue = mock_job_service
+
+        with patch("app.services.get_services", return_value=mock_services):
+            await transcribe_video.handler({
+                "video_source": "https://youtube.com/watch?v=test",
+                "output_file": "/tmp/output.txt",
+                "language": "es",
+                "prompt": "Technical terms: API, SDK",
+                "temperature": 0.2,
+                "session_id": "session-abc",
+            })
+
+        # Verify all metadata was passed
+        call_kwargs = mock_job_service.create_job.call_args[1]
+        metadata = call_kwargs["metadata"]
+        assert metadata["video_source"] == "https://youtube.com/watch?v=test"
+        assert metadata["output_file"] == "/tmp/output.txt"
+        assert metadata["language"] == "es"
+        assert metadata["prompt"] == "Technical terms: API, SDK"
+        assert metadata["temperature"] == 0.2
+        assert metadata["session_id"] == "session-abc"
+
+    @pytest.mark.asyncio
+    async def test_transcribe_video_returns_error_without_video_source(self) -> None:
+        """Verify error response when video_source is missing."""
+        # No need to mock services - missing video_source returns early
+        result = await transcribe_video.handler({})
+
+        assert "content" in result
+        response_text = result["content"][0]["text"]
+        assert "Error" in response_text
+        assert "video_source" in response_text
+
+    @pytest.mark.asyncio
+    async def test_transcribe_video_handles_service_error_gracefully(self) -> None:
+        """Verify tool returns structured error when service fails."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_job_service = MagicMock()
+        mock_job_service.create_job = AsyncMock(
+            side_effect=RuntimeError("Job queue unavailable")
+        )
+
+        mock_services = MagicMock()
+        mock_services.job_queue = mock_job_service
+
+        with patch("app.services.get_services", return_value=mock_services):
+            result = await transcribe_video.handler({"video_source": "test.mp4"})
+
+        # Should return error content, not raise exception
+        assert "content" in result
+        response_text = result["content"][0]["text"]
+        assert "Failed" in response_text or "error" in response_text.lower()
