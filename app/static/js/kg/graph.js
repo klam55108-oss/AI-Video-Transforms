@@ -453,7 +453,7 @@ function buildTypeLegend(nodes) {
     sortedTypes.forEach(([type, count]) => {
         const color = typeColors[type] || typeColors.default;
         html += `
-            <button class="legend-item" data-type="${escapeHtml(type)}" onclick="window.kg_filterByType('${escapeHtml(type)}')">
+            <button class="legend-item" data-type="${escapeHtml(type)}" onclick="window.kg_toggleTypeFilter('${escapeHtml(type)}')">
                 <span class="legend-dot" style="background-color: ${color}"></span>
                 <span class="legend-label">${escapeHtml(type)}</span>
                 <span class="legend-count">${count}</span>
@@ -461,9 +461,9 @@ function buildTypeLegend(nodes) {
         `;
     });
     html += `
-        <button class="legend-item legend-reset" onclick="window.kg_clearTypeFilter()">
+        <button class="legend-item legend-reset" onclick="window.kg_clearAllFilters()">
             <i class="ph-bold ph-arrow-counter-clockwise"></i>
-            <span class="legend-label">Show All</span>
+            <span class="legend-label">Clear Filters</span>
         </button>
     </div>`;
 

@@ -72,6 +72,9 @@ import {
     // Search
     initGraphSearch,
     navigateToNode,
+    hideSearchResults,
+    toggleTypeFilter,
+    clearAllFilters,
     // Inspector
     selectNodeById,
     closeInspector
@@ -110,12 +113,55 @@ window.resetGraphView = resetGraphView;
 window.kg_filterByType = filterByType;
 window.kg_clearTypeFilter = clearTypeFilter;
 
-// KG Navigation
+// KG Navigation & Search
 window.kg_navigateToNode = navigateToNode;
 window.kg_selectNodeById = selectNodeById;
+window.kg_toggleTypeFilter = toggleTypeFilter;
+window.kg_clearAllFilters = clearAllFilters;
 
 // Jobs
 window.cancelJob = cancelJob;
+
+// ============================================
+// Keyboard Shortcuts
+// ============================================
+
+function initKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+        // Ctrl+Enter / Cmd+Enter - Send message
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            const chatForm = document.getElementById('chat-form');
+            const input = document.getElementById('user-input');
+            const message = input?.value?.trim();
+            if (message && !state.isProcessing) {
+                input.value = '';
+                sendMessage(message);
+            }
+        }
+
+        // Escape - Close modals/inspectors/dropdowns
+        if (e.key === 'Escape') {
+            // Close KG node inspector if open
+            const inspector = document.getElementById('kg-node-inspector');
+            if (inspector?.classList.contains('open')) {
+                e.preventDefault();
+                closeInspector();
+                return;
+            }
+
+            // Close search results if open
+            const searchResults = document.getElementById('kg-search-results');
+            if (searchResults && !searchResults.classList.contains('hidden')) {
+                e.preventDefault();
+                hideSearchResults();
+                const searchInput = document.getElementById('kg-graph-search');
+                searchInput?.blur();
+                return;
+            }
+        }
+    });
+}
 
 // ============================================
 // Event Listener Initialization
@@ -259,6 +305,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize file upload
     initFileUpload();
+
+    // Initialize keyboard shortcuts
+    initKeyboardShortcuts();
 
     // Initialize event listeners
     initEventListeners();

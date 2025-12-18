@@ -3,7 +3,7 @@
 > Transform videos into searchable transcripts and knowledge graphs through an intelligent AI chat interface.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-595%20passing-brightgreen.svg)](#development)
+[![Tests](https://img.shields.io/badge/tests-597%20passing-brightgreen.svg)](#development)
 [![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#development)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -41,11 +41,11 @@ docker-compose up -d
 | Feature | Description |
 |---------|-------------|
 | **Video Transcription** | Local videos and YouTube URLs via gpt-4o-transcribe |
+| **Background Jobs** | Async job queue with real-time progress tracking |
 | **Knowledge Graphs** | Auto-bootstrap domain schemas, extract entities/relationships |
-| **Graph Visualization** | Interactive Cytoscape.js graph with search, filtering, inspector |
+| **Graph Visualization** | Interactive Cytoscape.js with search, type filtering, node inspector |
 | **Transcript Library** | Save, search, and download transcripts |
-| **Background Jobs** | Async job queue with progress tracking |
-| **Real-Time Chat** | Markdown rendering, dark/light themes, cost tracking |
+| **Chat Interface** | Markdown rendering, dark/light themes, keyboard shortcuts |
 
 ---
 
@@ -97,7 +97,7 @@ HTTP Request → input_queue → [SessionActor] → response_queue → Response
 | **Knowledge Graph** | NetworkX, Cytoscape.js |
 | **Media** | FFmpeg, pydub, yt-dlp |
 | **Frontend** | ES Modules, Tailwind CSS, Marked.js, DOMPurify |
-| **Quality** | mypy (strict), ruff, pytest (595 tests) |
+| **Quality** | mypy (strict), ruff, pytest (597 tests) |
 
 ---
 
@@ -114,7 +114,7 @@ app/
 ├── static/js/       # 26 ES modules (chat, kg, jobs, upload)
 └── templates/       # Jinja2 HTML
 
-tests/               # 595 tests across 29 modules
+tests/               # 597 tests across 29 modules
 data/                # Runtime storage
 ```
 

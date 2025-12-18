@@ -206,9 +206,25 @@ export function initKGGraph(container, graphData);
 export function changeGraphLayout(layoutName);
 export function fitGraphView();
 export function resetGraphView();
-export function filterByType(type);
-export function clearTypeFilter();
 ```
+
+#### `kg/search.js`
+Graph search and filtering functionality.
+
+```javascript
+export function initGraphSearch();
+export function toggleTypeFilter(type);      // Multi-select filtering
+export function clearAllFilters();           // Reset all filters
+export function performGraphSearch(query);   // Full-text search
+export function hideSearchResults();
+```
+
+**Features**:
+- Full-text search across node labels, aliases, descriptions
+- Multi-select entity type filtering via legend clicks
+- Filter chips with color-coded borders
+- Visual feedback: matching nodes highlighted, others dimmed (opacity 0.25)
+- Match count display ("X of Y entities")
 
 **Layouts**: `cose` (force-directed), `grid`, `circle`, `breadthfirst` (hierarchical)
 
@@ -276,8 +292,8 @@ window.kg_deleteKGProject
 window.kg_loadKGProjects
 window.kg_selectKGProject
 window.kg_confirmKGDiscovery
-window.kg_filterByType
-window.kg_clearTypeFilter
+window.kg_toggleTypeFilter      // Multi-select type filtering
+window.kg_clearAllFilters       // Reset all filters
 window.kg_navigateToNode
 window.kg_selectNodeById
 
@@ -331,10 +347,42 @@ document.addEventListener('DOMContentLoaded', () => {
     // 8. Initialize graph search
     initGraphSearch();
 
-    // 9. Initialize chat session
+    // 9. Initialize keyboard shortcuts
+    initKeyboardShortcuts();
+
+    // 10. Initialize chat session
     initSession();
 });
 ```
+
+---
+
+## Keyboard Shortcuts
+
+Global keyboard shortcuts initialized via `initKeyboardShortcuts()` in `main.js`:
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Enter` / `Cmd+Enter` | Send chat message |
+| `Escape` | Close modals/inspectors (priority: inspector → search → sidebar) |
+
+---
+
+## Loading Skeletons
+
+Skeleton loaders provide visual feedback while data loads:
+
+```css
+.skeleton-line {
+    background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
+    animation: skeleton-shimmer 1.5s infinite;
+}
+```
+
+**Locations**:
+- `panels/history.js` — Session history list
+- `panels/transcripts.js` — Transcript library list
+- `kg/panel.js` — KG project dropdown
 
 ---
 

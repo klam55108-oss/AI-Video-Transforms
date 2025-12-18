@@ -6,7 +6,7 @@ AI-powered video transcription and knowledge graph extraction.
 
 ```bash
 uv run python -m app.main              # Dev server → http://127.0.0.1:8000
-uv run pytest                          # 595 tests
+uv run pytest                          # 597 tests
 uv run mypy .                          # Type check (strict)
 uv run ruff check . && ruff format .   # Lint + format
 ```
@@ -98,5 +98,3 @@ For Claude Code (not the app agent):
 | Document | Purpose |
 |----------|---------|
 | @README.md | Project overview, quick start |
-| @FRONTEND.md | ES modules architecture (26 modules) |
-| @DOCKER.md | Container deployment |

@@ -390,10 +390,17 @@
                             aria-label="Clear search">
                         <i class="ph-bold ph-x"></i>
                     </button>
+                    <!-- Match Count -->
+                    <span id="kg-match-count" class="match-count hidden">0 of 0 entities</span>
                     <!-- Search Results Dropdown -->
                     <div id="kg-search-results" class="graph-search-results hidden">
                         <!-- Populated by JS -->
                     </div>
+                </div>
+
+                <!-- Filter Chips (below search bar) -->
+                <div id="kg-filter-chips" class="filter-chips-container hidden">
+                    <!-- Populated by JS -->
                 </div>
 
                 <!-- Type Legend (sibling of container to survive Cytoscape re-renders) -->
