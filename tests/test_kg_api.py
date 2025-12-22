@@ -31,6 +31,7 @@ from app.kg.domain import (
     ProjectState,
     ThingType,
 )
+from app.services.kg_service import KnowledgeGraphService
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -926,6 +927,89 @@ class TestGetGraphData:
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TEST: NODE EVIDENCE ENDPOINT
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestNodeEvidence:
+    """Test GET /kg/projects/{id}/nodes/{node_id}/evidence endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_get_node_evidence_returns_empty_for_no_segments(
+        self, tmp_path: Path, kg_service: KnowledgeGraphService
+    ) -> None:
+        """Test evidence returns empty list for nodes without segment IDs."""
+        from app.main import app
+
+        # Create project and extract to graph
+        project = await kg_service.create_project("Test Project")
+
+        # Manually create KB with a node without segment_ids
+        from app.kg.knowledge_base import KnowledgeBase
+        from app.kg.models import Node, Source, SourceType
+        from app.kg.persistence import save_knowledge_base
+
+        kb = KnowledgeBase(name="Test KB")
+        source = Source(id="src123", title="Test Source", source_type=SourceType.VIDEO)
+        kb.add_source(source)
+
+        node = Node(
+            label="Test Entity",
+            entity_type="Person",
+            source_ids=["src123"],
+        )
+        kb.add_node(node)
+
+        # Save KB and link to project
+        save_knowledge_base(kb, kg_service.kb_path)
+        project.kb_id = kb.id
+        await kg_service._save_project(project)
+
+        app.dependency_overrides[get_kg_service] = lambda: kg_service
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.get(
+                    f"/kg/projects/{project.id}/nodes/{node.id}/evidence"
+                )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["node_id"] == node.id
+            assert data["evidence"] == []
+        finally:
+            app.dependency_overrides.pop(get_kg_service, None)
+
+    # NOTE: Evidence/segment retrieval removed in clean break to simple transcription
+    # Test deleted as part of Phase 2B simplification
+    pass
+
+    @pytest.mark.asyncio
+    async def test_get_node_evidence_not_found(self) -> None:
+        """Test evidence returns 404 for non-existent node."""
+        from app.main import app
+
+        mock_service = MockKGService()
+        app.dependency_overrides[get_kg_service] = lambda: mock_service
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.get(
+                    "/kg/projects/abc123def456/nodes/nonexistent/evidence"
+                )
+
+            assert response.status_code == 404
+        finally:
+            app.dependency_overrides.pop(get_kg_service, None)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # TEST: CSV EXPORT
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1163,9 +1247,7 @@ class TestDownloadExport:
         from app.main import app
 
         transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport, base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.get("/kg/exports/nonexistent.json")
 
         assert response.status_code == 404
@@ -1177,9 +1259,7 @@ class TestDownloadExport:
         from app.main import app
 
         transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport, base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
             # Filename with spaces and special characters
             response = await client.get("/kg/exports/test file!@#.json")
 
@@ -1192,9 +1272,7 @@ class TestDownloadExport:
         from app.main import app
 
         transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport, base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.get("/kg/exports/test.txt")
 
         assert response.status_code == 400
@@ -1225,8 +1303,8 @@ class TestDownloadExport:
             assert response.status_code == 200
             assert response.text == test_content
             assert response.headers["content-type"] == "application/json"
-            assert 'attachment' in response.headers["content-disposition"]
-            assert 'testproject.json' in response.headers["content-disposition"]
+            assert "attachment" in response.headers["content-disposition"]
+            assert "testproject.json" in response.headers["content-disposition"]
         finally:
             # Cleanup
             if test_file.exists():
@@ -1260,9 +1338,7 @@ class TestDownloadExport:
         ]
 
         transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport, base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
             for malicious in malicious_filenames:
                 response = await client.get(f"/kg/exports/{malicious}")
                 assert response.status_code == 400, (

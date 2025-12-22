@@ -220,6 +220,7 @@ class StorageManager:
             "created_at": datetime.now(timezone.utc).isoformat(),
             "file_size": path.stat().st_size if path.exists() else 0,
             "session_id": session_id,
+            "format": "text",  # Default format for backward compatibility
         }
 
         metadata["transcripts"][transcript_id] = entry

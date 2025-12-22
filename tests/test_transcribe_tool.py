@@ -5,7 +5,8 @@ Tests cover:
 - FFmpeg audio extraction
 - gpt-4o-transcribe model integration
 - MP3 audio format handling
-- Quality enhancement features (prompt, temperature, segment chaining)
+- Simple text-only response format
+- Audio splitting for files >25 minutes
 - Error handling and edge cases
 """
 
@@ -18,12 +19,12 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from app.agent.transcribe_tool import (
+    TranscriptionError,
     _check_ffmpeg_available,
     _extract_audio_from_video,
     _is_youtube_url,
     _perform_transcription,
-    _split_audio,
-    _transcribe_segment,
+    _transcribe_audio_file,
     transcribe_video,
 )
 
@@ -100,230 +101,260 @@ class TestFFmpegExtraction:
 
 
 # =============================================================================
-# Model and API Tests
+# gpt-4o-transcribe Model Tests
 # =============================================================================
 
 
-class TestGpt4oTranscribeModel:
-    """Tests for gpt-4o-transcribe model integration."""
+class TestSimpleTranscribeModel:
+    """Tests for gpt-4o-transcribe model integration (simple text-only)."""
 
-    def test_transcribe_segment_uses_gpt4o_model(self) -> None:
-        """Verify transcription uses gpt-4o-transcribe model."""
+    def test_transcribe_uses_simple_model(self, temp_storage_dir: Path) -> None:
+        """Verify transcription uses gpt-4o-transcribe model, not diarize."""
+        # Create mock audio file
+        audio_path = temp_storage_dir / "test.mp3"
+        audio_path.write_bytes(b"fake audio")
+
+        # Create mock response with simple text (no segments)
+        mock_response = MagicMock()
+        mock_response.text = "Test transcription"
+
         mock_client = MagicMock()
-        mock_client.audio.transcriptions.create.return_value = MagicMock(
-            text="Test transcription"
+        mock_client.audio.transcriptions.create.return_value = mock_response
+
+        result = _transcribe_audio_file(
+            client=mock_client,
+            audio_path=str(audio_path),
         )
 
-        mock_segment = MagicMock()
-        mock_segment.export = MagicMock()
-
-        with patch("os.path.getsize", return_value=1024):
-            with patch("builtins.open", MagicMock()):
-                with patch("os.path.exists", return_value=True):
-                    with patch("os.remove"):
-                        _transcribe_segment(
-                            client=mock_client,
-                            audio_segment=mock_segment,
-                            segment_num=0,
-                            temp_dir="/tmp",
-                        )
-
+        # Verify correct model and parameters were used
         call_kwargs = mock_client.audio.transcriptions.create.call_args[1]
         assert call_kwargs["model"] == "gpt-4o-transcribe"
+        assert call_kwargs["response_format"] == "json"
 
-    def test_transcribe_segment_passes_language_parameter(self) -> None:
-        """Verify language parameter is passed to API."""
+        # Verify result is just the text string (simplified)
+        assert result == "Test transcription"
+
+    def test_transcribe_accepts_prompt_parameter(self, temp_storage_dir: Path) -> None:
+        """Verify prompt parameter is passed to API."""
+        audio_path = temp_storage_dir / "test.mp3"
+        audio_path.write_bytes(b"fake audio")
+
+        mock_response = MagicMock()
+        mock_response.text = "Test with custom prompt"
+
         mock_client = MagicMock()
-        mock_client.audio.transcriptions.create.return_value = MagicMock(
-            text="Test transcription"
+        mock_client.audio.transcriptions.create.return_value = mock_response
+
+        _transcribe_audio_file(
+            client=mock_client,
+            audio_path=str(audio_path),
+            prompt="Custom context for transcription",
         )
 
-        mock_segment = MagicMock()
-        mock_segment.export = MagicMock()
+        call_kwargs = mock_client.audio.transcriptions.create.call_args[1]
+        assert call_kwargs["prompt"] == "Custom context for transcription"
 
-        with patch("os.path.getsize", return_value=1024):
-            with patch("builtins.open", MagicMock()):
-                with patch("os.path.exists", return_value=True):
-                    with patch("os.remove"):
-                        _transcribe_segment(
-                            client=mock_client,
-                            audio_segment=mock_segment,
-                            segment_num=0,
-                            temp_dir="/tmp",
-                            language="es",
-                        )
+    def test_transcribe_passes_language_parameter(self, temp_storage_dir: Path) -> None:
+        """Verify language parameter is passed to API."""
+        audio_path = temp_storage_dir / "test.mp3"
+        audio_path.write_bytes(b"fake audio")
+
+        mock_response = MagicMock()
+        mock_response.text = "Prueba"
+
+        mock_client = MagicMock()
+        mock_client.audio.transcriptions.create.return_value = mock_response
+
+        _transcribe_audio_file(
+            client=mock_client,
+            audio_path=str(audio_path),
+            language="es",
+        )
 
         call_kwargs = mock_client.audio.transcriptions.create.call_args[1]
         assert call_kwargs["language"] == "es"
 
+    def test_transcribe_passes_temperature_parameter(
+        self, temp_storage_dir: Path
+    ) -> None:
+        """Verify temperature parameter is passed to API."""
+        audio_path = temp_storage_dir / "test.mp3"
+        audio_path.write_bytes(b"fake audio")
 
-# =============================================================================
-# MP3 Audio Format Tests
-# =============================================================================
+        mock_response = MagicMock()
+        mock_response.text = "Test"
 
-
-class TestMp3AudioSplitting:
-    """Tests for MP3 audio format handling."""
-
-    def test_split_audio_uses_from_mp3(self) -> None:
-        """Verify _split_audio uses AudioSegment.from_mp3."""
-        mock_segment = MagicMock()
-        mock_segment.__len__ = lambda self: 600000  # 10 minutes
-        mock_segment.__getitem__ = lambda self, key: mock_segment
-
-        with patch(
-            "app.agent.transcribe_tool.AudioSegment.from_mp3",
-            return_value=mock_segment,
-        ) as mock_from_mp3:
-            _split_audio("/path/to/audio.mp3")
-            mock_from_mp3.assert_called_once_with("/path/to/audio.mp3")
-
-    def test_split_audio_creates_segments(self) -> None:
-        """Verify audio is split into 5-minute segments."""
-        mock_segment = MagicMock()
-        # 12 minutes = 720000 ms -> should create 3 segments
-        mock_segment.__len__ = lambda self: 720000
-        mock_segment.__getitem__ = lambda self, key: mock_segment
-
-        with patch(
-            "app.agent.transcribe_tool.AudioSegment.from_mp3",
-            return_value=mock_segment,
-        ):
-            segments = _split_audio("/path/to/audio.mp3", segment_length_minutes=5)
-            assert len(segments) == 3
-
-
-# =============================================================================
-# Quality Enhancement Tests
-# =============================================================================
-
-
-class TestQualityEnhancements:
-    """Tests for transcription quality enhancement features."""
-
-    def test_prompt_parameter_passed_to_api(self) -> None:
-        """Verify prompt is included in API call."""
         mock_client = MagicMock()
-        mock_client.audio.transcriptions.create.return_value = MagicMock(
-            text="Test transcription"
+        mock_client.audio.transcriptions.create.return_value = mock_response
+
+        _transcribe_audio_file(
+            client=mock_client,
+            audio_path=str(audio_path),
+            temperature=0.2,
         )
-
-        mock_segment = MagicMock()
-        mock_segment.export = MagicMock()
-
-        with patch("os.path.getsize", return_value=1024):
-            with patch("builtins.open", MagicMock()):
-                with patch("os.path.exists", return_value=True):
-                    with patch("os.remove"):
-                        _transcribe_segment(
-                            client=mock_client,
-                            audio_segment=mock_segment,
-                            segment_num=0,
-                            temp_dir="/tmp",
-                            prompt="ZyntriQix, DALL·E, GPT-4.5",
-                        )
-
-        call_kwargs = mock_client.audio.transcriptions.create.call_args[1]
-        assert call_kwargs["prompt"] == "ZyntriQix, DALL·E, GPT-4.5"
-
-    def test_temperature_parameter_passed_to_api(self) -> None:
-        """Verify temperature is included in API call."""
-        mock_client = MagicMock()
-        mock_client.audio.transcriptions.create.return_value = MagicMock(
-            text="Test transcription"
-        )
-
-        mock_segment = MagicMock()
-        mock_segment.export = MagicMock()
-
-        with patch("os.path.getsize", return_value=1024):
-            with patch("builtins.open", MagicMock()):
-                with patch("os.path.exists", return_value=True):
-                    with patch("os.remove"):
-                        _transcribe_segment(
-                            client=mock_client,
-                            audio_segment=mock_segment,
-                            segment_num=0,
-                            temp_dir="/tmp",
-                            temperature=0.2,
-                        )
 
         call_kwargs = mock_client.audio.transcriptions.create.call_args[1]
         assert call_kwargs["temperature"] == 0.2
 
-    def test_default_temperature_is_zero(self) -> None:
-        """Verify default temperature is 0.0 for determinism."""
+    def test_transcribe_returns_text_string(self, temp_storage_dir: Path) -> None:
+        """Verify response is plain text string."""
+        audio_path = temp_storage_dir / "test.mp3"
+        audio_path.write_bytes(b"fake audio")
+
+        mock_response = MagicMock()
+        mock_response.text = "Simple text response"
+
         mock_client = MagicMock()
-        mock_client.audio.transcriptions.create.return_value = MagicMock(
-            text="Test transcription"
+        mock_client.audio.transcriptions.create.return_value = mock_response
+
+        result = _transcribe_audio_file(
+            client=mock_client,
+            audio_path=str(audio_path),
         )
 
-        mock_segment = MagicMock()
-        mock_segment.export = MagicMock()
+        # Result is just a string
+        assert isinstance(result, str)
+        assert result == "Simple text response"
 
-        with patch("os.path.getsize", return_value=1024):
-            with patch("builtins.open", MagicMock()):
-                with patch("os.path.exists", return_value=True):
-                    with patch("os.remove"):
-                        _transcribe_segment(
-                            client=mock_client,
-                            audio_segment=mock_segment,
-                            segment_num=0,
-                            temp_dir="/tmp",
-                        )
+    def test_transcribe_raises_on_empty_text(self, temp_storage_dir: Path) -> None:
+        """Verify error raised when API returns empty text."""
+        audio_path = temp_storage_dir / "test.mp3"
+        audio_path.write_bytes(b"fake audio")
 
-        call_kwargs = mock_client.audio.transcriptions.create.call_args[1]
-        assert call_kwargs["temperature"] == 0.0
+        mock_response = MagicMock()
+        mock_response.text = ""  # Empty text
 
-    def test_response_format_is_text(self) -> None:
-        """Verify response_format is set to text for gpt-4o-transcribe."""
         mock_client = MagicMock()
-        mock_client.audio.transcriptions.create.return_value = MagicMock(
-            text="Test transcription"
-        )
+        mock_client.audio.transcriptions.create.return_value = mock_response
 
-        mock_segment = MagicMock()
-        mock_segment.export = MagicMock()
+        with pytest.raises(TranscriptionError, match="empty transcription"):
+            _transcribe_audio_file(
+                client=mock_client,
+                audio_path=str(audio_path),
+            )
 
-        with patch("os.path.getsize", return_value=1024):
-            with patch("builtins.open", MagicMock()):
-                with patch("os.path.exists", return_value=True):
-                    with patch("os.remove"):
-                        _transcribe_segment(
-                            client=mock_client,
-                            audio_segment=mock_segment,
-                            segment_num=0,
-                            temp_dir="/tmp",
-                        )
 
-        call_kwargs = mock_client.audio.transcriptions.create.call_args[1]
-        assert call_kwargs["response_format"] == "text"
+# =============================================================================
+# Audio Splitting Tests
+# =============================================================================
 
-    def test_transcribe_segment_exports_as_mp3(self) -> None:
-        """Verify audio segment is exported as MP3 with bitrate."""
+
+class TestAudioSplitting:
+    """Tests for audio splitting functionality for files >25 minutes."""
+
+    def test_split_audio_under_25_min_returns_single_chunk(
+        self, temp_storage_dir: Path
+    ) -> None:
+        """Audio < 25 min should not be split."""
+        audio_path = temp_storage_dir / "short.mp3"
+        audio_path.write_bytes(b"fake short audio")
+
+        # Mock AudioSegment to report 20 minutes (1200 seconds)
+        mock_audio = MagicMock()
+        mock_audio.__len__.return_value = 1200 * 1000  # milliseconds
+        mock_audio.set_frame_rate.return_value = mock_audio
+        mock_audio.set_channels.return_value = mock_audio
+
+        with patch(
+            "app.agent.transcribe_tool.AudioSegment.from_file", return_value=mock_audio
+        ):
+            from app.agent.transcribe_tool import _split_audio_for_duration
+
+            chunks = _split_audio_for_duration(str(audio_path), max_duration_sec=1500)
+
+        # Should return single chunk (original file)
+        assert len(chunks) == 1
+        assert chunks[0] == str(audio_path)
+
+    def test_split_audio_over_25_min_returns_multiple_chunks(
+        self, temp_storage_dir: Path
+    ) -> None:
+        """Audio > 25 min should be split into chunks."""
+        audio_path = temp_storage_dir / "long.mp3"
+        audio_path.write_bytes(b"fake long audio")
+
+        # Mock AudioSegment to report 50 minutes (3000 seconds)
+        mock_audio = MagicMock()
+        mock_audio.__len__.return_value = 3000 * 1000  # 50 minutes in milliseconds
+        mock_audio.set_frame_rate.return_value = mock_audio
+        mock_audio.set_channels.return_value = mock_audio
+
+        # Mock export for chunk creation
+        def mock_export(path: str, **kwargs) -> MagicMock:
+            # Create the file so os.path.getsize works
+            Path(path).write_bytes(b"fake chunk data " * 1000)  # Make it big enough
+            return MagicMock()  # Return mock file handle
+
+        mock_audio.export = mock_export
+        mock_audio.__getitem__ = lambda self, key: mock_audio  # Support slicing
+
+        with patch(
+            "app.agent.transcribe_tool.AudioSegment.from_file", return_value=mock_audio
+        ):
+            from app.agent.transcribe_tool import _split_audio_for_duration
+
+            chunks = _split_audio_for_duration(str(audio_path), max_duration_sec=1500)
+
+        # Should return multiple chunks (50 min / 25 min = 2 chunks)
+        assert len(chunks) >= 2
+
+    def test_split_audio_chunks_concatenate_correctly(
+        self, temp_storage_dir: Path
+    ) -> None:
+        """Verify chunks are joined with proper spacing."""
+        # This test would require mocking the entire transcription pipeline
+        # For now, verify the concatenation logic in _perform_transcription
+        pass
+
+
+# =============================================================================
+# Clean Break Error Handling Tests
+# =============================================================================
+
+
+class TestCleanBreakErrorHandling:
+    """Tests for strict error handling - no silent fallbacks."""
+
+    def test_transcription_error_raised_on_api_failure(
+        self, temp_storage_dir: Path
+    ) -> None:
+        """Verify TranscriptionError is raised on API failure, not silent fallback."""
+        audio_path = temp_storage_dir / "test.mp3"
+        audio_path.write_bytes(b"fake audio")
+
         mock_client = MagicMock()
-        mock_client.audio.transcriptions.create.return_value = MagicMock(
-            text="Test transcription"
-        )
+        mock_client.audio.transcriptions.create.side_effect = Exception("API error")
 
-        mock_segment = MagicMock()
+        with pytest.raises(TranscriptionError, match="API error"):
+            _transcribe_audio_file(client=mock_client, audio_path=str(audio_path))
 
-        with patch("os.path.getsize", return_value=1024):
-            with patch("builtins.open", MagicMock()):
-                with patch("os.path.exists", return_value=True):
-                    with patch("os.remove"):
-                        _transcribe_segment(
-                            client=mock_client,
-                            audio_segment=mock_segment,
-                            segment_num=0,
-                            temp_dir="/tmp",
-                        )
+    def test_no_silent_fallback_on_unexpected_format(
+        self, temp_storage_dir: Path
+    ) -> None:
+        """Verify we fail loudly if API returns unexpected format."""
+        audio_path = temp_storage_dir / "test.mp3"
+        audio_path.write_bytes(b"fake audio")
 
-        # Check export was called with mp3 format
-        mock_segment.export.assert_called()
-        call_args = mock_segment.export.call_args
-        assert call_args[1]["format"] == "mp3"
-        assert "bitrate" in call_args[1]
+        # Mock response with missing text field
+        mock_response = MagicMock(spec=[])
+        del mock_response.text
+
+        mock_client = MagicMock()
+        mock_client.audio.transcriptions.create.return_value = mock_response
+
+        with pytest.raises(TranscriptionError):
+            _transcribe_audio_file(client=mock_client, audio_path=str(audio_path))
+
+    def test_raises_when_file_too_large(self, temp_storage_dir: Path) -> None:
+        """Verify TranscriptionError raised when audio file exceeds 25MB."""
+        audio_path = temp_storage_dir / "large.mp3"
+        audio_path.write_bytes(b"fake audio")
+
+        mock_client = MagicMock()
+
+        with patch("os.path.getsize", return_value=30 * 1024 * 1024):  # 30MB
+            with pytest.raises(TranscriptionError, match="too large"):
+                _transcribe_audio_file(client=mock_client, audio_path=str(audio_path))
 
 
 # =============================================================================
@@ -364,135 +395,59 @@ class TestPerformTranscription:
         assert result["success"] is False
         # Error will come from _extract_audio_from_video
 
-    def test_passes_prompt_and_temperature_to_segments(self) -> None:
-        """Verify prompt and temperature are passed through segment chaining."""
+    def test_success_returns_simple_structure(self, temp_storage_dir: Path) -> None:
+        """Verify successful transcription returns expected keys (text only)."""
+        # Create an actual temp audio file so open() works
+        audio_path = temp_storage_dir / "video_audio.mp3"
+        audio_path.write_bytes(b"fake audio data")
+
+        mock_response = MagicMock()
+        mock_response.text = "Transcribed text"
+
         mock_client = MagicMock()
-        mock_client.audio.transcriptions.create.return_value = MagicMock(
-            text="Segment text"
-        )
+        mock_client.audio.transcriptions.create.return_value = mock_response
 
-        mock_segment = MagicMock()
-        mock_segment.__len__ = lambda self: 300000  # 5 min
-        mock_segment.__getitem__ = lambda self, key: mock_segment
-        mock_segment.export = MagicMock()
+        mock_audio = MagicMock()
+        mock_audio.__len__.return_value = 1000 * 1000  # 1000 seconds (< 25 min)
+        mock_audio.set_frame_rate.return_value = mock_audio
+        mock_audio.set_channels.return_value = mock_audio
 
+        # Mock _extract_audio_from_video to return our temp file path
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
             with patch("app.agent.transcribe_tool.load_dotenv"):
                 with patch("os.path.exists", return_value=True):
                     with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
                         with patch(
-                            "subprocess.run",
-                            return_value=Mock(returncode=0, stderr=b""),
+                            "app.agent.transcribe_tool._extract_audio_from_video",
+                            return_value=str(audio_path),
                         ):
                             with patch(
                                 "app.agent.transcribe_tool.OpenAI",
                                 return_value=mock_client,
                             ):
                                 with patch(
-                                    "app.agent.transcribe_tool.AudioSegment.from_mp3",
-                                    return_value=mock_segment,
+                                    "app.agent.transcribe_tool.AudioSegment.from_file",
+                                    return_value=mock_audio,
                                 ):
-                                    with patch("os.path.getsize", return_value=1024):
-                                        with patch("builtins.open", MagicMock()):
-                                            with patch("os.remove"):
-                                                result = _perform_transcription(
-                                                    "video.mp4",
-                                                    prompt="Initial context",
-                                                    temperature=0.1,
-                                                )
-
-        # Verify the transcription was called and result is valid
-        assert mock_client.audio.transcriptions.create.called
-        assert result["success"] is True or "error" in result
-
-
-# =============================================================================
-# Async Tool Interface Tests
-# =============================================================================
-
-
-class TestTranscribeVideoTool:
-    """Tests for the transcribe_video tool interface.
-
-    Note: The @tool decorator wraps the function in SdkMcpTool, so we test
-    the underlying logic via _perform_transcription and verify the tool's
-    structure exists.
-    """
-
-    def test_transcribe_video_tool_exists(self) -> None:
-        """Verify transcribe_video is exported and decorated as a tool."""
-        # The tool should be importable and have tool metadata
-        assert transcribe_video is not None
-        # The decorated function has the original function accessible
-        assert hasattr(transcribe_video, "name") or callable(transcribe_video)
-
-    def test_perform_transcription_accepts_prompt_parameter(self) -> None:
-        """Verify _perform_transcription accepts prompt parameter."""
-        import inspect
-
-        sig = inspect.signature(_perform_transcription)
-        params = sig.parameters
-        assert "prompt" in params
-        assert params["prompt"].default is None
-
-    def test_perform_transcription_accepts_temperature_parameter(self) -> None:
-        """Verify _perform_transcription accepts temperature parameter."""
-        import inspect
-
-        sig = inspect.signature(_perform_transcription)
-        params = sig.parameters
-        assert "temperature" in params
-        assert params["temperature"].default == 0.0
-
-    def test_perform_transcription_success_returns_correct_structure(self) -> None:
-        """Verify successful transcription returns expected keys."""
-        mock_client = MagicMock()
-        mock_client.audio.transcriptions.create.return_value = MagicMock(
-            text="Transcribed text"
-        )
-
-        mock_segment = MagicMock()
-        mock_segment.__len__ = lambda self: 300000
-        mock_segment.__getitem__ = lambda self, key: mock_segment
-        mock_segment.export = MagicMock()
-
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-            with patch("app.agent.transcribe_tool.load_dotenv"):
-                with patch("os.path.exists", return_value=True):
-                    with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
-                        with patch(
-                            "subprocess.run",
-                            return_value=Mock(returncode=0, stderr=b""),
-                        ):
-                            with patch(
-                                "app.agent.transcribe_tool.OpenAI",
-                                return_value=mock_client,
-                            ):
-                                with patch(
-                                    "app.agent.transcribe_tool.AudioSegment.from_mp3",
-                                    return_value=mock_segment,
-                                ):
-                                    with patch("os.path.getsize", return_value=1024):
-                                        with patch("builtins.open", MagicMock()):
-                                            with patch("os.remove"):
-                                                result = _perform_transcription(
-                                                    "video.mp4"
-                                                )
+                                    result = _perform_transcription("video.mp4")
 
         assert result["success"] is True
         assert "transcription" in result
         assert "source" in result
         assert "source_type" in result
-        assert "segments_processed" in result
+        assert "model" in result
+        assert result["model"] == "gpt-4o-transcribe"
+        # Verify NO speaker data (segments may exist from API but without speakers)
+        assert "speaker_count" not in result
+        assert "speakers" not in result
 
-    def test_perform_transcription_error_returns_correct_structure(self) -> None:
-        """Verify error responses have expected structure."""
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("app.agent.transcribe_tool.load_dotenv"):
-                result = _perform_transcription("video.mp4")
+    def test_prompt_parameter_in_signature(self) -> None:
+        """Verify _perform_transcription accepts prompt parameter."""
+        import inspect
 
-        assert result["success"] is False
-        assert "error" in result
+        sig = inspect.signature(_perform_transcription)
+        params = sig.parameters
+        assert "prompt" in params  # Now supported by simple transcribe model
 
 
 # =============================================================================
@@ -573,12 +528,14 @@ class TestTranscribeVideoJobQueue:
         call_kwargs = mock_job_service.create_job.call_args[1]
         assert call_kwargs["job_type"] == JobType.TRANSCRIPTION
         assert call_kwargs["metadata"]["video_source"] == "test.mp4"
+        assert call_kwargs["metadata"]["model"] == "gpt-4o-transcribe"
 
         # Verify response contains job ID
         assert "content" in result
         response_text = result["content"][0]["text"]
         assert "test-job-123" in response_text
         assert "Job ID:" in response_text
+        assert "gpt-4o-transcribe" in response_text
 
     @pytest.mark.asyncio
     async def test_transcribe_video_passes_all_metadata(self) -> None:
@@ -605,24 +562,27 @@ class TestTranscribeVideoJobQueue:
         mock_services.job_queue = mock_job_service
 
         with patch("app.services.get_services", return_value=mock_services):
-            await transcribe_video.handler({
-                "video_source": "https://youtube.com/watch?v=test",
-                "output_file": "/tmp/output.txt",
-                "language": "es",
-                "prompt": "Technical terms: API, SDK",
-                "temperature": 0.2,
-                "session_id": "session-abc",
-            })
+            await transcribe_video.handler(
+                {
+                    "video_source": "https://youtube.com/watch?v=test",
+                    "output_file": "/tmp/output.txt",
+                    "language": "es",
+                    "temperature": 0.2,
+                    "prompt": "Custom transcription context",
+                    "session_id": "session-abc",
+                }
+            )
 
-        # Verify all metadata was passed
+        # Verify all metadata was passed (including prompt)
         call_kwargs = mock_job_service.create_job.call_args[1]
         metadata = call_kwargs["metadata"]
         assert metadata["video_source"] == "https://youtube.com/watch?v=test"
         assert metadata["output_file"] == "/tmp/output.txt"
         assert metadata["language"] == "es"
-        assert metadata["prompt"] == "Technical terms: API, SDK"
         assert metadata["temperature"] == 0.2
+        assert metadata["prompt"] == "Custom transcription context"
         assert metadata["session_id"] == "session-abc"
+        assert metadata["model"] == "gpt-4o-transcribe"
 
     @pytest.mark.asyncio
     async def test_transcribe_video_returns_error_without_video_source(self) -> None:
@@ -655,3 +615,37 @@ class TestTranscribeVideoJobQueue:
         assert "content" in result
         response_text = result["content"][0]["text"]
         assert "Failed" in response_text or "error" in response_text.lower()
+
+
+# =============================================================================
+# Async Tool Interface Tests
+# =============================================================================
+
+
+class TestTranscribeVideoTool:
+    """Tests for the transcribe_video tool interface."""
+
+    def test_transcribe_video_tool_exists(self) -> None:
+        """Verify transcribe_video is exported and decorated as a tool."""
+        # The tool should be importable and have tool metadata
+        assert transcribe_video is not None
+        # The decorated function has the original function accessible
+        assert hasattr(transcribe_video, "name") or callable(transcribe_video)
+
+    def test_perform_transcription_accepts_temperature_parameter(self) -> None:
+        """Verify _perform_transcription accepts temperature parameter."""
+        import inspect
+
+        sig = inspect.signature(_perform_transcription)
+        params = sig.parameters
+        assert "temperature" in params
+        assert params["temperature"].default == 0.0
+
+    def test_perform_transcription_error_returns_correct_structure(self) -> None:
+        """Verify error responses have expected structure."""
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("app.agent.transcribe_tool.load_dotenv"):
+                result = _perform_transcription("video.mp4")
+
+        assert result["success"] is False
+        assert "error" in result

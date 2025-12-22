@@ -122,7 +122,7 @@ class KnowledgeBase:
         for alias in node.aliases:
             self._alias_to_id[alias.lower()] = node.id
 
-        # Add to NetworkX graph with node data
+        # Add to NetworkX graph with node data (including segment_ids)
         self._graph.add_node(node.id, **node.model_dump())
         self.updated_at = _utc_now()
 

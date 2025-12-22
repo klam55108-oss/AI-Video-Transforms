@@ -147,23 +147,138 @@ class TestJobQueueService:
         job = await job_service.create_job(JobType.TRANSCRIPTION)
 
         # Cancel the job
-        success = await job_service.cancel_job(job.id)
-        assert success is True
+        cancelled_job = await job_service.cancel_job(job.id)
+        assert cancelled_job is not None
 
-        # Verify job is marked as failed
+        # Verify job is marked as cancelled
         cancelled = await job_service.get_job(job.id)
         assert cancelled is not None
-        assert cancelled.status == JobStatus.FAILED
+        assert cancelled.status == JobStatus.CANCELLED
         assert cancelled.error == "Cancelled by user"
         assert cancelled.completed_at is not None
+        assert cancelled.cancelled_at is not None
+        assert cancelled.cancelled_by == "user"
 
-        # Try cancelling again (should fail)
-        success = await job_service.cancel_job(job.id)
-        assert success is False
+        # Try cancelling again (should return None)
+        result = await job_service.cancel_job(job.id)
+        assert result is None
 
         # Try cancelling non-existent job
-        success = await job_service.cancel_job("non-existent")
-        assert success is False
+        result = await job_service.cancel_job("non-existent")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_cancel_running_job(self, job_service: JobQueueService) -> None:
+        """Test cancelling a running job."""
+        job = await job_service.create_job(JobType.TRANSCRIPTION)
+
+        # Mark as running
+        async with job_service._jobs_lock:
+            if job.id in job_service._jobs:
+                job_service._jobs[job.id].status = JobStatus.RUNNING
+
+        # Cancel the running job
+        cancelled_job = await job_service.cancel_job(job.id)
+        assert cancelled_job is not None
+        assert cancelled_job.status == JobStatus.CANCELLED
+
+    @pytest.mark.asyncio
+    async def test_cancel_completed_job_returns_none(
+        self, job_service: JobQueueService
+    ) -> None:
+        """Test that completed jobs cannot be cancelled."""
+        job = await job_service.create_job(JobType.TRANSCRIPTION)
+
+        # Mark as completed
+        async with job_service._jobs_lock:
+            if job.id in job_service._jobs:
+                job_service._jobs[job.id].status = JobStatus.COMPLETED
+
+        # Try to cancel
+        result = await job_service.cancel_job(job.id)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_retry_failed_job(self, job_service: JobQueueService) -> None:
+        """Test retrying a failed job."""
+        # Create a job
+        job = await job_service.create_job(
+            JobType.TRANSCRIPTION,
+            metadata={"video_source": "/tmp/test.mp4"},
+        )
+
+        # Mark as failed
+        async with job_service._jobs_lock:
+            if job.id in job_service._jobs:
+                job_service._jobs[job.id].status = JobStatus.FAILED
+                job_service._jobs[job.id].error = "Test failure"
+
+        # Retry the job
+        new_job = await job_service.retry_job(job.id)
+        assert new_job is not None
+        assert new_job.id != job.id
+        assert new_job.retry_count == 1
+        assert new_job.status == JobStatus.PENDING
+        assert new_job.metadata["original_job_id"] == job.id
+        assert new_job.metadata["retry_attempt"] == 1
+        assert new_job.metadata["video_source"] == "/tmp/test.mp4"
+
+        # Verify it's queued
+        assert job_service.get_queue_size() > 0
+
+    @pytest.mark.asyncio
+    async def test_retry_cancelled_job(self, job_service: JobQueueService) -> None:
+        """Test retrying a cancelled job."""
+        job = await job_service.create_job(JobType.EXTRACTION)
+
+        # Cancel it
+        await job_service.cancel_job(job.id)
+
+        # Retry the cancelled job
+        new_job = await job_service.retry_job(job.id)
+        assert new_job is not None
+        assert new_job.retry_count == 1
+        assert new_job.status == JobStatus.PENDING
+
+    @pytest.mark.asyncio
+    async def test_retry_running_job_returns_none(
+        self, job_service: JobQueueService
+    ) -> None:
+        """Test that running jobs cannot be retried."""
+        job = await job_service.create_job(JobType.TRANSCRIPTION)
+
+        # Mark as running
+        async with job_service._jobs_lock:
+            if job.id in job_service._jobs:
+                job_service._jobs[job.id].status = JobStatus.RUNNING
+
+        # Try to retry
+        result = await job_service.retry_job(job.id)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_retry_respects_max_retries(
+        self, job_service: JobQueueService
+    ) -> None:
+        """Test that retry respects max_retries limit."""
+        job = await job_service.create_job(JobType.TRANSCRIPTION)
+
+        # Mark as failed and set retry count to max
+        async with job_service._jobs_lock:
+            if job.id in job_service._jobs:
+                job_service._jobs[job.id].status = JobStatus.FAILED
+                job_service._jobs[job.id].retry_count = 3
+                job_service._jobs[job.id].max_retries = 3
+
+        # Try to retry
+        result = await job_service.retry_job(job.id)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_retry_nonexistent_job(self, job_service: JobQueueService) -> None:
+        """Test retrying a non-existent job returns None."""
+        result = await job_service.retry_job("non-existent")
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_update_progress(self, job_service: JobQueueService) -> None:
@@ -260,7 +375,7 @@ class TestJobQueueService:
 
     @pytest.mark.asyncio
     async def test_shutdown_graceful(self, job_service: JobQueueService) -> None:
-        """Test graceful shutdown marks pending jobs as failed."""
+        """Test graceful shutdown marks pending jobs as cancelled."""
         # Create jobs
         job1 = await job_service.create_job(JobType.TRANSCRIPTION)
         job2 = await job_service.create_job(JobType.BOOTSTRAP)
@@ -268,15 +383,16 @@ class TestJobQueueService:
         # Shutdown without processing
         await job_service.shutdown()
 
-        # Verify pending jobs marked as failed
-        failed1 = await job_service.get_job(job1.id)
-        assert failed1 is not None
-        assert failed1.status == JobStatus.FAILED
-        assert failed1.error == "Server shutdown"
+        # Verify pending jobs marked as cancelled
+        cancelled1 = await job_service.get_job(job1.id)
+        assert cancelled1 is not None
+        assert cancelled1.status == JobStatus.CANCELLED
+        assert cancelled1.error == "Server shutdown"
+        assert cancelled1.cancelled_by == "system"
 
-        failed2 = await job_service.get_job(job2.id)
-        assert failed2 is not None
-        assert failed2.status == JobStatus.FAILED
+        cancelled2 = await job_service.get_job(job2.id)
+        assert cancelled2 is not None
+        assert cancelled2.status == JobStatus.CANCELLED
 
 
 class TestJobQueueAPI:
@@ -368,7 +484,7 @@ class TestJobQueueAPI:
 
     @pytest.mark.asyncio
     async def test_cancel_job_endpoint(self) -> None:
-        """Test DELETE /jobs/{job_id} endpoint."""
+        """Test POST /jobs/{job_id}/cancel endpoint."""
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -379,30 +495,35 @@ class TestJobQueueAPI:
             job = await job_service.create_job(JobType.EXTRACTION)
 
             # Cancel via API
-            response = await client.delete(f"/jobs/{job.id}")
+            response = await client.post(f"/jobs/{job.id}/cancel")
             assert response.status_code == 200
 
             data = response.json()
-            assert data["status"] == "success"
+            assert data["success"] is True
+            assert data["job_id"] == job.id
+            assert "job" in data
+            assert data["job"]["status"] == "cancelled"
 
             # Verify job is cancelled
             cancelled = await job_service.get_job(job.id)
             assert cancelled is not None
-            assert cancelled.status == JobStatus.FAILED
+            assert cancelled.status == JobStatus.CANCELLED
 
     @pytest.mark.asyncio
     async def test_cancel_job_not_found(self) -> None:
-        """Test DELETE /jobs/{job_id} with non-existent job."""
+        """Test POST /jobs/{job_id}/cancel with non-existent job."""
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
             # Use a valid UUID v4 format that doesn't exist
-            response = await client.delete("/jobs/12345678-1234-4567-89ab-123456789012")
+            response = await client.post(
+                "/jobs/12345678-1234-4567-89ab-123456789012/cancel"
+            )
             assert response.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_cancel_completed_job(self) -> None:
-        """Test that completed jobs cannot be cancelled."""
+    async def test_cancel_completed_job_api(self) -> None:
+        """Test that completed jobs cannot be cancelled via API."""
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -418,8 +539,101 @@ class TestJobQueueAPI:
                     job_service._jobs[job.id].status = JobStatus.COMPLETED
 
             # Try to cancel
-            response = await client.delete(f"/jobs/{job.id}")
+            response = await client.post(f"/jobs/{job.id}/cancel")
             assert response.status_code == 404  # Not found or already completed
+
+    @pytest.mark.asyncio
+    async def test_retry_job_endpoint(self) -> None:
+        """Test POST /jobs/{job_id}/retry endpoint."""
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            # Create a job
+            from app.api.deps import get_job_queue_service
+
+            job_service = get_job_queue_service()
+            job = await job_service.create_job(
+                JobType.TRANSCRIPTION,
+                metadata={"video_source": "/tmp/test.mp4"},
+            )
+
+            # Mark as failed
+            async with job_service._jobs_lock:
+                if job.id in job_service._jobs:
+                    job_service._jobs[job.id].status = JobStatus.FAILED
+
+            # Retry via API
+            response = await client.post(f"/jobs/{job.id}/retry")
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["success"] is True
+            assert data["original_job_id"] == job.id
+            assert "new_job_id" in data
+            assert data["new_job_id"] != job.id
+            assert data["retry_attempt"] == 1
+            assert data["max_retries"] == 3
+            assert "job" in data
+
+            # Verify new job exists
+            new_job = await job_service.get_job(data["new_job_id"])
+            assert new_job is not None
+            assert new_job.retry_count == 1
+
+    @pytest.mark.asyncio
+    async def test_retry_job_not_found(self) -> None:
+        """Test POST /jobs/{job_id}/retry with non-existent job."""
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                "/jobs/12345678-1234-4567-89ab-123456789012/retry"
+            )
+            assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_retry_running_job_api(self) -> None:
+        """Test that running jobs cannot be retried via API."""
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            # Create a job
+            from app.api.deps import get_job_queue_service
+
+            job_service = get_job_queue_service()
+            job = await job_service.create_job(JobType.TRANSCRIPTION)
+
+            # Mark as running
+            async with job_service._jobs_lock:
+                if job.id in job_service._jobs:
+                    job_service._jobs[job.id].status = JobStatus.RUNNING
+
+            # Try to retry
+            response = await client.post(f"/jobs/{job.id}/retry")
+            assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_retry_max_retries_exceeded_api(self) -> None:
+        """Test retry with max retries exceeded via API."""
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            # Create a job
+            from app.api.deps import get_job_queue_service
+
+            job_service = get_job_queue_service()
+            job = await job_service.create_job(JobType.TRANSCRIPTION)
+
+            # Mark as failed with max retries
+            async with job_service._jobs_lock:
+                if job.id in job_service._jobs:
+                    job_service._jobs[job.id].status = JobStatus.FAILED
+                    job_service._jobs[job.id].retry_count = 3
+                    job_service._jobs[job.id].max_retries = 3
+
+            # Try to retry
+            response = await client.post(f"/jobs/{job.id}/retry")
+            assert response.status_code == 400
 
 
 class TestJobQueueServiceIntegration:
@@ -475,9 +689,7 @@ class TestTranscriptionJobIntegration:
     """Integration tests for transcription job processing."""
 
     @pytest.mark.asyncio
-    async def test_transcription_job_with_valid_metadata(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_transcription_job_with_valid_metadata(self, tmp_path: Path) -> None:
         """Test transcription job with proper metadata creates transcript."""
         from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -489,16 +701,18 @@ class TestTranscriptionJobIntegration:
         video_file = tmp_path / "test.mp4"
         video_file.write_bytes(b"fake video data")
 
-        # Mock the transcription components
+        # Mock the transcription components with simple text response
+        # gpt-4o-transcribe returns plain text (no segments or speakers)
         mock_client = MagicMock()
         mock_client.audio.transcriptions.create.return_value = MagicMock(
-            text="Test transcription"
+            text="Test transcription",
         )
 
-        mock_segment = MagicMock()
-        mock_segment.__len__ = lambda self: 300000  # 5 min
-        mock_segment.__getitem__ = lambda self, key: mock_segment
-        mock_segment.export = MagicMock()
+        # Mock pydub AudioSegment (different from OpenAI segment)
+        mock_audio_segment = MagicMock()
+        mock_audio_segment.__len__ = MagicMock(return_value=300000)  # 5 min in ms
+        mock_audio_segment.__getitem__ = MagicMock(return_value=mock_audio_segment)
+        mock_audio_segment.export = MagicMock()
 
         # Mock TranscriptionService.save_transcript (async method)
         mock_transcript_metadata = MagicMock()
@@ -527,8 +741,8 @@ class TestTranscriptionJobIntegration:
                         "app.agent.transcribe_tool.OpenAI", return_value=mock_client
                     ):
                         with patch(
-                            "app.agent.transcribe_tool.AudioSegment.from_mp3",
-                            return_value=mock_segment,
+                            "app.agent.transcribe_tool.AudioSegment.from_file",
+                            return_value=mock_audio_segment,
                         ):
                             with patch("os.path.getsize", return_value=1024):
                                 with patch("builtins.open", MagicMock()):
@@ -575,7 +789,9 @@ class TestTranscriptionJobIntegration:
                                                 )
                                                 assert completed.progress == 100
                                                 assert completed.result is not None
-                                                assert "transcript_id" in completed.result
+                                                assert (
+                                                    "transcript_id" in completed.result
+                                                )
 
         finally:
             # Cleanup
@@ -611,7 +827,10 @@ class TestTranscriptionJobIntegration:
             for _ in range(50):  # Max 5 seconds
                 await asyncio.sleep(0.1)
                 current = await job_service.get_job(job.id)
-                if current and current.status in (JobStatus.COMPLETED, JobStatus.FAILED):
+                if current and current.status in (
+                    JobStatus.COMPLETED,
+                    JobStatus.FAILED,
+                ):
                     break
 
             # Verify job failed with error

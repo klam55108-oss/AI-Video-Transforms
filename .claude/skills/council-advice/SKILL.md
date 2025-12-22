@@ -1,6 +1,6 @@
 ---
 name: council-advice
-description: Multi-model AI council for actionable project advice. Leverages Gemini CLI MCP and GPT-5.2 MCP in parallel, then synthesizes through an Opus Judge for stage-appropriate, non-overkill recommendations. Use when seeking architectural guidance, code review synthesis, or implementation planning.
+description: Multi-model AI council for actionable project advice. Leverages Gemini CLI MCP and GPT-5.2 scripts in parallel, then synthesizes through an Opus Judge for stage-appropriate, non-overkill recommendations. Use when seeking architectural guidance, code review synthesis, or implementation planning.
 ---
 
 # Council Advice
@@ -26,10 +26,10 @@ A multi-model advisory council that provides actionable, stage-appropriate recom
                          │                    │                    │
                          ▼                    ▼                    ▼
                 ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-                │ GEMINI ADVISOR  │  │  CODEX ADVISOR  │  │ CONTEXT LOADER  │
+                │ GEMINI ADVISOR  │  │ GPT-5.2 ADVISOR │  │ CONTEXT LOADER  │
                 │                 │  │                 │  │                 │
-                │ gemini_analyze  │  │ codex_analyzer  │  │ Read project    │
-                │ gemini_query    │  │ codex_query     │  │ files & stage   │
+                │ gemini_analyze  │  │ gpt52_analyze   │  │ Read project    │
+                │ gemini_query    │  │ gpt52_query     │  │ files & stage   │
                 └────────┬────────┘  └────────┬────────┘  └────────┬────────┘
                          │                    │                    │
                          └────────────────────┼────────────────────┘
@@ -76,7 +76,7 @@ When the user asks for council advice on any topic:
 
 ## Phase 1: Council Consultation
 
-Execute these MCP tool calls **in parallel** for maximum efficiency:
+Execute these advisor consultations **in parallel** for maximum efficiency:
 
 ### Gemini Advisor
 Use `mcp__gemini-cli__gemini_analyze` for code/architecture analysis or `mcp__gemini-cli__gemini_query` for general guidance.
@@ -101,19 +101,29 @@ Provide:
 Be thorough but practical. Focus on actionable insights.
 ```
 
-### Codex Advisor
-Use `mcp__codex__codex_analyzer` for deep code analysis or `mcp__codex__codex_query` for high-reasoning guidance.
+### GPT-5.2 Advisor
+Use `gpt52_analyze.py` for deep code analysis or `gpt52_query.py` for high-reasoning guidance.
 
-**Prompt template for Codex:**
+**For code analysis:**
+```bash
+python .claude/skills/querying-gpt52/scripts/gpt52_analyze.py \
+  --target "$TARGET_PATH" \
+  --focus-areas "architecture,quality,security,performance" \
+  --analysis-type comprehensive \
+  --output-format json
 ```
-You are the Codex Advisor on a multi-model council. Provide high-reasoning analysis for the following request.
 
-REQUEST: {user_request}
+**For high-reasoning queries:**
+```bash
+python .claude/skills/querying-gpt52/scripts/gpt52_query.py \
+  --prompt "You are the GPT-5.2 Advisor on a multi-model council. Provide high-reasoning analysis for the following request.
+
+REQUEST: $USER_REQUEST
 
 CONTEXT:
-- Project Stage: {stage}
-- Project Purpose: {purpose}
-- Technical Stack: {tech_stack}
+- Project Stage: $STAGE
+- Project Purpose: $PURPOSE
+- Technical Stack: $TECH_STACK
 
 Analyze with focus on:
 1. Root-cause understanding of the problem
@@ -122,7 +132,9 @@ Analyze with focus on:
 4. Security and performance considerations
 5. Testing and maintainability impact
 
-Provide depth and rigor in your analysis.
+Provide depth and rigor in your analysis." \
+  --reasoning-effort high \
+  --output-format json
 ```
 
 ### Context Loader
@@ -138,11 +150,13 @@ After receiving council responses, execute the Opus Judge script:
 ```bash
 python .claude/skills/council-advice/scripts/opus_judge.py \
   --gemini-response "$GEMINI_RESPONSE" \
-  --codex-response "$CODEX_RESPONSE" \
+  --gpt52-response "$GPT52_RESPONSE" \
   --project-stage "$PROJECT_STAGE" \
   --project-purpose "$PROJECT_PURPOSE" \
   --request "$ORIGINAL_REQUEST"
 ```
+
+**Note**: GPT-5.2 advisor scripts must use `--output-format json` so the Opus Judge can properly parse the responses.
 
 The Opus Judge:
 1. **Receives** multi-model reviews
@@ -184,7 +198,7 @@ The final output follows this structure for seamless conversion to implementatio
 ### Embraced (Implement These)
 
 #### 1. [Recommendation Title]
-- **Source**: Gemini/Codex/Both
+- **Source**: Gemini/GPT-5.2/Both
 - **Priority**: P0/P1/P2
 - **Rationale**: Why this was embraced
 - **Implementation Steps**:
@@ -196,14 +210,14 @@ The final output follows this structure for seamless conversion to implementatio
 ### Deferred (Not Now, Maybe Later)
 
 #### 1. [Recommendation Title]
-- **Source**: Gemini/Codex/Both
+- **Source**: Gemini/GPT-5.2/Both
 - **Reason for Deferral**: [Stage mismatch/Overkill/etc.]
 - **Revisit When**: [Condition for reconsidering]
 
 ### Rejected (Do Not Implement)
 
 #### 1. [Recommendation Title]
-- **Source**: Gemini/Codex/Both
+- **Source**: Gemini/GPT-5.2/Both
 - **Rejection Reason**: [Over-engineered/Out of scope/etc.]
 
 ## Implementation Plan
@@ -227,11 +241,7 @@ The final output follows this structure for seamless conversion to implementatio
 ## Best Practices
 
 ### Parallel Execution
-Always call Gemini and Codex tools **in parallel** when possible:
-```
-If you intend to call multiple tools and there are no dependencies between
-the tool calls, make all of the independent tool calls in parallel.
-```
+Always execute Gemini MCP tools and GPT-5.2 scripts **in parallel** for maximum efficiency. Use Bash tool with `run_in_background: true` for the scripts, and call Gemini MCP tools in the same message.
 
 ### Stage-Appropriate Advice
 
@@ -260,10 +270,20 @@ the tool calls, make all of the independent tool calls in parallel.
 
 ## Troubleshooting
 
-### MCP Tools Not Available
-Ensure both MCP servers are configured in `.mcp.json`:
+### Scripts Not Found
+Ensure the querying-gpt52 skill is installed:
+```bash
+ls -la .claude/skills/querying-gpt52/scripts/
+```
+
+Expected files:
+- `gpt52_query.py`
+- `gpt52_analyze.py`
+- `gpt52_fix.py`
+
+### Gemini MCP Not Available
+Ensure the Gemini CLI MCP server is configured in `.mcp.json`:
 - `gemini-cli`: Gemini CLI wrapper
-- `codex`: GPT-5.2 wrapper
 
 ### Opus Judge Script Fails
 Check:
@@ -271,8 +291,14 @@ Check:
 2. Required packages installed (`anthropic>=0.50.0`)
 3. Script has execute permissions
 
+### GPT-5.2 Scripts Fail
+Check:
+1. `OPENAI_API_KEY` is set
+2. Scripts have execute permissions: `chmod +x .claude/skills/querying-gpt52/scripts/*.py`
+3. Python environment has required dependencies
+
 ### Slow Response
-- Council consultation runs in parallel (~30-60s)
+- Council consultation runs in parallel (~30-60s for GPT-5.2, ~10-30s for Gemini)
 - Opus Judge adds ~30-60s
 - Total expected time: 1-2 minutes for comprehensive advice
 
@@ -280,4 +306,4 @@ Check:
 
 - [RUBRICS.md](RUBRICS.md) - Detailed evaluation rubrics for the Opus Judge
 - [Gemini MCP README](../../../mcp_servers/gemini/README.md)
-- [Codex MCP README](../../../mcp_servers/codex/CODEX.md)
+- [Querying GPT-5.2 Skill](../querying-gpt52/SKILL.md) - GPT-5.2 script documentation

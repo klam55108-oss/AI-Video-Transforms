@@ -6,7 +6,7 @@ paths: app/static/**/*.*, app/templates/**/*.*
 
 ## Stack
 
-- **ES Modules** — 26 modules in `app/static/js/`
+- **ES Modules** — 31 modules in `app/static/js/`
 - **Tailwind CSS** via CDN (no build step)
 - **Jinja2** templates in `app/templates/`
 - **CDN Libraries**: Marked.js, DOMPurify, Cytoscape.js
@@ -19,10 +19,11 @@ app/static/js/
 ├── core/             # state.js, config.js, utils.js
 ├── ui/               # theme.js, toast.js, sidebar.js, header.js, mobile.js
 ├── chat/             # messages.js, send.js, session.js, status.js
-├── panels/           # history.js, transcripts.js
-├── jobs/             # jobs.js
+├── panels/           # history.js, transcripts.js, transcript-search.js, transcript-viewer.js
+├── jobs/             # jobs.js, step-progress.js
 ├── upload/           # upload.js
-└── kg/               # 9 modules (api, panel, graph, search, inspector, etc.)
+├── ui/               # workspace.js (3-panel resizable layout)
+└── kg/               # 10 modules (api, panel, graph, search, inspector, evidence, etc.)
 ```
 
 See @FRONTEND.md for complete module documentation.

@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     # Job queue configuration
     job_max_concurrent: int = 2
     job_poll_interval_ms: int = 1000
+    job_persist_interval_percent: int = 10  # Persist every N% progress
+    job_retention_hours: int = 168  # 7 days
 
     # Export configuration
     export_ttl_hours: int = 24  # Auto-cleanup exports older than this

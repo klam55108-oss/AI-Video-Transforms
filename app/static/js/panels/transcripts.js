@@ -4,6 +4,7 @@
 
 import { escapeHtml, formatRelativeTime, formatFileSize } from '../core/utils.js';
 import { showToast } from '../ui/toast.js';
+import { updateTranscriptsCache } from './transcript-search.js';
 
 export async function loadTranscripts() {
     const transcriptsList = document.getElementById('transcripts-list');
@@ -26,6 +27,10 @@ export async function loadTranscripts() {
         const response = await fetch('/transcripts');
         if (!response.ok) throw new Error('Failed to load transcripts');
         const data = await response.json();
+
+        // Update search cache
+        updateTranscriptsCache(data.transcripts);
+
         renderTranscriptsList(data.transcripts);
     } catch (e) {
         console.error('Transcripts load failed:', e);
@@ -66,18 +71,18 @@ export function renderTranscriptsList(transcripts) {
 }
 
 export function toggleTranscriptsPanel() {
-    const transcriptsList = document.getElementById('transcripts-list');
+    const transcriptsContent = document.getElementById('transcripts-content');
     const transcriptsCaret = document.getElementById('transcripts-caret');
 
-    if (!transcriptsList || !transcriptsCaret) return;
+    if (!transcriptsContent || !transcriptsCaret) return;
 
-    const isOpen = transcriptsList.classList.contains('open');
+    const isOpen = transcriptsContent.classList.contains('open');
 
     if (isOpen) {
-        transcriptsList.classList.remove('open');
+        transcriptsContent.classList.remove('open');
         transcriptsCaret.classList.remove('open');
     } else {
-        transcriptsList.classList.add('open');
+        transcriptsContent.classList.add('open');
         transcriptsCaret.classList.add('open');
         loadTranscripts();
     }

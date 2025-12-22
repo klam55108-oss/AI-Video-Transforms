@@ -113,6 +113,13 @@ class ClaudeAgentOptions:
     sandbox: SandboxSettings | None = None
     """Sandbox configuration for command execution."""
 
+    # ─── File Checkpointing ──────────────────────────────────
+    enable_file_checkpointing: bool = False
+    """Enable automatic file versioning for rollback support.
+    When True, all file changes can be reverted with rewind_files().
+    See: 05_FILE_CHECKPOINTING.md for detailed usage.
+    """
+
     # ─── Advanced ─────────────────────────────────────────────
     extra_args: dict[str, str | None] = {}
     """Additional CLI arguments (advanced use)."""
@@ -892,6 +899,8 @@ ClaudeAgentOptions(
 ```
 
 ---
+
+*See also: [05_FILE_CHECKPOINTING.md](./05_FILE_CHECKPOINTING.md) for file versioning and rollback*
 
 *Documentation based on Claude Agent SDK v0.1.0+ (Docs v0.5.0, December 2025)*
 *Official Docs: https://docs.anthropic.com/en/docs/agent-sdk/overview*

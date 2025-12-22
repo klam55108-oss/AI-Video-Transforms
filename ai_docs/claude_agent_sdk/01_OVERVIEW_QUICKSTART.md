@@ -83,6 +83,7 @@ The Claude Agent SDK provides **Claude Code as a library** - the same tools, age
 - **Sessions**: Maintain context across multiple exchanges, resume later
 - **Skills**: Filesystem-based specialized capabilities
 - **Plugins**: Extend with custom commands, agents, and MCP servers
+- **File Checkpointing**: Track and revert file changes (see [05_FILE_CHECKPOINTING.md](./05_FILE_CHECKPOINTING.md))
 
 ### Permission Modes (New in v0.1.0)
 
@@ -350,6 +351,9 @@ ClaudeAgentOptions(...)
 - **MCP Integration**: https://docs.anthropic.com/en/docs/agent-sdk/mcp
 - **Sessions**: https://docs.anthropic.com/en/docs/agent-sdk/sessions
 - **Permissions**: https://docs.anthropic.com/en/docs/agent-sdk/permissions
+- **Hooks**: https://docs.anthropic.com/en/docs/agent-sdk/hooks
+- **Subagents**: https://docs.anthropic.com/en/docs/agent-sdk/subagents
+- **File Checkpointing**: https://docs.anthropic.com/en/docs/agent-sdk/file-checkpointing
 - **Hosting**: https://docs.anthropic.com/en/docs/agent-sdk/hosting
 - **Secure Deployment**: https://docs.anthropic.com/en/docs/agent-sdk/secure-deployment
 - **Cost Tracking**: https://docs.anthropic.com/en/docs/agent-sdk/cost-tracking

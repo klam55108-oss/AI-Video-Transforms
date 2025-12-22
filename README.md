@@ -3,7 +3,7 @@
 > Transform videos into searchable transcripts and knowledge graphs through an intelligent AI chat interface.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-612%20passing-brightgreen.svg)](#development)
+[![Tests](https://img.shields.io/badge/tests-737%20passing-brightgreen.svg)](#development)
 [![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#development)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -40,12 +40,12 @@ docker-compose up -d
 
 | Feature | Description |
 |---------|-------------|
-| **Video Transcription** | Local videos and YouTube URLs via gpt-4o-transcribe |
-| **Background Jobs** | Async job queue with sidebar tracking, progress bars, and auto-continuation |
-| **Knowledge Graphs** | Auto-bootstrap domain schemas, extract entities/relationships |
-| **Graph Visualization** | Interactive Cytoscape.js with search, type filtering, node inspector |
-| **Transcript Library** | Save, search, and download transcripts |
-| **Chat Interface** | Markdown rendering, dark/light themes, keyboard shortcuts |
+| **Video Transcription** | Local videos and YouTube URLs via gpt-4o-transcribe with domain vocabulary prompts |
+| **Background Jobs** | Async job queue with persistence, restart recovery, cancel/retry, step progress UI |
+| **Knowledge Graphs** | Auto-bootstrap domain schemas, extract entities/relationships with source citations |
+| **Graph Visualization** | Interactive Cytoscape.js with search, type filtering, node inspector, evidence panel |
+| **Transcript Library** | Save, search, export (TXT/JSON/SRT/VTT), and full-text viewer |
+| **Chat Interface** | Markdown rendering, dark/light themes, 3-panel workspace layout |
 
 ---
 
@@ -97,7 +97,7 @@ HTTP Request → input_queue → [SessionActor] → response_queue → Response
 | **Knowledge Graph** | NetworkX, Cytoscape.js |
 | **Media** | FFmpeg, pydub, yt-dlp |
 | **Frontend** | ES Modules, Tailwind CSS, Marked.js, DOMPurify |
-| **Quality** | mypy (strict), ruff, pytest (612 tests) |
+| **Quality** | mypy (strict), ruff, pytest (737 tests) |
 
 ---
 
@@ -111,10 +111,10 @@ app/
 ├── agent/           # MCP tools + system prompts
 ├── kg/              # Domain models, graph storage, extraction
 ├── models/          # Pydantic schemas
-├── static/js/       # 26 ES modules (chat, kg, jobs, upload)
+├── static/js/       # 31 ES modules (chat, kg, jobs, upload, workspace)
 └── templates/       # Jinja2 HTML
 
-tests/               # 612 tests across 29 modules
+tests/               # 737 tests across 31 modules
 data/                # Runtime storage
 ```
 

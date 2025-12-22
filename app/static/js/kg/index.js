@@ -11,6 +11,7 @@ import * as inspector from './inspector.js';
 import * as graph from './graph.js';
 import * as search from './search.js';
 import * as panel from './panel.js';
+import * as evidence from './evidence.js';
 
 // Resolve circular dependencies between graph and inspector
 graph.setInspectorModule(inspector);
@@ -22,6 +23,7 @@ export { updateKGUI, updateKGStateBadge, updateKGActionButton, updateKGConfirmat
 export { startKGPolling, stopKGPolling, refreshKGProjectStatus } from './polling.js';
 export { createKGProject, confirmKGDiscovery, exportKGGraph, batchExportKGProjects, initBatchExportModal } from './actions.js';
 export { selectNode, updateInspector, showInspector, closeInspector, selectNodeById } from './inspector.js';
+export { fetchNodeEvidence, renderEvidenceSection, jumpToEvidence } from './evidence.js';
 export {
     initKGGraph,
     renderGraph,

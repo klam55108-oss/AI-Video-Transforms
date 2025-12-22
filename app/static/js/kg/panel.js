@@ -3,6 +3,7 @@
 
 import { state, KG_PROJECT_STORAGE_KEY } from '../core/state.js';
 import { showToast } from '../ui/toast.js';
+import { showKGPanel, hideKGPanel } from '../ui/workspace.js';
 import { kgClient } from './api.js';
 import { startKGPolling, stopKGPolling, refreshKGProjectStatus } from './polling.js';
 import { updateKGUI } from './ui.js';
@@ -283,6 +284,7 @@ async function selectKGProject(projectId) {
         state.kgStats?.classList.add('hidden');
         state.kgExport?.classList.add('hidden');
         stopKGPolling();
+        hideKGPanel();
         return;
     }
 
@@ -290,6 +292,12 @@ async function selectKGProject(projectId) {
     sessionStorage.setItem(KG_PROJECT_STORAGE_KEY, projectId);
     await refreshKGProjectStatus();
     startKGPolling();
+
+    // Only show KG panel if currently in graph view mode
+    // Otherwise, wait for user to click "Graph" button
+    if (state.kgCurrentView === 'graph') {
+        showKGPanel();
+    }
 }
 
 export {

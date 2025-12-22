@@ -29,7 +29,9 @@ from app.models.api import (
     CreateProjectResponse,
     DiscoveryResponse,
     ListProjectsResponse,
+    NodeEvidenceResponse,
     ProjectStatusResponse,
+    SegmentEvidence,
 )
 from app.models.requests import (
     BatchExportRequest,
@@ -467,9 +469,7 @@ async def batch_export_graphs(
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 # Allowed export filename pattern: project_id.format or batch_export_timestamp.zip
-EXPORT_FILENAME_PATTERN = re.compile(
-    r"^[a-zA-Z0-9_-]+\.(json|graphml|csv\.zip|zip)$"
-)
+EXPORT_FILENAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+\.(json|graphml|csv\.zip|zip)$")
 
 
 @router.get("/exports/{filename}")
@@ -599,6 +599,106 @@ async def get_neighbors(
 
     neighbors = kb.get_neighbors(node_id)
     return [n.model_dump() for n in neighbors]
+
+
+@router.get("/projects/{project_id}/nodes/{node_id}/evidence")
+async def get_node_evidence(
+    node_id: str,
+    project_id: str = Depends(ValidatedProjectId()),
+    kg_service: KnowledgeGraphService = Depends(get_kg_service),
+) -> NodeEvidenceResponse:
+    """
+    Get evidence (source transcripts) for a specific node.
+
+    Returns the source transcripts that mention this entity. Evidence is
+    based on text-based search through the transcript content rather than
+    specific timestamp markers.
+
+    Args:
+        project_id: Target project ID
+        node_id: 12-character node identifier
+        kg_service: Injected KG service
+
+    Returns:
+        NodeEvidenceResponse with source evidence including transcript excerpts
+
+    Raises:
+        HTTPException: 404 if no graph data or node not found
+    """
+    from app.services import get_services
+
+    project = await kg_service.get_project(project_id)
+    if not project or not project.kb_id:
+        raise HTTPException(status_code=404, detail="No graph data")
+
+    kb = load_knowledge_base(kg_service.kb_path / project.kb_id)
+    if not kb:
+        raise HTTPException(status_code=404, detail="Knowledge base not found")
+
+    node = kb.get_node(node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    # Collect evidence from source transcripts
+    evidence_list: list[SegmentEvidence] = []
+    storage = get_services().storage
+
+    # Get transcript content from each source
+    for source_id in node.source_ids:
+        source = kb.get_source(source_id)
+        if not source:
+            continue
+
+        # Get plain text content
+        metadata = storage.get_transcript_metadata(source_id)
+        if not metadata:
+            continue
+
+        content = storage.get_transcript_content(metadata.filename)
+        if not content:
+            continue
+
+        # Find first occurrence of entity label in transcript for context
+        label_lower = node.label.lower()
+        content_lower = content.content.lower()
+        match_idx = content_lower.find(label_lower)
+
+        if match_idx >= 0:
+            # Extract context around the match (100 chars before, 400 after)
+            start_idx = max(0, match_idx - 100)
+            end_idx = min(len(content.content), match_idx + 400)
+            excerpt = content.content[start_idx:end_idx]
+
+            # Add ellipsis if truncated
+            if start_idx > 0:
+                excerpt = "..." + excerpt
+            if end_idx < len(content.content):
+                excerpt = excerpt + "..."
+
+            evidence_list.append(
+                SegmentEvidence(
+                    source_id=source_id,
+                    source_title=source.title,
+                    segment_id="",  # No segment markers
+                    text=excerpt,
+                    start=None,
+                    end=None,
+                )
+            )
+        else:
+            # Entity not found in text - just show beginning of transcript
+            evidence_list.append(
+                SegmentEvidence(
+                    source_id=source_id,
+                    source_title=source.title,
+                    segment_id="",
+                    text=content.content[:500] + "...",
+                    start=None,
+                    end=None,
+                )
+            )
+
+    return NodeEvidenceResponse(node_id=node_id, evidence=evidence_list)
 
 
 @router.get("/projects/{project_id}/graph-data")

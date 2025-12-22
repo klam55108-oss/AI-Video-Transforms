@@ -38,6 +38,8 @@ All settings use the `APP_` prefix (automatically stripped by pydantic-settings)
 | `APP_JOB_POLL_INTERVAL_MS` | `1000` | Frontend job status poll interval (ms) |
 | `APP_EXPORT_TTL_HOURS` | `24` | Auto-cleanup exports older than this |
 | `APP_BATCH_EXPORT_MAX_PROJECTS` | `50` | Max projects in single batch export |
+| `APP_JOB_PERSIST_INTERVAL_PERCENT` | `10` | Persist job state every N% progress |
+| `APP_JOB_RETENTION_HOURS` | `168` | Keep completed jobs for N hours (7 days) |
 
 ## Settings Singleton
 
