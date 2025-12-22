@@ -6,6 +6,7 @@
 import { getJobPollInterval } from '../core/config.js';
 import { escapeHtml } from '../core/utils.js';
 import { showToast } from '../ui/toast.js';
+import { renderStepProgress, renderSidebarStepProgress } from './step-progress.js';
 
 // ============================================
 // Element References (Lazy Lookup)
@@ -64,10 +65,11 @@ const STAGE_LABELS = {
 // Job Progress UI
 // ============================================
 
-export function createJobProgressUI(jobId, title = 'Processing') {
+export function createJobProgressUI(jobId, title = 'Processing', jobType = 'transcription') {
     const container = document.createElement('div');
     container.id = `job-progress-${jobId}`;
     container.className = 'job-progress-container';
+    container.dataset.jobType = jobType;
     container.innerHTML = `
         <div class="job-progress-header">
             <div class="job-progress-title">
@@ -78,12 +80,11 @@ export function createJobProgressUI(jobId, title = 'Processing') {
                 <i class="ph-bold ph-x-circle"></i> Cancel
             </button>
         </div>
-        <div class="job-progress-bar-container">
-            <div class="job-progress-bar animated" style="width: 0%"></div>
+        <div id="job-step-progress-${jobId}" class="job-step-container">
+            <!-- Step progress will be rendered here -->
         </div>
-        <div class="job-progress-info">
-            <span class="job-progress-stage">Initializing...</span>
-            <span class="job-progress-percent">0%</span>
+        <div class="job-progress-bar-container" title="Detailed progress">
+            <div class="job-progress-bar animated" style="width: 0%"></div>
         </div>
     `;
 
@@ -181,11 +182,14 @@ export function renderJobProgress(job) {
     const container = document.getElementById(`job-progress-${job.id}`);
     if (!container) return;
 
-    const progressBar = container.querySelector('.job-progress-bar');
-    const stageEl = container.querySelector('.job-progress-stage');
-    const percentEl = container.querySelector('.job-progress-percent');
-    const cancelBtn = container.querySelector('.job-progress-cancel');
+    // Render step progress
+    const stepContainer = document.getElementById(`job-step-progress-${job.id}`);
+    if (stepContainer) {
+        stepContainer.innerHTML = renderStepProgress(job);
+    }
 
+    // Update percentage bar (keep as backup/tooltip)
+    const progressBar = container.querySelector('.job-progress-bar');
     if (progressBar) {
         progressBar.style.width = `${job.progress}%`;
         if (job.status === 'running') {
@@ -195,14 +199,7 @@ export function renderJobProgress(job) {
         }
     }
 
-    if (stageEl) {
-        stageEl.textContent = STAGE_LABELS[job.stage] || job.stage;
-    }
-
-    if (percentEl) {
-        percentEl.textContent = `${job.progress}%`;
-    }
-
+    const cancelBtn = container.querySelector('.job-progress-cancel');
     if (cancelBtn) {
         cancelBtn.disabled = job.status !== 'pending' && job.status !== 'running';
     }
@@ -399,7 +396,6 @@ function createSidebarJobItem(job) {
     item.dataset.jobId = job.id;
 
     const statusIcon = getStatusIcon(job.status);
-    const stageLabel = STAGE_LABELS[job.stage] || job.stage;
 
     item.innerHTML = `
         <div class="sidebar-job-header">
@@ -411,12 +407,11 @@ function createSidebarJobItem(job) {
                 </button>
             ` : ''}
         </div>
-        <div class="sidebar-job-progress">
-            <div class="sidebar-job-progress-bar ${job.status === 'running' ? 'animated' : ''}" style="width: ${job.progress}%"></div>
+        <div class="sidebar-job-step-container">
+            ${renderSidebarStepProgress(job)}
         </div>
-        <div class="sidebar-job-info">
-            <span class="sidebar-job-stage">${escapeHtml(stageLabel)}</span>
-            <span class="sidebar-job-percent">${job.progress}%</span>
+        <div class="sidebar-job-progress" title="${job.progress}% complete">
+            <div class="sidebar-job-progress-bar ${job.status === 'running' ? 'animated' : ''}" style="width: ${job.progress}%"></div>
         </div>
         ${job.status === 'failed' && job.error ? `
             <div class="sidebar-job-error">${escapeHtml(job.error)}</div>
@@ -428,12 +423,16 @@ function createSidebarJobItem(job) {
 
 function updateSidebarJobItem(item, job) {
     const iconEl = item.querySelector('.sidebar-job-icon');
+    const stepContainer = item.querySelector('.sidebar-job-step-container');
     const progressBar = item.querySelector('.sidebar-job-progress-bar');
-    const stageEl = item.querySelector('.sidebar-job-stage');
-    const percentEl = item.querySelector('.sidebar-job-percent');
 
     if (iconEl) {
         iconEl.innerHTML = getStatusIcon(job.status);
+    }
+
+    // Update step progress
+    if (stepContainer) {
+        stepContainer.innerHTML = renderSidebarStepProgress(job);
     }
 
     if (progressBar) {
@@ -443,14 +442,6 @@ function updateSidebarJobItem(item, job) {
         } else {
             progressBar.classList.remove('animated');
         }
-    }
-
-    if (stageEl) {
-        stageEl.textContent = STAGE_LABELS[job.stage] || job.stage;
-    }
-
-    if (percentEl) {
-        percentEl.textContent = `${job.progress}%`;
     }
 
     // Update or add error message

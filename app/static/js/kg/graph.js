@@ -22,7 +22,6 @@ function toggleKGView(view) {
     state.kgCurrentView = view;
     localStorage.setItem(KG_VIEW_STORAGE_KEY, view);
 
-    const chatContainer = document.getElementById('chat-messages');
     const graphView = document.getElementById('kg-graph-view');
     const listViewToggle = document.getElementById('kg-view-list-btn');
     const graphViewToggle = document.getElementById('kg-view-graph-btn');
@@ -30,53 +29,64 @@ function toggleKGView(view) {
     const headerTitle = document.getElementById('header-title');
     const headerIcon = document.getElementById('header-icon');
 
-    if (view === 'graph') {
-        // Hide chat, show graph
-        chatContainer?.classList.add('hidden');
-        graphView?.classList.remove('hidden');
+    // Import workspace functions dynamically to control panel visibility
+    import('../ui/workspace.js').then(({ showKGPanel, hideKGPanel }) => {
+        if (view === 'graph') {
+            // Show KG panel (triggers split screen layout)
+            if (state.kgCurrentProjectId) {
+                showKGPanel();
+            }
 
-        // Update button states
-        listViewToggle?.classList.remove('active');
-        graphViewToggle?.classList.add('active');
+            // Show graph view content
+            graphView?.classList.remove('hidden');
+            graphView?.classList.add('flex');
 
-        // Show header controls
-        headerControls?.classList.remove('hidden');
-        headerControls?.classList.add('flex');
+            // Update button states
+            listViewToggle?.classList.remove('active');
+            graphViewToggle?.classList.add('active');
 
-        // Update header title
-        if (headerTitle) headerTitle.textContent = 'Knowledge Graph';
-        if (headerIcon) {
-            headerIcon.className = 'ph-regular ph-graph text-[var(--text-tertiary)]';
+            // Show header controls
+            headerControls?.classList.remove('hidden');
+            headerControls?.classList.add('flex');
+
+            // Update header title
+            if (headerTitle) headerTitle.textContent = 'Knowledge Graph';
+            if (headerIcon) {
+                headerIcon.className = 'ph-regular ph-graph text-[var(--text-tertiary)]';
+            }
+
+            // Initialize graph if project selected
+            if (state.kgCurrentProjectId) {
+                initKGGraph(state.kgCurrentProjectId);
+            }
+        } else {
+            // Hide KG panel (full-width chat)
+            hideKGPanel();
+
+            // Hide graph view content
+            graphView?.classList.add('hidden');
+            graphView?.classList.remove('flex');
+
+            // Update button states
+            listViewToggle?.classList.add('active');
+            graphViewToggle?.classList.remove('active');
+
+            // Hide header controls
+            headerControls?.classList.add('hidden');
+            headerControls?.classList.remove('flex');
+
+            // Restore header title
+            if (headerTitle) headerTitle.textContent = 'Transcription & Analysis';
+            if (headerIcon) {
+                headerIcon.className = 'ph-regular ph-hash text-[var(--text-tertiary)]';
+            }
+
+            // Close inspector when switching to list view
+            if (inspectorModule && inspectorModule.closeInspector) {
+                inspectorModule.closeInspector();
+            }
         }
-
-        // Initialize graph if project selected
-        if (state.kgCurrentProjectId) {
-            initKGGraph(state.kgCurrentProjectId);
-        }
-    } else {
-        // Show chat, hide graph
-        chatContainer?.classList.remove('hidden');
-        graphView?.classList.add('hidden');
-
-        // Update button states
-        listViewToggle?.classList.add('active');
-        graphViewToggle?.classList.remove('active');
-
-        // Hide header controls
-        headerControls?.classList.add('hidden');
-        headerControls?.classList.remove('flex');
-
-        // Restore header title
-        if (headerTitle) headerTitle.textContent = 'Transcription & Analysis';
-        if (headerIcon) {
-            headerIcon.className = 'ph-regular ph-hash text-[var(--text-tertiary)]';
-        }
-
-        // Close inspector when switching to list view
-        if (inspectorModule && inspectorModule.closeInspector) {
-            inspectorModule.closeInspector();
-        }
-    }
+    });
 }
 
 // KG Graph Visualization
@@ -371,12 +381,19 @@ function renderGraph(data) {
 
     // Set up ResizeObserver to handle container size changes
     // This ensures cytoscape redraws correctly when inspector panel opens/closes
+    // Debounced to prevent flickering during CSS transitions (inspector uses 0.3s transition)
+    let resizeTimeout = null;
     state.graphResizeObserver = new ResizeObserver(() => {
-        if (state.cytoscapeInstance) {
-            state.cytoscapeInstance.resize();
-            // Optional: re-fit after resize for better UX (commented out to preserve user's zoom/pan)
-            // state.cytoscapeInstance.fit(null, 30);
+        // Clear any pending resize
+        if (resizeTimeout) {
+            clearTimeout(resizeTimeout);
         }
+        // Wait for CSS transition to complete before resizing
+        resizeTimeout = setTimeout(() => {
+            if (state.cytoscapeInstance) {
+                state.cytoscapeInstance.resize();
+            }
+        }, 350); // Matches inspector panel transition duration (0.3s) + buffer
     });
     state.graphResizeObserver.observe(container);
 

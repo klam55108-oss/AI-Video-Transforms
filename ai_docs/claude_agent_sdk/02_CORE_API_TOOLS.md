@@ -784,4 +784,6 @@ Programmatic options always override filesystem settings.
 
 ---
 
-*See also: [03_SESSION_PERMISSIONS_HOSTING.md](./03_SESSION_PERMISSIONS_HOSTING.md) for session management and security*
+*See also:*
+- *[03_SESSION_PERMISSIONS_HOSTING.md](./03_SESSION_PERMISSIONS_HOSTING.md) for session management and security*
+- *[05_FILE_CHECKPOINTING.md](./05_FILE_CHECKPOINTING.md) for file versioning and rollback*

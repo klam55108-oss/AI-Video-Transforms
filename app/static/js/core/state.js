@@ -47,6 +47,10 @@ export const state = {
     selectedNodeData: null,
     graphResizeObserver: null,
 
+    // Workspace layout state
+    workspaceLayout: 'chat-only',  // 'chat-only' | 'chat-kg' | 'chat-kg-inspector'
+    panelWidths: { chat: 50, kg: 50 },  // Percentage widths
+
     // DOM Element References (initialized in main.js)
     // KG Panel Elements
     kgContent: null,

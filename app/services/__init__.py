@@ -104,6 +104,11 @@ class ServiceContainer:
         self._kg = KnowledgeGraphService(data_path=Path("data"))
         self._job_queue = JobQueueService()
 
+        # Restore persisted jobs before starting background tasks
+        restored_count = await self._job_queue.restore_pending_jobs()
+        if restored_count > 0:
+            logger.info(f"Restored {restored_count} pending jobs from disk")
+
         # Start background tasks
         self._cleanup_task = asyncio.create_task(self._session.run_cleanup_loop())
         self._job_processor_task = asyncio.create_task(

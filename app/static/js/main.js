@@ -16,6 +16,7 @@ import { initToastContainer } from './ui/toast.js';
 import { initMobileNav } from './ui/mobile.js';
 import { initSidebarCollapse } from './ui/sidebar.js';
 import { initHeaderDropdowns } from './ui/header.js';
+import { initWorkspace } from './ui/workspace.js';
 
 // ============================================
 // Chat Module Imports
@@ -29,6 +30,8 @@ import { sendMessage } from './chat/send.js';
 // ============================================
 import { loadHistory, toggleHistoryPanel, loadSession, deleteHistoryItem } from './panels/history.js';
 import { loadTranscripts, toggleTranscriptsPanel, downloadTranscript, deleteTranscript } from './panels/transcripts.js';
+import { initTranscriptSearch } from './panels/transcript-search.js';
+import { initTranscriptViewer, openTranscriptViewer, closeModal } from './panels/transcript-viewer.js';
 
 // ============================================
 // Jobs Module Imports
@@ -315,6 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initMobileNav();
     initSidebarCollapse();
     initHeaderDropdowns();
+    initWorkspace();
 
     // Initialize file upload
     initFileUpload();
@@ -324,6 +328,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize event listeners
     initEventListeners();
+
+    // Initialize transcript search and viewer
+    initTranscriptSearch();
+    initTranscriptViewer();
 
     // Pre-load sidebar data
     initSidebarData();

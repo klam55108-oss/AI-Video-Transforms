@@ -3,6 +3,7 @@
 
 import { state } from '../core/state.js';
 import { showToast } from '../ui/toast.js';
+import { fetchNodeEvidence, renderEvidenceSection } from './evidence.js';
 
 // Circular dependency resolution - graph module will call setGraphModule
 let graphModule = null;
@@ -28,14 +29,18 @@ async function selectNode(nodeData) {
             state.cytoscapeInstance.nodes(`[id = "${nodeData.id}"]`).addClass('selected');
         }
 
-        // Fetch neighbors
-        const response = await fetch(`/kg/projects/${state.kgCurrentProjectId}/nodes/${nodeData.id}/neighbors`);
-        if (!response.ok) {
+        // Fetch neighbors and evidence in parallel
+        const [neighborsResponse, evidence] = await Promise.all([
+            fetch(`/kg/projects/${state.kgCurrentProjectId}/nodes/${nodeData.id}/neighbors`),
+            fetchNodeEvidence(state.kgCurrentProjectId, nodeData.id)
+        ]);
+
+        if (!neighborsResponse.ok) {
             throw new Error('Failed to load node neighbors');
         }
 
-        const neighbors = await response.json();
-        updateInspector(nodeData, neighbors);
+        const neighbors = await neighborsResponse.json();
+        updateInspector(nodeData, neighbors, evidence);
         showInspector();
     } catch (e) {
         console.error('Failed to select node:', e);
@@ -43,7 +48,7 @@ async function selectNode(nodeData) {
     }
 }
 
-function updateInspector(nodeData, neighbors) {
+function updateInspector(nodeData, neighbors, evidence = null) {
     const inspectorTitle = document.getElementById('kg-inspector-title');
     const inspectorContent = document.getElementById('kg-inspector-content');
 
@@ -52,22 +57,23 @@ function updateInspector(nodeData, neighbors) {
     // Update title
     inspectorTitle.textContent = nodeData.label;
 
-    // Build inspector content - using flex layout for proper space distribution
-    // Static fields (Type, Description, Aliases) stay fixed, Connections fills remaining space
-    let html = `
-        <div class="inspector-static-fields flex-shrink-0">
-            <div class="inspector-field">
-                <span class="label text-[10px] font-semibold text-[var(--text-muted)] uppercase">Type</span>
-                <span class="badge badge-${nodeData.type.toLowerCase()} mt-1 inline-block px-2 py-1 text-[10px] font-medium rounded">${nodeData.type}</span>
-            </div>
+    // Build inspector content - simple scrollable layout
+    let html = `<div class="inspector-static-fields">`;
+
+    // Type
+    html += `
+        <div class="inspector-field">
+            <div class="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-1">Type</div>
+            <div class="text-sm font-medium text-[var(--text-primary)]">${escapeHtml(nodeData.type)}</div>
+        </div>
     `;
 
     // Description
     if (nodeData.description) {
         html += `
-            <div class="inspector-field mt-3">
-                <span class="label text-[10px] font-semibold text-[var(--text-muted)] uppercase">Description</span>
-                <p class="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed">${escapeHtml(nodeData.description)}</p>
+            <div class="inspector-field">
+                <div class="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-1">Description</div>
+                <p class="text-sm text-[var(--text-secondary)] leading-relaxed">${escapeHtml(nodeData.description)}</p>
             </div>
         `;
     }
@@ -75,28 +81,31 @@ function updateInspector(nodeData, neighbors) {
     // Aliases
     if (nodeData.aliases && nodeData.aliases.length > 0) {
         html += `
-            <div class="inspector-field mt-3">
-                <span class="label text-[10px] font-semibold text-[var(--text-muted)] uppercase">Aliases</span>
-                <div class="flex flex-wrap gap-1 mt-1">
-                    ${nodeData.aliases.map(alias => `<span class="text-[10px] px-2 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">${escapeHtml(alias)}</span>`).join('')}
+            <div class="inspector-field">
+                <div class="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-2">Aliases</div>
+                <div class="flex flex-wrap gap-1.5">
+                    ${nodeData.aliases.map(alias => `<span class="text-xs px-2 py-1 rounded-md bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">${escapeHtml(alias)}</span>`).join('')}
                 </div>
             </div>
         `;
     }
 
+    // Evidence Section
+    html += renderEvidenceSection(evidence);
+
     html += `</div>`; // Close static fields wrapper
 
-    // Connections - this section grows to fill available space
+    // Connections section with scrollable list
     if (neighbors && neighbors.length > 0) {
         html += `
-            <div class="inspector-connections-section flex-1 min-h-0 mt-3 flex flex-col">
-                <span class="label text-[10px] font-semibold text-[var(--text-muted)] uppercase flex-shrink-0">Connections (${neighbors.length})</span>
-                <div class="mt-2 space-y-1 flex-1 overflow-y-auto min-h-0 pr-1">
+            <div class="inspector-connections-section">
+                <div class="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-2">Connections (${neighbors.length})</div>
+                <div class="connection-list">
                     ${neighbors.map(neighbor => `
                         <button onclick="window.kg_selectNodeById('${neighbor.id}')"
-                                class="w-full text-left text-xs px-2 py-1.5 rounded bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
-                            <span class="font-medium">${escapeHtml(neighbor.label)}</span>
-                            <span class="text-[10px] text-[var(--text-muted)] ml-1">(${neighbor.entity_type})</span>
+                                class="connection-item">
+                            <span class="connection-label">${escapeHtml(neighbor.label)}</span>
+                            <span class="connection-type">${neighbor.entity_type}</span>
                         </button>
                     `).join('')}
                 </div>

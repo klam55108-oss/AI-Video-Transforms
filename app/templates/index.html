@@ -264,8 +264,28 @@
                     <span>Transcripts</span>
                     <i id="transcripts-caret" class="ph-bold ph-caret-right panel-caret text-[var(--sidebar-text-muted)]"></i>
                 </button>
-                <div id="transcripts-list" class="panel-content ml-8 mt-1 space-y-1 sidebar-scroll">
-                    <p class="text-xs text-[var(--sidebar-text-muted)] px-2 py-1">Loading...</p>
+                <div id="transcripts-content" class="panel-content ml-8 mt-1">
+                    <!-- Search Input -->
+                    <div class="transcript-search-container mb-2">
+                        <div class="relative">
+                            <i class="ph-bold ph-magnifying-glass transcript-search-icon"></i>
+                            <input type="text"
+                                   id="transcript-search"
+                                   class="transcript-search-input"
+                                   placeholder="Search..."
+                                   autocomplete="off">
+                            <button type="button"
+                                    id="transcript-search-clear"
+                                    class="transcript-search-clear hidden"
+                                    aria-label="Clear search">
+                                <i class="ph-bold ph-x text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Transcript List -->
+                    <div id="transcripts-list" class="space-y-1 sidebar-scroll max-h-[240px] overflow-y-auto">
+                        <p class="text-xs text-[var(--sidebar-text-muted)] px-2 py-1">Loading...</p>
+                    </div>
                 </div>
             </div>
 
@@ -369,38 +389,46 @@
             </div>
         </header>
 
-        <!-- Chat Messages Area -->
-        <div id="chat-messages" class="chat-container flex-1 overflow-y-auto px-6 py-8 scroll-smooth">
-            <!-- Empty State -->
-            <div id="empty-state" class="empty-state">
-                <div class="empty-state-icon">
-                    <i class="ph-duotone ph-video-camera"></i>
-                </div>
-                <h2 class="empty-state-title">Welcome to VideoAgent</h2>
-                <p class="empty-state-description">
-                    Transform videos into searchable transcripts and knowledge graphs
-                    using AI-powered analysis.
-                </p>
-                <div class="empty-state-actions">
-                    <button type="button"
-                            onclick="document.getElementById('user-input').focus()"
-                            class="btn-primary">
-                        <i class="ph-bold ph-play-circle"></i>
-                        <span>Start Transcription</span>
-                    </button>
-                    <p class="empty-state-hint">
-                        Paste a YouTube URL or upload a video file to begin
-                    </p>
+        <!-- NEW: 3-Panel Workspace -->
+        <div id="workspace" class="flex-1 flex overflow-hidden">
+            <!-- Panel 1: Chat (always visible) -->
+            <div id="chat-panel" class="workspace-panel flex flex-col min-w-0 flex-1">
+                <div id="chat-messages" class="chat-container flex-1 overflow-y-auto px-6 py-8 scroll-smooth">
+                    <!-- Empty State -->
+                    <div id="empty-state" class="empty-state">
+                        <div class="empty-state-icon">
+                            <i class="ph-duotone ph-video-camera"></i>
+                        </div>
+                        <h2 class="empty-state-title">Welcome to VideoAgent</h2>
+                        <p class="empty-state-description">
+                            Transform videos into searchable transcripts and knowledge graphs
+                            using AI-powered analysis.
+                        </p>
+                        <div class="empty-state-actions">
+                            <button type="button"
+                                    onclick="document.getElementById('user-input').focus()"
+                                    class="btn-primary">
+                                <i class="ph-bold ph-play-circle"></i>
+                                <span>Start Transcription</span>
+                            </button>
+                            <p class="empty-state-hint">
+                                Paste a YouTube URL or upload a video file to begin
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="max-w-3xl mx-auto space-y-6">
+                        <!-- Messages injected here via JS -->
+                    </div>
                 </div>
             </div>
 
-            <div class="max-w-3xl mx-auto space-y-6">
-                <!-- Messages injected here via JS -->
-            </div>
-        </div>
+            <!-- Resize Handle -->
+            <div class="resize-handle"></div>
 
-        <!-- Knowledge Graph Visualization -->
-        <div id="kg-graph-view" class="hidden flex-1 flex">
+            <!-- Panel 2: KG Graph (hidden until project selected) -->
+            <div id="kg-panel" class="workspace-panel hidden flex-col min-w-0">
+                <div id="kg-graph-view" class="flex-1 flex">
             <!-- Graph Canvas (main area) -->
             <div class="flex-1 relative overflow-hidden min-w-0">
                 <!-- Cytoscape container (MUST be empty - Cytoscape replaces contents) -->
@@ -441,21 +469,23 @@
                 </div>
             </div>
 
-            <!-- Right-Side Inspector Panel (slides in) -->
-            <aside id="kg-node-inspector" class="inspector-panel">
-                <div class="inspector-panel-header">
-                    <h3 class="inspector-panel-title" id="kg-inspector-title">Node Details</h3>
-                    <button type="button"
-                            id="kg-inspector-close"
-                            class="inspector-close-btn"
-                            aria-label="Close inspector">
-                        <i class="ph-bold ph-x"></i>
-                    </button>
+                    <!-- Right-Side Inspector Panel (slides in) -->
+                    <aside id="kg-node-inspector" class="inspector-panel">
+                        <div class="inspector-panel-header">
+                            <h3 class="inspector-panel-title" id="kg-inspector-title">Node Details</h3>
+                            <button type="button"
+                                    id="kg-inspector-close"
+                                    class="inspector-close-btn"
+                                    aria-label="Close inspector">
+                                <i class="ph-bold ph-x"></i>
+                            </button>
+                        </div>
+                        <div id="kg-inspector-content" class="inspector-panel-content">
+                            <!-- Inspector content populated by JS -->
+                        </div>
+                    </aside>
                 </div>
-                <div id="kg-inspector-content" class="inspector-panel-content">
-                    <!-- Inspector content populated by JS -->
-                </div>
-            </aside>
+            </div>
         </div>
 
         <!-- Input Area -->
@@ -494,6 +524,45 @@
             </div>
         </div>
     </main>
+
+    <!-- Transcript Viewer Modal -->
+    <div id="transcript-viewer-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div class="bg-[var(--bg-primary)] rounded-xl shadow-2xl border border-[var(--border-subtle)] w-full max-w-4xl mx-4 max-h-[85vh] flex flex-col">
+            <!-- Modal Header -->
+            <div class="px-5 py-4 border-b border-[var(--border-subtle)] flex-shrink-0">
+                <div class="flex justify-between items-center">
+                    <h3 id="transcript-viewer-title" class="text-base font-semibold text-[var(--text-primary)]">
+                        <i class="ph-bold ph-file-text mr-2 text-[var(--accent-primary)]"></i>
+                        Transcript
+                    </h3>
+                    <button type="button" onclick="closeModal('transcript-viewer-modal')"
+                            class="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] transition-colors">
+                        <i class="ph-bold ph-x text-lg"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Search Bar -->
+            <div class="px-5 py-3 border-b border-[var(--border-subtle)] flex-shrink-0">
+                <div class="relative">
+                    <i class="ph-bold ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-sm"></i>
+                    <input
+                        type="text"
+                        id="transcript-viewer-search"
+                        placeholder="Search in transcript..."
+                        class="w-full pl-9 pr-4 py-2 text-sm rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] focus:border-transparent transition-shadow"
+                    />
+                </div>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-5 py-4 overflow-y-auto flex-1">
+                <div id="transcript-viewer-content" class="prose prose-sm dark:prose-invert max-w-none">
+                    <!-- Transcript content rendered here -->
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Batch Export Modal -->
     <div id="batch-export-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm">

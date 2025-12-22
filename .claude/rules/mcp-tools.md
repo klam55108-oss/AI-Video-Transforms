@@ -61,11 +61,17 @@ mcp_server.add_tool("save_transcript", save_transcript_handler)
 
 | Tool | Description |
 |------|-------------|
-| `transcribe_video` | Video/audio → text via gpt-4o-transcribe (validates output_file path) |
-| `save_transcript` | Persist with unique 8-char ID |
+| `transcribe_video` | Video/audio → text via **gpt-4o-transcribe** (max 25 minutes per segment, auto-splits longer videos) |
+| `save_transcript` | Persist with unique 8-char ID (stores JSON + TXT for backwards compat) |
 | `get_transcript` | Retrieve by ID (lazy loading) |
 | `list_transcripts` | List all saved transcripts |
 | `write_file` | Save content with path validation |
+
+**Transcription Features** (`gpt-4o-transcribe`):
+- Automatic audio splitting for videos > 25 minutes
+- Optional `prompt` parameter for domain-specific vocabulary (technical terms, proper nouns, acronyms)
+- Language detection or explicit language specification (ISO 639-1 codes)
+- Temperature control for output consistency
 
 **Security**: Both `transcribe_video` and `write_file` validate paths using `validate_file_path()` from `app/core/permissions.py`. System paths (`/etc`, `/usr`, `/bin`, etc.) are blocked.
 

@@ -172,6 +172,8 @@ class StorageService:
                 created_at=datetime.fromisoformat(t["created_at"]),
                 file_size=t["file_size"],
                 session_id=t.get("session_id"),
+                format=t.get("format", "text"),
+                duration=t.get("duration"),
             )
             for t in transcripts_data
         ]
@@ -198,7 +200,24 @@ class StorageService:
             created_at=datetime.fromisoformat(data["created_at"]),
             file_size=data["file_size"],
             session_id=data.get("session_id"),
+            format=data.get("format", "text"),
+            duration=data.get("duration"),
         )
+
+    def get_transcript_raw(self, transcript_id: str) -> dict[str, str] | None:
+        """
+        Get raw transcript metadata dict including internal file_path.
+
+        This method is for internal use (export/download) where file_path
+        is needed. For API responses, use get_transcript_metadata() instead.
+
+        Args:
+            transcript_id: Transcript ID
+
+        Returns:
+            Raw metadata dict with file_path, or None if not found
+        """
+        return self._storage.get_transcript(transcript_id)
 
     def get_transcript_content(self, file_path: str) -> TranscriptContent | None:
         """
@@ -211,6 +230,7 @@ class StorageService:
             TranscriptContent model or None if file doesn't exist
         """
         path = Path(file_path)
+
         if not path.exists():
             return None
 

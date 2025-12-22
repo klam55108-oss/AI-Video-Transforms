@@ -1190,24 +1190,18 @@ Call all bootstrap tools in order to build a complete domain profile.
                 try:
                     project = await self.get_project(project_id)
                     if not project or not project.kb_id:
-                        logger.warning(
-                            f"Skipping project {project_id}: no graph data"
-                        )
+                        logger.warning(f"Skipping project {project_id}: no graph data")
                         continue
 
                     kb = load_knowledge_base(self.kb_path / project.kb_id)
                     if not kb:
-                        logger.warning(
-                            f"Skipping project {project_id}: KB not found"
-                        )
+                        logger.warning(f"Skipping project {project_id}: KB not found")
                         continue
 
                     # Export based on format
                     if export_format == "graphml":
                         content = self._create_graphml_content(kb)
-                        zf.writestr(
-                            f"{project_id}/{project_id}.graphml", content
-                        )
+                        zf.writestr(f"{project_id}/{project_id}.graphml", content)
                     elif export_format == "csv":
                         zf.writestr(
                             f"{project_id}/nodes.csv", self._create_nodes_csv(kb)
@@ -1219,9 +1213,7 @@ Call all bootstrap tools in order to build a complete domain profile.
                         data = {
                             "nodes": [n.model_dump() for n in kb._nodes.values()],
                             "edges": [e.model_dump() for e in kb._edges.values()],
-                            "sources": [
-                                s.model_dump() for s in kb._sources.values()
-                            ],
+                            "sources": [s.model_dump() for s in kb._sources.values()],
                         }
                         zf.writestr(
                             f"{project_id}/{project_id}.json",
@@ -1229,10 +1221,12 @@ Call all bootstrap tools in order to build a complete domain profile.
                         )
 
                     exported_count += 1
-                    exported_projects.append({
-                        "project_id": project_id,
-                        "name": project.name,
-                    })
+                    exported_projects.append(
+                        {
+                            "project_id": project_id,
+                            "name": project.name,
+                        }
+                    )
                     logger.info(f"Added project {project_id} to batch export")
 
                 except Exception as e:
@@ -1260,9 +1254,7 @@ Call all bootstrap tools in order to build a complete domain profile.
             zip_file.unlink()
             return None
 
-        logger.info(
-            f"Batch exported {exported_count} projects to {zip_file.name}"
-        )
+        logger.info(f"Batch exported {exported_count} projects to {zip_file.name}")
         return zip_file
 
     def _create_graphml_content(self, kb: KnowledgeBase) -> str:

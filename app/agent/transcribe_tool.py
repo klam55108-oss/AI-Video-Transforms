@@ -2,7 +2,15 @@
 Video Transcription Tool for Claude Agent SDK.
 
 This module provides a tool for transcribing video files or YouTube URLs
-to text using OpenAI's gpt-4o-transcribe model with quality enhancement features.
+to text using OpenAI's gpt-4o-transcribe model.
+
+IMPORTANT: Uses gpt-4o-transcribe which:
+- Returns plain text transcription (no timestamps, no speaker diarization)
+- Supports prompt parameter for context/formatting hints
+- Has 25-minute (1500s) duration limit per request
+- For longer audio, files are automatically split into chunks
+
+See: https://platform.openai.com/docs/api-reference/audio/createTranscription
 """
 
 from __future__ import annotations
@@ -20,7 +28,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from pydub import AudioSegment  # type: ignore[import-untyped]
 
-from app.agent.prompts import DEFAULT_TRANSCRIPTION_PROMPT
+# NOTE: Import removed - DEFAULT_TRANSCRIPTION_PROMPT is defined in prompts module
 
 # Set up logging for transcription debugging
 logger = logging.getLogger(__name__)
@@ -158,128 +166,170 @@ def _extract_audio_from_video(video_path: str, output_dir: str) -> str:
         raise RuntimeError("FFmpeg audio extraction timed out after 5 minutes") from e
 
 
-def _split_audio(
-    audio_path: str, segment_length_minutes: int = 5
-) -> list[AudioSegment]:
+def _split_audio_for_duration(
+    audio_path: str,
+    max_duration_sec: int = 1400,  # Under 1500s limit with margin
+    output_dir: str | None = None,
+) -> list[str]:
     """
-    Split audio into smaller segments to stay under OpenAI's 25MB limit.
+    Split audio into chunks under 25 minutes for API limit.
+
+    The gpt-4o-transcribe API has a 1500-second (25-minute) duration limit.
+    This function splits longer audio files into chunks with margin for safety.
 
     Args:
         audio_path: Path to the audio file
-        segment_length_minutes: Length of each segment in minutes
+        max_duration_sec: Maximum chunk duration (default: 1400s = 23.3min)
+        output_dir: Directory for chunk files (defaults to temp dir)
 
     Returns:
-        List of AudioSegment objects
+        List of paths to audio chunks (original file if no splitting needed)
+
+    Raises:
+        RuntimeError: If audio splitting fails
     """
-    segment_length_ms = segment_length_minutes * 60 * 1000
-    audio = AudioSegment.from_mp3(audio_path)
+    audio = AudioSegment.from_file(audio_path)
+    duration_ms = len(audio)
+    max_chunk_ms = max_duration_sec * 1000
 
-    segments = []
-    for i in range(0, len(audio), segment_length_ms):
-        segment = audio[i : i + segment_length_ms]
-        segments.append(segment)
+    if duration_ms <= max_chunk_ms:
+        return [audio_path]  # No splitting needed
 
-    return segments
+    if output_dir is None:
+        output_dir = os.path.dirname(audio_path)
+
+    chunks = []
+    for i, start_ms in enumerate(range(0, duration_ms, max_chunk_ms)):
+        chunk = audio[start_ms : start_ms + max_chunk_ms]
+
+        # Skip very short chunks (< 100ms) that can occur at exact boundaries
+        if len(chunk) < 100:
+            logger.debug(f"Skipping chunk {i}: too short ({len(chunk)}ms)")
+            continue
+
+        chunk_path = os.path.join(output_dir, f"chunk_{i:03d}.mp3")
+        chunk.export(chunk_path, format="mp3", bitrate="128k")
+        chunks.append(chunk_path)
+        logger.info(
+            f"Created chunk {i}: {chunk_path} ({len(chunk) / 1000:.1f}s, {os.path.getsize(chunk_path) / 1024 / 1024:.1f}MB)"
+        )
+
+    return chunks
 
 
-def _transcribe_segment(
+class TranscriptionError(Exception):
+    """Raised when transcription fails or returns invalid data."""
+
+    pass
+
+
+def _transcribe_audio_file(
     client: OpenAI,
-    audio_segment: AudioSegment,
-    segment_num: int,
-    temp_dir: str,
+    audio_path: str,
     language: str | None = None,
-    prompt: str | None = None,
     temperature: float = 0.0,
+    prompt: str | None = None,
 ) -> str:
     """
-    Transcribe a single audio segment using OpenAI gpt-4o-transcribe.
+    Transcribe an audio file using OpenAI gpt-4o-transcribe.
+
+    Returns plain text transcription without timestamps or speaker diarization.
 
     Args:
         client: OpenAI client instance
-        audio_segment: Audio segment to transcribe
-        segment_num: Segment number for temp file naming
-        temp_dir: Directory for temporary files
-        language: Optional language code for transcription (improves accuracy)
-        prompt: Optional context prompt for quality enhancement (e.g., previous segment)
-        temperature: Sampling temperature 0-1, lower is more deterministic (default: 0.0)
+        audio_path: Path to the audio file (MP3)
+        language: Optional language code (ISO-639-1) for transcription
+        temperature: Sampling temperature 0-1 (default: 0.0)
+        prompt: Optional context/formatting hint for the transcription
 
     Returns:
-        Transcribed text for this segment
+        Transcribed text string
+
+    Raises:
+        TranscriptionError: If API fails or returns empty text
     """
-    temp_file = os.path.join(temp_dir, f"segment_{segment_num}.mp3")
-    logger.info(f"Transcribing segment {segment_num}, temp_file={temp_file}")
+    file_size = os.path.getsize(audio_path)
+    logger.info(
+        f"Transcribing audio file: {audio_path}, size={file_size / 1024 / 1024:.1f}MB"
+    )
+
+    # Check file size - OpenAI limit is 25MB
+    if file_size > 25 * 1024 * 1024:
+        raise TranscriptionError(
+            f"Audio file too large ({file_size / 1024 / 1024:.1f}MB). "
+            "OpenAI limit is 25MB."
+        )
 
     try:
-        audio_segment.export(temp_file, format="mp3", bitrate="128k")
-
-        file_size = os.path.getsize(temp_file)
-        logger.info(f"Segment {segment_num}: exported MP3, size={file_size} bytes")
-
-        if file_size > 23 * 1024 * 1024:
-            # Reduce quality to stay under OpenAI's 25MB limit
-            logger.warning(f"Segment {segment_num}: file too large, reducing quality")
-            audio_segment = audio_segment.set_frame_rate(16000).set_channels(1)
-            audio_segment.export(temp_file, format="mp3", bitrate="64k")
-            file_size = os.path.getsize(temp_file)
-            logger.info(f"Segment {segment_num}: reduced size={file_size} bytes")
-
-        with open(temp_file, "rb") as audio_file:
+        with open(audio_path, "rb") as audio_file:
             transcription_args: dict[str, Any] = {
                 "model": "gpt-4o-transcribe",
                 "file": audio_file,
-                "response_format": "text",
+                "response_format": "json",
                 "temperature": temperature,
             }
+
             if language:
                 transcription_args["language"] = language
+
             if prompt:
                 transcription_args["prompt"] = prompt
 
             logger.info(
-                f"Segment {segment_num}: calling OpenAI API with model=gpt-4o-transcribe"
+                f"Calling OpenAI API: model=gpt-4o-transcribe, "
+                f"language={language or 'auto'}, prompt={'yes' if prompt else 'no'}"
             )
+
             transcription = client.audio.transcriptions.create(**transcription_args)
 
-        # response_format="text" returns a string directly, not an object
-        result = transcription if isinstance(transcription, str) else transcription.text
-        logger.info(
-            f"Segment {segment_num}: transcription complete, length={len(result)} chars"
-        )
-        return result
+        # Extract text from response
+        text = getattr(transcription, "text", None) or ""
 
-    except Exception as e:
-        logger.error(f"Segment {segment_num}: transcription failed: {e}", exc_info=True)
+        if not text:
+            raise TranscriptionError(
+                "OpenAI API returned empty transcription. "
+                "Check if the audio file contains audible speech."
+            )
+
+        logger.info(f"Transcription complete: {len(text)} chars")
+
+        return text
+
+    except TranscriptionError:
         raise
 
-    finally:
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
+    except Exception as e:
+        logger.error(f"Transcription API call failed: {e}", exc_info=True)
+        raise TranscriptionError(f"OpenAI transcription API failed: {str(e)}") from e
 
 
 def _perform_transcription(
     video_source: str,
     output_file: str | None = None,
     language: str | None = None,
-    prompt: str | None = None,
     temperature: float = 0.0,
+    prompt: str | None = None,
 ) -> dict[str, Any]:
     """
     Core transcription logic using OpenAI gpt-4o-transcribe.
 
-    Uses segment context chaining: each segment receives the previous segment's
-    transcription as its prompt, maintaining context across long videos.
+    Handles audio extraction, splitting for 25-minute limit, and transcription.
+    For audio longer than 25 minutes, automatically splits into chunks and
+    concatenates results.
 
     Args:
         video_source: Path to video file or YouTube URL
         output_file: Optional path to save the transcription
         language: Optional language code for transcription (improves accuracy)
-        prompt: Optional initial context prompt for quality enhancement
         temperature: Sampling temperature 0-1, lower is more deterministic (default: 0.0)
+        prompt: Optional context/formatting hint for transcription
 
     Returns:
         Dictionary with transcription results and metadata
+
+    Raises:
+        TranscriptionError: If transcription fails (NO silent fallbacks)
     """
-    # Ensure environment variables are loaded from .env file
     load_dotenv()
     logger.info(f"Starting transcription: source={video_source}, language={language}")
 
@@ -294,10 +344,10 @@ def _perform_transcription(
     client = OpenAI(api_key=api_key)
     is_youtube = _is_youtube_url(video_source)
     logger.info(f"Source type: {'YouTube' if is_youtube else 'local file'}")
-    audio_path: str | None = None
 
     with tempfile.TemporaryDirectory() as temp_dir:
         try:
+            # Extract audio
             if is_youtube:
                 if not YOUTUBE_SUPPORT:
                     logger.error("yt-dlp not installed")
@@ -319,42 +369,51 @@ def _perform_transcription(
                 audio_path = _extract_audio_from_video(video_source, temp_dir)
                 logger.info(f"Audio extracted: {audio_path}")
 
-            logger.info("Splitting audio into segments...")
-            segments = _split_audio(audio_path, segment_length_minutes=5)
-            logger.info(f"Audio split into {len(segments)} segments")
+            # Get audio duration
+            audio = AudioSegment.from_file(audio_path)
+            duration = len(audio) / 1000.0  # Convert ms to seconds
+            logger.info(f"Audio duration: {duration:.1f}s ({duration / 60:.1f}min)")
 
-            transcription_parts: list[str] = []
-            # Use user prompt if provided, otherwise use default for quality
-            # This becomes the initial context for segment chaining
-            initial_prompt = prompt if prompt else DEFAULT_TRANSCRIPTION_PROMPT
-            previous_context = initial_prompt
+            # Split audio if needed for 25-minute API limit
+            chunks = _split_audio_for_duration(
+                audio_path, max_duration_sec=1400, output_dir=temp_dir
+            )
 
-            for i, segment in enumerate(segments):
-                # Use previous segment's transcription as context (last 500 chars)
-                segment_prompt = previous_context[-500:] if previous_context else None
+            logger.info(f"Processing {len(chunks)} audio chunk(s)")
 
-                segment_text = _transcribe_segment(
+            # Transcribe each chunk
+            chunk_texts: list[str] = []
+            for i, chunk_path in enumerate(chunks):
+                logger.info(f"Transcribing chunk {i + 1}/{len(chunks)}")
+
+                # Use prompt for first chunk, continuation context for subsequent chunks
+                chunk_prompt = prompt if i == 0 else None
+                if i > 0 and chunk_texts:
+                    # Add last 100 chars of previous chunk as context
+                    chunk_prompt = chunk_texts[-1][-100:]
+
+                chunk_text = _transcribe_audio_file(
                     client=client,
-                    audio_segment=segment,
-                    segment_num=i,
-                    temp_dir=temp_dir,
+                    audio_path=chunk_path,
                     language=language,
-                    prompt=segment_prompt,
                     temperature=temperature,
+                    prompt=chunk_prompt,
                 )
-                if segment_text:
-                    transcription_parts.append(segment_text)
-                    previous_context = segment_text  # Chain for next segment
+                chunk_texts.append(chunk_text)
 
-            full_transcription = " ".join(transcription_parts)
+            # Concatenate chunks
+            full_transcription = " ".join(chunk_texts)
+            logger.info(
+                f"Transcription complete: {len(chunks)} chunk(s), {len(full_transcription)} chars"
+            )
 
+            # Write output file if requested
             if output_file:
                 from app.core.permissions import validate_file_path
 
                 is_valid, error_msg = validate_file_path(output_file)
                 if not is_valid:
                     logger.warning(f"Blocked write to: {output_file} - {error_msg}")
-                    # Continue transcription, just skip the file write
                 else:
                     with open(output_file, "w", encoding="utf-8") as f:
                         f.write(full_transcription)
@@ -364,8 +423,19 @@ def _perform_transcription(
                 "transcription": full_transcription,
                 "source": video_source,
                 "source_type": "youtube" if is_youtube else "local_file",
-                "segments_processed": len(segments),
+                "model": "gpt-4o-transcribe",
                 "output_file": output_file,
+                "duration": duration,
+                "chunk_count": len(chunks),
+            }
+
+        except TranscriptionError as e:
+            logger.error(f"Transcription failed: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+                "source": video_source,
+                "error_type": "validation",
             }
 
         except Exception as e:
@@ -382,7 +452,8 @@ def _perform_transcription(
     "Create a background job to transcribe audio from a video file or YouTube URL. "
     "Returns immediately with a job ID for tracking progress. "
     "Supports local video files (mp4, mkv, avi, etc.) and YouTube URLs. "
-    "Automatically handles long videos by splitting into segments with context chaining. "
+    "Uses gpt-4o-transcribe model with automatic chunking for videos > 25 minutes. "
+    "Supports optional prompt parameter for domain-specific vocabulary. "
     "Requires OPENAI_API_KEY environment variable and FFmpeg installed.",
     {
         "type": "object",
@@ -400,16 +471,16 @@ def _perform_transcription(
                 "description": "Optional ISO 639-1 language code (e.g., 'en', 'es', 'zh'). "
                 "Providing this improves accuracy and reduces latency.",
             },
-            "prompt": {
-                "type": "string",
-                "description": "Optional text to guide transcription style. Use to: "
-                "(1) specify domain terms/acronyms, (2) set punctuation style, "
-                "(3) preserve filler words like 'umm', (4) specify writing style.",
-            },
             "temperature": {
                 "type": "number",
                 "description": "Sampling temperature 0-1. Lower values (0.0) give more "
                 "deterministic results. Default: 0.0",
+            },
+            "prompt": {
+                "type": "string",
+                "description": "Optional context or formatting hint. Use to improve accuracy for "
+                "technical terms, proper nouns, acronyms, or specific formatting preferences. "
+                "Example: 'This is a lecture about quantum physics with terms like entanglement and superposition.'",
             },
             "session_id": {
                 "type": "string",
@@ -423,16 +494,22 @@ async def transcribe_video(args: dict[str, Any]) -> dict[str, Any]:
     """
     Create a background transcription job.
 
-    This tool creates an asynchronous job to transcribe video/audio. The job runs
-    in the background, allowing the user to monitor progress via the Jobs panel.
+    This tool creates an asynchronous job to transcribe video/audio using
+    gpt-4o-transcribe. The job runs in the background, allowing the user
+    to monitor progress via the Jobs panel.
+
+    Features:
+        - Plain text transcription (no timestamps or speaker diarization)
+        - Optional prompt for domain-specific vocabulary
+        - Automatic chunking for videos > 25 minutes
 
     Args:
         args: Dictionary containing:
             - video_source: Path to video file or YouTube URL (required)
             - output_file: Path to save transcription (optional)
-            - language: Language code for transcription (optional, improves accuracy)
-            - prompt: Context prompt to guide transcription style (optional)
+            - language: Language code (ISO-639-1) for transcription (optional)
             - temperature: Sampling temperature 0-1 (optional, default 0.0)
+            - prompt: Context/formatting hint (optional)
             - session_id: Session ID to link transcript (optional)
 
     Returns:
@@ -463,11 +540,15 @@ async def transcribe_video(args: dict[str, Any]) -> dict[str, Any]:
                 "video_source": video_source,
                 "output_file": args.get("output_file"),
                 "language": args.get("language"),
-                "prompt": args.get("prompt"),
                 "temperature": args.get("temperature", 0.0),
+                "prompt": args.get("prompt"),
                 "session_id": args.get("session_id"),
+                "model": "gpt-4o-transcribe",
             },
         )
+
+        prompt_text = args.get("prompt")
+        prompt_info = f"Prompt: {prompt_text[:50]}...\n" if prompt_text else ""
 
         return {
             "content": [
@@ -475,6 +556,8 @@ async def transcribe_video(args: dict[str, Any]) -> dict[str, Any]:
                     "type": "text",
                     "text": f"Started transcription job: {job.id}\n\n"
                     f"Source: {video_source}\n"
+                    f"Model: gpt-4o-transcribe (plain text)\n"
+                    f"{prompt_info}"
                     f"Job ID: {job.id}\n\n"
                     "You can monitor progress in the Jobs panel. "
                     "The transcript will be automatically saved to the library when complete.",

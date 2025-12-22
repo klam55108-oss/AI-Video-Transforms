@@ -6,7 +6,7 @@ AI-powered video transcription and knowledge graph extraction.
 
 ```bash
 uv run python -m app.main              # Dev server → http://127.0.0.1:8000
-uv run pytest                          # 612 tests
+uv run pytest                          # 737 tests
 uv run mypy .                          # Type check (strict)
 uv run ruff check . && ruff format .   # Lint + format
 ```
@@ -29,7 +29,7 @@ OPENAI_API_KEY=sk-...           # Required: gpt-4o-transcribe
 | Core | `app/core/` | SessionActor, config, cost tracking |
 | Agent | `app/agent/` | MCP tools, system prompts |
 | KG | `app/kg/` | Domain models, graph storage, extraction |
-| Frontend | `app/static/js/` | 26 ES modules (chat, kg, jobs, upload) |
+| Frontend | `app/static/js/` | 31 ES modules (chat, kg, jobs, upload, workspace) |
 
 ## Critical Patterns
 
@@ -79,6 +79,18 @@ Agent auto-responds with results ← Hidden callback message ← Job completes
 ```
 
 When background jobs complete, `triggerJobCompletionCallback()` sends a hidden message to the agent. This creates seamless conversation flow where async work automatically continues the chat.
+
+### Job Persistence — Jobs survive server restarts
+
+```
+Job Created → Persist to data/jobs/{id}.json
+                        ↓
+Progress Update (10%) → Persist state outside lock
+                        ↓
+Server Restart → restore_pending_jobs() recovers PENDING/RUNNING jobs
+```
+
+Jobs are persisted at creation, every 10% progress, and on completion. On startup, `restore_pending_jobs()` recovers in-progress jobs.
 
 ## Code Standards
 

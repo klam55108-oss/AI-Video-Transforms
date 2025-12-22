@@ -33,11 +33,16 @@ app/static/js/
 │   └── status.js        # Agent status polling
 ├── panels/              # Sidebar panels
 │   ├── history.js       # Session history panel
-│   └── transcripts.js   # Transcript library panel
+│   ├── transcripts.js   # Transcript library panel
+│   ├── transcript-search.js  # Transcript search filtering
+│   └── transcript-viewer.js  # Full transcript modal viewer
 ├── jobs/                # Background job queue
-│   └── jobs.js          # Job progress UI and polling
+│   ├── jobs.js          # Job progress UI and polling
+│   └── step-progress.js # Step-by-step progress indicator
 ├── upload/              # File uploads
 │   └── upload.js        # Video upload handling
+├── ui/                  # UI components
+│   └── workspace.js     # 3-panel resizable workspace layout
 └── kg/                  # Knowledge Graph visualization
     ├── index.js         # Module aggregator
     ├── api.js           # KG API client
@@ -47,7 +52,8 @@ app/static/js/
     ├── ui.js            # UI state updates
     ├── graph.js         # Cytoscape.js integration
     ├── search.js        # Graph search functionality
-    └── inspector.js     # Node inspector panel
+    ├── inspector.js     # Node inspector panel
+    └── evidence.js      # Node evidence/citation viewer
 ```
 
 ---
@@ -178,6 +184,63 @@ export function cleanupAllJobPollers();
 
 **Auto-Continuation**: When jobs complete, `triggerJobCompletionCallback()` sends a hidden message to the agent requesting it show results and offer next steps. This creates a seamless workflow where background jobs automatically continue the conversation.
 
+#### `jobs/step-progress.js`
+Step-by-step progress indicator for job stages.
+
+```javascript
+export function renderStepProgress(job);
+export function getStepsForJobType(jobType);
+```
+
+**Step States**: `pending` (gray), `active` (blue pulse), `completed` (green check)
+
+**Job Types**:
+- `transcription`: queued → downloading → extracting_audio → transcribing → processing → finalizing
+- `bootstrap`: queued → processing → finalizing
+- `extraction`: queued → processing → finalizing
+
+### Panels Modules
+
+#### `panels/transcript-search.js`
+Real-time search filtering for transcript library.
+
+```javascript
+export function initTranscriptSearch();
+export function filterTranscripts(query);
+export function clearTranscriptSearch();
+```
+
+#### `panels/transcript-viewer.js`
+Full transcript modal viewer with search highlighting.
+
+```javascript
+export function openTranscriptViewer(transcriptId);
+export function closeTranscriptViewer();
+export function highlightInViewer(searchText);
+```
+
+### Workspace Module
+
+#### `ui/workspace.js`
+3-panel resizable workspace layout manager.
+
+```javascript
+export function initWorkspace();
+export function showKGPanel();
+export function hideKGPanel();
+export function resizePanels(chatWidth, kgWidth);
+```
+
+**Layouts**:
+- `CHAT_ONLY`: Chat panel 100% width
+- `CHAT_KG`: Chat + KG split (resizable divider)
+
+**Features**:
+- Drag-to-resize divider between panels
+- Minimum width enforcement (300px)
+- Panel widths persisted to localStorage
+- Cytoscape auto-resize on drag end
+
 ### Upload Module
 
 #### `upload/upload.js`
@@ -243,6 +306,20 @@ export function hideSearchResults();
 - Match count display ("X of Y entities")
 
 **Layouts**: `cose` (force-directed), `grid`, `circle`, `breadthfirst` (hierarchical)
+
+#### `kg/evidence.js`
+Node evidence/citation viewer showing source transcript excerpts.
+
+```javascript
+export async function fetchNodeEvidence(projectId, nodeId);
+export function renderEvidenceSection(evidence);
+```
+
+**Features**:
+- Fetches citation evidence from `/kg/projects/{id}/nodes/{id}/evidence`
+- Renders blockquote-style evidence with source metadata
+- "View" button jumps to transcript viewer with search highlighting
+- Graceful degradation if evidence unavailable
 
 **Entity Type Colors**:
 | Type | Color |

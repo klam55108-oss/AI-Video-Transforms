@@ -76,6 +76,8 @@ class TranscriptMetadata(BaseModel):
     created_at: datetime
     file_size: int
     session_id: str | None = None
+    format: str = "text"
+    duration: float | None = None  # Total duration in seconds
 
 
 class TranscriptListResponse(BaseModel):
@@ -175,3 +177,21 @@ class ListProjectsResponse(BaseModel):
     """Response model for listing all KG projects."""
 
     projects: list[ProjectStatusResponse]
+
+
+class SegmentEvidence(BaseModel):
+    """Evidence from a specific transcript segment."""
+
+    source_id: str
+    source_title: str
+    segment_id: str
+    text: str
+    start: float | None = None
+    end: float | None = None
+
+
+class NodeEvidenceResponse(BaseModel):
+    """Response model for node evidence endpoint."""
+
+    node_id: str
+    evidence: list[SegmentEvidence]

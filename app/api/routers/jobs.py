@@ -70,11 +70,11 @@ async def get_job_status(
     return job.to_dict()
 
 
-@router.delete("/{job_id}")
+@router.post("/{job_id}/cancel")
 async def cancel_job(
     job_id: str,
     job_queue_svc: JobQueueService = Depends(get_job_queue_service),
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """
     Cancel a pending or running job.
 
@@ -83,16 +83,83 @@ async def cancel_job(
         job_queue_svc: Injected job queue service
 
     Returns:
-        Success status message
+        Cancelled job data
     """
     # Validate job ID format
     validate_uuid(job_id, "job ID")
 
-    success = await job_queue_svc.cancel_job(job_id)
-    if not success:
+    cancelled_job = await job_queue_svc.cancel_job(job_id)
+    if not cancelled_job:
         raise HTTPException(
             status_code=404,
             detail="Job not found or already completed",
         )
 
-    return {"status": "success", "message": f"Job {job_id} cancelled"}
+    return {
+        "success": True,
+        "job_id": job_id,
+        "message": f"Job {job_id} cancelled",
+        "job": cancelled_job.to_dict(),
+    }
+
+
+@router.post("/{job_id}/retry")
+async def retry_job(
+    job_id: str,
+    job_queue_svc: JobQueueService = Depends(get_job_queue_service),
+) -> dict[str, Any]:
+    """
+    Retry a failed or cancelled job.
+
+    Creates a new job with incremented retry count. Returns error if:
+    - Original job not found
+    - Job is still running
+    - Max retries exceeded
+
+    Args:
+        job_id: UUID of the job to retry
+        job_queue_svc: Injected job queue service
+
+    Returns:
+        New job data or error message
+    """
+    # Validate job ID format
+    validate_uuid(job_id, "job ID")
+
+    new_job = await job_queue_svc.retry_job(job_id)
+    if not new_job:
+        # Get the original job to provide better error message
+        original_job = await job_queue_svc.get_job(job_id)
+        if not original_job:
+            raise HTTPException(
+                status_code=404,
+                detail="Job not found",
+            )
+
+        if original_job.status not in (JobStatus.FAILED, JobStatus.CANCELLED):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot retry job with status {original_job.status.value}",
+            )
+
+        if original_job.retry_count >= original_job.max_retries:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Max retries ({original_job.max_retries}) exceeded",
+            )
+
+        # Generic error
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot retry job",
+        )
+
+    return {
+        "success": True,
+        "original_job_id": job_id,
+        "new_job_id": new_job.id,
+        "retry_attempt": new_job.retry_count,
+        "max_retries": new_job.max_retries,
+        "message": f"Job retry created (attempt {new_job.retry_count}/{new_job.max_retries})",
+        "job": new_job.to_dict(),
+    }

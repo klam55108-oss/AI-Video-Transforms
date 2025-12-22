@@ -28,6 +28,7 @@ class JobStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class JobStage(str, Enum):
@@ -44,10 +45,10 @@ class JobStage(str, Enum):
 @dataclass
 class Job:
     """
-    In-memory job representation.
+    Job representation with persistence support.
 
     Tracks the full lifecycle of an async job from creation to completion/failure.
-    NOT persisted to disk (MVP uses in-memory storage).
+    Persisted to disk for recovery on server restart.
     """
 
     id: str
@@ -61,10 +62,16 @@ class Job:
     result: dict[str, Any] | None = None
     error: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    last_persisted_at: datetime | None = None
+    resume_from_step: str | None = None  # e.g., "segment_3" for transcription
+    retry_count: int = 0
+    max_retries: int = 3
+    cancelled_at: datetime | None = None
+    cancelled_by: str | None = None  # "user" or "system"
 
     def to_dict(self) -> dict[str, Any]:
         """
-        Convert job to dictionary for API responses.
+        Convert job to dictionary for API responses and persistence.
 
         Returns:
             Dictionary representation of job state
@@ -83,4 +90,61 @@ class Job:
             "result": self.result,
             "error": self.error,
             "metadata": self.metadata,
+            "last_persisted_at": (
+                self.last_persisted_at.isoformat() if self.last_persisted_at else None
+            ),
+            "resume_from_step": self.resume_from_step,
+            "retry_count": self.retry_count,
+            "max_retries": self.max_retries,
+            "cancelled_at": (
+                self.cancelled_at.isoformat() if self.cancelled_at else None
+            ),
+            "cancelled_by": self.cancelled_by,
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Job:
+        """
+        Create Job instance from dictionary (for deserialization).
+
+        Args:
+            data: Dictionary representation of job
+
+        Returns:
+            Job instance
+        """
+        return cls(
+            id=data["id"],
+            type=JobType(data["type"]),
+            status=JobStatus(data["status"]),
+            stage=JobStage(data["stage"]),
+            progress=data["progress"],
+            created_at=datetime.fromisoformat(data["created_at"]),
+            started_at=(
+                datetime.fromisoformat(data["started_at"])
+                if data.get("started_at")
+                else None
+            ),
+            completed_at=(
+                datetime.fromisoformat(data["completed_at"])
+                if data.get("completed_at")
+                else None
+            ),
+            result=data.get("result"),
+            error=data.get("error"),
+            metadata=data.get("metadata", {}),
+            last_persisted_at=(
+                datetime.fromisoformat(data["last_persisted_at"])
+                if data.get("last_persisted_at")
+                else None
+            ),
+            resume_from_step=data.get("resume_from_step"),
+            retry_count=data.get("retry_count", 0),
+            max_retries=data.get("max_retries", 3),
+            cancelled_at=(
+                datetime.fromisoformat(data["cancelled_at"])
+                if data.get("cancelled_at")
+                else None
+            ),
+            cancelled_by=data.get("cancelled_by"),
+        )

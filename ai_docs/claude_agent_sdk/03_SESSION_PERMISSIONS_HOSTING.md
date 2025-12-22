@@ -790,4 +790,6 @@ An agent session will not timeout, but set a `max_turns` property to prevent Cla
 
 ---
 
-*See also: [04_API_REFERENCE.md](./04_API_REFERENCE.md) for complete type definitions*
+*See also:*
+- *[04_API_REFERENCE.md](./04_API_REFERENCE.md) for complete type definitions*
+- *[05_FILE_CHECKPOINTING.md](./05_FILE_CHECKPOINTING.md) for file versioning and rollback*
