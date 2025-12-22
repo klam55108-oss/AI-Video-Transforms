@@ -53,9 +53,11 @@ export function renderEvidenceSection(evidence) {
             ? e.text.substring(0, 200) + '...'
             : e.text;
 
-        // Encode search text for URL parameter
+        // Encode search text for URL parameter (used in data attribute)
         const searchText = encodeURIComponent(e.text.substring(0, 100));
 
+        // Use data attributes to avoid quote escaping issues in onclick
+        // The onclick reads from dataset, avoiding string interpolation vulnerabilities
         return `
             <div class="evidence-item bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] p-3 rounded-lg mb-2 transition-colors">
                 <blockquote class="text-xs italic border-l-2 border-[var(--accent-primary)] pl-3 text-[var(--text-secondary)]">
@@ -66,7 +68,9 @@ export function renderEvidenceSection(evidence) {
                         ${escapeHtml(e.source_title)}
                     </span>
                     <button
-                        onclick="kg_jumpToEvidence('${e.source_id}', '${searchText}')"
+                        data-source-id="${escapeHtml(e.source_id)}"
+                        data-search-text="${escapeHtml(searchText)}"
+                        onclick="kg_jumpToEvidence(this.dataset.sourceId, this.dataset.searchText)"
                         class="text-[10px] text-[var(--accent-primary)] hover:text-[var(--accent-primary-hover)] font-medium flex items-center gap-1 flex-shrink-0"
                         title="View in transcript"
                     >

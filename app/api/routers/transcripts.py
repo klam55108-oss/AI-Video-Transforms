@@ -62,10 +62,8 @@ async def export_transcript(
     """
     import json as json_lib
 
-    # Get raw metadata from storage
-    from app.core.storage import storage as raw_storage
-
-    metadata_dict = raw_storage.get_transcript(transcript_id)
+    # Get raw metadata via injected service (includes file_path)
+    metadata_dict = storage_svc.get_transcript_raw(transcript_id)
     if not metadata_dict:
         raise HTTPException(status_code=404, detail="Transcript not found")
 
@@ -89,7 +87,7 @@ async def export_transcript(
             source=metadata_dict.get("original_source", ""),
             source_type=metadata_dict.get("source_type", "local_file"),
             text=txt_path.read_text(encoding="utf-8"),
-            duration=metadata_dict.get("duration", 0.0),
+            duration=float(metadata_dict.get("duration", 0.0)),
             created_at=created_at,
         )
     else:
@@ -147,10 +145,8 @@ async def download_transcript(
     Raises:
         HTTPException: If transcript or file not found
     """
-    # Get raw metadata from storage (includes internal file_path)
-    from app.core.storage import storage as raw_storage
-
-    metadata_dict = raw_storage.get_transcript(transcript_id)
+    # Get raw metadata via injected service (includes file_path)
+    metadata_dict = storage_svc.get_transcript_raw(transcript_id)
     if not metadata_dict:
         raise HTTPException(status_code=404, detail="Transcript not found")
 

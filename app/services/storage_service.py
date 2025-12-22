@@ -204,6 +204,21 @@ class StorageService:
             duration=data.get("duration"),
         )
 
+    def get_transcript_raw(self, transcript_id: str) -> dict[str, str] | None:
+        """
+        Get raw transcript metadata dict including internal file_path.
+
+        This method is for internal use (export/download) where file_path
+        is needed. For API responses, use get_transcript_metadata() instead.
+
+        Args:
+            transcript_id: Transcript ID
+
+        Returns:
+            Raw metadata dict with file_path, or None if not found
+        """
+        return self._storage.get_transcript(transcript_id)
+
     def get_transcript_content(self, file_path: str) -> TranscriptContent | None:
         """
         Read transcript content from file.

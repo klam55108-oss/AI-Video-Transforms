@@ -201,6 +201,12 @@ def _split_audio_for_duration(
     chunks = []
     for i, start_ms in enumerate(range(0, duration_ms, max_chunk_ms)):
         chunk = audio[start_ms : start_ms + max_chunk_ms]
+
+        # Skip very short chunks (< 100ms) that can occur at exact boundaries
+        if len(chunk) < 100:
+            logger.debug(f"Skipping chunk {i}: too short ({len(chunk)}ms)")
+            continue
+
         chunk_path = os.path.join(output_dir, f"chunk_{i:03d}.mp3")
         chunk.export(chunk_path, format="mp3", bitrate="128k")
         chunks.append(chunk_path)

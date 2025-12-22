@@ -251,6 +251,7 @@ class JobQueueService:
         Update job progress and stage.
 
         Persists to disk at configured intervals to enable resume on restart.
+        Creates a snapshot inside the lock to avoid race conditions.
 
         Args:
             job_id: Job identifier
@@ -258,7 +259,7 @@ class JobQueueService:
             progress: Progress percentage (0-100)
         """
         settings = get_settings()
-        should_persist = False
+        job_snapshot: Job | None = None
 
         async with self._jobs_lock:
             job = self._jobs.get(job_id)
@@ -267,7 +268,8 @@ class JobQueueService:
                 job.stage = stage
                 job.progress = min(100, max(0, progress))
 
-                # Persist at configured intervals (e.g., every 10%)
+                # Check if we should persist at this interval
+                should_persist = False
                 if progress % settings.job_persist_interval_percent == 0:
                     should_persist = True
                 # Also persist if we crossed an interval threshold
@@ -276,9 +278,13 @@ class JobQueueService:
                 ):
                     should_persist = True
 
-        # Persist outside lock to avoid blocking
-        if should_persist and job:
-            await self._repository.save_job(job)
+                # Create snapshot inside lock to avoid race condition
+                if should_persist:
+                    job_snapshot = Job.from_dict(job.to_dict())
+
+        # Persist snapshot outside lock to avoid blocking
+        if job_snapshot:
+            await self._repository.save_job(job_snapshot)
 
     async def _check_cancelled(self, job_id: str) -> bool:
         """
@@ -306,12 +312,16 @@ class JobQueueService:
         """
         Mark job as completed/failed and persist final state.
 
+        Creates a snapshot inside the lock to avoid race conditions.
+
         Args:
             job_id: Job identifier
             status: Final job status
             result: Optional result data
             error: Optional error message
         """
+        job_snapshot: Job | None = None
+
         async with self._jobs_lock:
             job = self._jobs.get(job_id)
             if job:
@@ -321,10 +331,12 @@ class JobQueueService:
                     job.result = result
                 if error:
                     job.error = error
+                # Create snapshot inside lock to avoid race condition
+                job_snapshot = Job.from_dict(job.to_dict())
 
-        # Persist final state outside lock
-        if job:
-            await self._repository.save_job(job)
+        # Persist snapshot outside lock
+        if job_snapshot:
+            await self._repository.save_job(job_snapshot)
 
     async def _process_job(self, job_id: str) -> None:
         """
@@ -554,7 +566,8 @@ class JobQueueService:
         Restore jobs from disk on startup.
 
         Loads all persisted jobs and re-queues PENDING/RUNNING jobs
-        to enable resume from checkpoint.
+        to enable resume from checkpoint. Uses parallel persistence
+        for better performance with large job backlogs.
 
         Returns:
             Number of jobs restored
@@ -569,6 +582,7 @@ class JobQueueService:
             return 0
 
         restored_count = 0
+        jobs_to_persist: list[Job] = []
 
         async with self._jobs_lock:
             for job in persisted_jobs:
@@ -579,6 +593,7 @@ class JobQueueService:
                 if job.status == JobStatus.RUNNING:
                     job.status = JobStatus.PENDING
                     job.error = "Server restarted - job will resume"
+                    jobs_to_persist.append(job)
                     logger.info(
                         f"Marking interrupted job {job.id} for resume at {job.progress}%"
                     )
@@ -587,10 +602,11 @@ class JobQueueService:
                 await self._pending_queue.put(job.id)
                 restored_count += 1
 
-        # Persist updated status for interrupted jobs
-        for job in persisted_jobs:
-            if job.status == JobStatus.PENDING:
-                await self._repository.save_job(job)
+        # Persist updated status for interrupted jobs in parallel
+        if jobs_to_persist:
+            await asyncio.gather(
+                *[self._repository.save_job(job) for job in jobs_to_persist]
+            )
 
         logger.info(f"Restored {restored_count} jobs from disk")
         return restored_count
