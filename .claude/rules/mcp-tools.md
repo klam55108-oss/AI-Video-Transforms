@@ -69,6 +69,10 @@ mcp_server.add_tool("save_transcript", save_transcript_handler)
 
 **Transcription Features** (`gpt-4o-transcribe`):
 - Automatic audio splitting for videos > 25 minutes
+- **Intelligent audio compression** — Auto-compresses files exceeding OpenAI's 25MB limit:
+  - Calculates target bitrate dynamically based on file duration
+  - Uses mono channel at 16kHz (optimal for speech recognition)
+  - Falls back to aggressive compression (min 24kbps) if needed
 - Optional `prompt` parameter for domain-specific vocabulary (technical terms, proper nouns, acronyms)
 - Language detection or explicit language specification (ISO 639-1 codes)
 - Temperature control for output consistency

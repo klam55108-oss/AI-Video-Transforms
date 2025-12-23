@@ -166,6 +166,185 @@ def _extract_audio_from_video(video_path: str, output_dir: str) -> str:
         raise RuntimeError("FFmpeg audio extraction timed out after 5 minutes") from e
 
 
+# Maximum file size for OpenAI transcription API (with safety margin)
+MAX_FILE_SIZE_BYTES = 24 * 1024 * 1024  # 24MB to stay safely under 25MB limit
+
+
+def _compress_audio_for_size(
+    audio_path: str,
+    output_dir: str,
+    max_size_bytes: int = MAX_FILE_SIZE_BYTES,
+) -> str:
+    """
+    Compress audio file using FFmpeg to stay under size limit.
+
+    Uses mono channel and reduced bitrate for speech transcription.
+    Dynamically calculates bitrate based on file duration and target size.
+
+    Args:
+        audio_path: Path to the audio file
+        output_dir: Directory to save compressed file
+        max_size_bytes: Maximum file size in bytes (default: 24MB)
+
+    Returns:
+        Path to compressed file (or original if already under limit)
+
+    Raises:
+        RuntimeError: If compression fails
+    """
+    file_size = os.path.getsize(audio_path)
+
+    if file_size <= max_size_bytes:
+        logger.debug(
+            f"Audio file {file_size / 1024 / 1024:.1f}MB is under limit, no compression needed"
+        )
+        return audio_path
+
+    logger.info(
+        f"Audio file {file_size / 1024 / 1024:.1f}MB exceeds {max_size_bytes / 1024 / 1024:.0f}MB limit, compressing..."
+    )
+
+    # Get audio duration for bitrate calculation
+    audio = AudioSegment.from_file(audio_path)
+    duration_sec = len(audio) / 1000.0
+
+    # Calculate target bitrate: (target_bytes * 8 bits) / duration_seconds
+    # Use 90% of max to leave margin for container overhead
+    target_bytes = max_size_bytes * 0.9
+    target_bitrate_bps = int((target_bytes * 8) / duration_sec)
+    target_bitrate_kbps = max(
+        32, min(target_bitrate_bps // 1000, 128)
+    )  # Clamp between 32-128 kbps
+
+    logger.info(
+        f"Compressing {duration_sec:.0f}s audio to ~{target_bitrate_kbps}kbps mono "
+        f"(target: {target_bytes / 1024 / 1024:.1f}MB)"
+    )
+
+    base_name = os.path.splitext(os.path.basename(audio_path))[0]
+    compressed_path = os.path.join(output_dir, f"{base_name}_compressed.mp3")
+
+    cmd = [
+        "ffmpeg",
+        "-i",
+        audio_path,
+        "-ac",
+        "1",  # Mono (halves size, fine for speech)
+        "-ar",
+        "16000",  # 16kHz sample rate (optimal for speech recognition)
+        "-b:a",
+        f"{target_bitrate_kbps}k",  # Target bitrate
+        "-y",  # Overwrite output
+        compressed_path,
+    ]
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            timeout=300,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            stderr = result.stderr.decode("utf-8", errors="replace")
+            raise RuntimeError(f"FFmpeg compression failed: {stderr}")
+
+        compressed_size = os.path.getsize(compressed_path)
+        logger.info(
+            f"Compression complete: {file_size / 1024 / 1024:.1f}MB → "
+            f"{compressed_size / 1024 / 1024:.1f}MB "
+            f"({100 * (1 - compressed_size / file_size):.0f}% reduction)"
+        )
+
+        # If still too large, try more aggressive compression
+        if compressed_size > max_size_bytes:
+            logger.warning(
+                f"First compression attempt still too large ({compressed_size / 1024 / 1024:.1f}MB), "
+                "retrying with lower bitrate..."
+            )
+            # Retry with 50% of the calculated bitrate
+            return _compress_audio_for_size_aggressive(
+                audio_path, output_dir, max_size_bytes, target_bitrate_kbps // 2
+            )
+
+        return compressed_path
+
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError("FFmpeg compression timed out after 5 minutes") from e
+
+
+def _compress_audio_for_size_aggressive(
+    audio_path: str,
+    output_dir: str,
+    max_size_bytes: int,
+    bitrate_kbps: int,
+) -> str:
+    """
+    Aggressive audio compression fallback with specified bitrate.
+
+    Args:
+        audio_path: Path to the audio file
+        output_dir: Directory to save compressed file
+        max_size_bytes: Maximum file size in bytes
+        bitrate_kbps: Target bitrate in kbps
+
+    Returns:
+        Path to compressed file
+
+    Raises:
+        RuntimeError: If compression fails or file still too large
+    """
+    bitrate_kbps = max(24, bitrate_kbps)  # Don't go below 24kbps
+    logger.info(f"Aggressive compression: {bitrate_kbps}kbps mono")
+
+    base_name = os.path.splitext(os.path.basename(audio_path))[0]
+    compressed_path = os.path.join(output_dir, f"{base_name}_compressed_v2.mp3")
+
+    cmd = [
+        "ffmpeg",
+        "-i",
+        audio_path,
+        "-ac",
+        "1",  # Mono
+        "-ar",
+        "16000",  # 16kHz
+        "-b:a",
+        f"{bitrate_kbps}k",
+        "-y",
+        compressed_path,
+    ]
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            timeout=300,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            stderr = result.stderr.decode("utf-8", errors="replace")
+            raise RuntimeError(f"FFmpeg aggressive compression failed: {stderr}")
+
+        compressed_size = os.path.getsize(compressed_path)
+        logger.info(
+            f"Aggressive compression complete: {compressed_size / 1024 / 1024:.1f}MB"
+        )
+
+        if compressed_size > max_size_bytes:
+            raise RuntimeError(
+                f"Audio still too large after aggressive compression "
+                f"({compressed_size / 1024 / 1024:.1f}MB > {max_size_bytes / 1024 / 1024:.0f}MB). "
+                "Consider splitting the video into smaller segments."
+            )
+
+        return compressed_path
+
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError("FFmpeg aggressive compression timed out") from e
+
+
 def _split_audio_for_duration(
     audio_path: str,
     max_duration_sec: int = 1400,  # Under 1500s limit with margin
@@ -208,7 +387,8 @@ def _split_audio_for_duration(
             continue
 
         chunk_path = os.path.join(output_dir, f"chunk_{i:03d}.mp3")
-        chunk.export(chunk_path, format="mp3", bitrate="128k")
+        # Use lower bitrate for chunks to help with size constraints
+        chunk.export(chunk_path, format="mp3", bitrate="96k")
         chunks.append(chunk_path)
         logger.info(
             f"Created chunk {i}: {chunk_path} ({len(chunk) / 1000:.1f}s, {os.path.getsize(chunk_path) / 1024 / 1024:.1f}MB)"
@@ -374,6 +554,9 @@ def _perform_transcription(
             duration = len(audio) / 1000.0  # Convert ms to seconds
             logger.info(f"Audio duration: {duration:.1f}s ({duration / 60:.1f}min)")
 
+            # Compress audio if too large for API (25MB limit)
+            audio_path = _compress_audio_for_size(audio_path, temp_dir)
+
             # Split audio if needed for 25-minute API limit
             chunks = _split_audio_for_duration(
                 audio_path, max_duration_sec=1400, output_dir=temp_dir
@@ -385,6 +568,9 @@ def _perform_transcription(
             chunk_texts: list[str] = []
             for i, chunk_path in enumerate(chunks):
                 logger.info(f"Transcribing chunk {i + 1}/{len(chunks)}")
+
+                # Ensure chunk is under size limit (compress if needed)
+                chunk_path = _compress_audio_for_size(chunk_path, temp_dir)
 
                 # Use prompt for first chunk, continuation context for subsequent chunks
                 chunk_prompt = prompt if i == 0 else None
