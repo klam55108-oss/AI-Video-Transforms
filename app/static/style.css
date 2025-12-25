@@ -664,8 +664,8 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 .content-header {
     background: var(--content-surface);
     border-bottom: 1px solid var(--divider);
-    backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
 }
 
 /* ==============================================
@@ -884,8 +884,8 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     background: var(--content-surface);
     border-top: 1px solid var(--divider);
     padding: var(--space-5) var(--space-6);
-    backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
 }
 
 .input-container {
@@ -1057,8 +1057,8 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     justify-content: space-between;
     gap: var(--space-3);
     animation: toastSlideIn var(--duration-slower) var(--ease-spring) forwards;
-    backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
 }
 
 .toast.error {
@@ -1746,8 +1746,8 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 
 .glass {
     background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -3532,8 +3532,8 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 /* Glass Panel Base */
 .glass-panel {
     background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur));
     border: 1px solid var(--glass-border);
     box-shadow:
         0 4px 24px rgba(0, 0, 0, 0.12),
@@ -3545,8 +3545,8 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     background: linear-gradient(180deg,
         rgba(10, 13, 17, 0.98) 0%,
         rgba(10, 13, 17, 0.95) 100%);
-    backdrop-filter: blur(var(--glass-blur-heavy));
     -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+    backdrop-filter: blur(var(--glass-blur-heavy));
 }
 
 /* Glass effect on sidebar sections */
@@ -3574,8 +3574,8 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     background: linear-gradient(180deg,
         var(--content-surface) 0%,
         rgba(var(--content-surface), 0.8) 100%);
-    backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur));
     border-bottom: 1px solid var(--glass-border);
 }
 
@@ -3584,8 +3584,8 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     background: linear-gradient(180deg,
         transparent 0%,
         var(--content-surface) 20%);
-    backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur));
     border-top: 1px solid var(--glass-border);
 }
 
@@ -3796,8 +3796,8 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
         rgba(var(--accent-rgb, 0, 217, 255), 0.03) 0%,
         rgba(var(--accent-rgb, 0, 217, 255), 0.01) 100%
     );
-    backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
     border: 1px solid rgba(var(--accent-rgb, 0, 217, 255), 0.08);
     border-radius: var(--radius-2xl);
     position: relative;
@@ -4337,8 +4337,8 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 
 .toast {
     background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur-heavy));
     -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+    backdrop-filter: blur(var(--glass-blur-heavy));
     border: 1px solid var(--glass-border);
     box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.3),
@@ -4375,8 +4375,8 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 
 .code-copy-btn {
     background: var(--glass-bg);
-    backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
     border: 1px solid var(--glass-border);
 }
 
@@ -4394,8 +4394,8 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 #transcript-viewer-modal > div,
 #batch-export-modal > div {
     background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur-heavy));
     -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+    backdrop-filter: blur(var(--glass-blur-heavy));
     border: 1px solid var(--glass-border);
     box-shadow:
         0 24px 80px rgba(0, 0, 0, 0.4),
@@ -4414,16 +4414,16 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 
 .graph-search-bar {
     background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur));
     border: 1px solid var(--glass-border);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
 .inspector-panel {
     background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur-heavy));
     -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+    backdrop-filter: blur(var(--glass-blur-heavy));
     border-left: 1px solid var(--glass-border);
     box-shadow: -4px 0 30px rgba(0, 0, 0, 0.3);
 }
