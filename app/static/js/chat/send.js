@@ -76,8 +76,9 @@ export async function sendMessage(message, showInUI = true) {
     let lastError = null;
 
     // Start activity stream to show real-time agent status
-    startActivityStream((activityText, toolName) => {
-        updateLoadingActivity(loadingId, activityText, toolName);
+    // Callback receives (activityText, activityType) for Neural UI theming
+    startActivityStream((activityText, activityType) => {
+        updateLoadingActivity(loadingId, activityText, activityType);
     });
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {

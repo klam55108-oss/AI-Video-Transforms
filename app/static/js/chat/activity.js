@@ -1,6 +1,7 @@
 // ============================================
 // Chat Activity Module
 // Real-time activity streaming from agent processing
+// Enhanced with activity type support for Neural UI
 // ============================================
 
 import { state } from '../core/state.js';
@@ -12,7 +13,10 @@ import { state } from '../core/state.js';
 /** @type {EventSource|null} */
 let activityEventSource = null;
 
-/** @type {function(string, string|null): void|null} */
+/**
+ * Callback signature: (text: string, activityType: string|null) => void
+ * @type {function(string, string|null): void|null}
+ */
 let activityUpdateCallback = null;
 
 /** @type {number|null} */
@@ -21,7 +25,7 @@ let pollingIntervalId = null;
 /** @type {number|null} */
 let debounceTimeoutId = null;
 
-/** @type {{text: string, toolName: string|null}|null} */
+/** @type {{text: string, activityType: string|null}|null} */
 let pendingActivity = null;
 
 // Use SSE by default, fall back to polling if needed
@@ -50,11 +54,11 @@ function formatActivityText(event) {
  * Debounced activity update to smooth rapid tool sequences.
  * Prevents UI flicker when tools execute in quick succession.
  * @param {string} text - Activity text to display
- * @param {string|null} toolName - Optional tool name
+ * @param {string|null} activityType - Activity type (thinking, tool_use, tool_result, subagent)
  */
-function debouncedActivityUpdate(text, toolName) {
+function debouncedActivityUpdate(text, activityType) {
     // Store the latest activity
-    pendingActivity = { text, toolName };
+    pendingActivity = { text, activityType };
 
     // Clear any existing timeout
     if (debounceTimeoutId) {
@@ -64,7 +68,7 @@ function debouncedActivityUpdate(text, toolName) {
     // Schedule the update after debounce interval
     debounceTimeoutId = setTimeout(() => {
         if (pendingActivity && activityUpdateCallback) {
-            activityUpdateCallback(pendingActivity.text, pendingActivity.toolName);
+            activityUpdateCallback(pendingActivity.text, pendingActivity.activityType);
             pendingActivity = null;
         }
         debounceTimeoutId = null;
@@ -81,7 +85,7 @@ function flushPendingActivity() {
         debounceTimeoutId = null;
     }
     if (pendingActivity && activityUpdateCallback) {
-        activityUpdateCallback(pendingActivity.text, pendingActivity.toolName);
+        activityUpdateCallback(pendingActivity.text, pendingActivity.activityType);
         pendingActivity = null;
     }
 }
@@ -122,7 +126,8 @@ export function startActivityStream(onUpdate) {
 
                 if (text) {
                     // Use debounced update to smooth rapid tool sequences
-                    debouncedActivityUpdate(text, data.tool_name || null);
+                    // Pass activity type for Neural UI theming
+                    debouncedActivityUpdate(text, data.type || null);
                 }
 
                 // Stop stream on completion (flush pending first)
@@ -194,7 +199,8 @@ function startPollingFallback() {
             const data = await response.json();
             if (data.type && data.message) {
                 // Use debouncing for consistency with SSE path
-                debouncedActivityUpdate(data.message, data.tool_name || null);
+                // Pass activity type for Neural UI theming
+                debouncedActivityUpdate(data.message, data.type || null);
             }
         } catch (err) {
             // Silently ignore polling errors
@@ -225,6 +231,8 @@ export function getActivityIcon(activityType) {
             return 'ph-check-circle';
         case 'subagent':
             return 'ph-users-three';
+        case 'file_save':
+            return 'ph-floppy-disk';
         case 'completed':
             return 'ph-sparkle';
         default:

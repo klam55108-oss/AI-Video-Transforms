@@ -21,6 +21,7 @@ from httpx import ASGITransport, AsyncClient
 from app.core.session import (
     ActivityEvent,
     ActivityType,
+    FILE_SAVE_TOOLS,
     SessionActor,
     TOOL_DESCRIPTIONS,
     get_activity_text,
@@ -79,6 +80,20 @@ class TestActivityEvent:
         json_str = json.dumps(event.to_dict())
         parsed = json.loads(json_str)
         assert parsed["type"] == "completed"
+
+    def test_create_file_save_event(self) -> None:
+        """Test creating a file_save activity event for atomic file operations."""
+        event = ActivityEvent(
+            activity_type=ActivityType.FILE_SAVE,
+            message="💾 Saving transcript",
+            tool_name="mcp__video-tools__save_transcript",
+        )
+        assert event.activity_type == ActivityType.FILE_SAVE
+        assert event.tool_name == "mcp__video-tools__save_transcript"
+
+        data = event.to_dict()
+        assert data["type"] == "file_save"
+        assert "Saving" in data["message"]
 
 
 # =============================================================================
@@ -185,6 +200,21 @@ class TestToolDescriptions:
         sdk_tools = ["Skill", "Read", "Write", "Bash", "Task"]
         for tool in sdk_tools:
             assert tool in TOOL_DESCRIPTIONS, f"Missing description for {tool}"
+
+    def test_file_save_tools_configured(self) -> None:
+        """Test that FILE_SAVE_TOOLS frozenset is properly configured."""
+        # Verify expected tools are in the set
+        expected_tools = [
+            "mcp__video-tools__write_file",
+            "mcp__video-tools__save_transcript",
+            "Write",
+            "Edit",
+        ]
+        for tool in expected_tools:
+            assert tool in FILE_SAVE_TOOLS, f"Missing file save tool: {tool}"
+
+        # Verify it's immutable (frozenset)
+        assert isinstance(FILE_SAVE_TOOLS, frozenset)
 
 
 # =============================================================================

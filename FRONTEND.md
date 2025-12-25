@@ -169,9 +169,11 @@ export function formatActivityText(event);      // Formats with emoji
 export function getActivityIcon(type);          // Returns icon class
 ```
 
-**SSE Streaming**: Connects to `/chat/activity/{session_id}` for real-time activity events. Automatically falls back to polling (`/chat/activity/{id}/current`) if SSE fails.
+**SSE Streaming**: Connects to `/chat/activity/{session_id}` for real-time activity events. Automatically falls back to polling (`/chat/activity/{id}/current` at 1000ms intervals) if SSE fails.
 
-**Activity Types**: `thinking`, `tool_use`, `tool_result`, `subagent`, `completed`
+**Activity Types**: `thinking`, `tool_use`, `tool_result`, `subagent`, `file_save`, `completed`
+
+**Debouncing**: Rapid tool sequences are debounced at 150ms to prevent UI flicker. `flushPendingActivity()` ensures final state is shown when stream ends.
 
 **Integration**: Activity stream starts when message is sent and stops when response completes. Updates loading indicator with current agent action.
 
@@ -203,6 +205,8 @@ export function cleanupAllJobPollers();
 **Job Statuses**: `pending`, `running`, `completed`, `failed`, `cancelled`
 
 **Auto-Continuation**: When jobs complete, `triggerJobCompletionCallback()` sends a hidden message to the agent requesting it show results and offer next steps. This creates a seamless workflow where background jobs automatically continue the conversation.
+
+**Race Condition Handling**: `sendMessageWhenReady()` retries callbacks at 500ms intervals (max 20 attempts) until `state.isProcessing` clears, preventing silent callback drops when jobs complete during active message processing.
 
 #### `jobs/step-progress.js`
 Step-by-step progress indicator for job stages.

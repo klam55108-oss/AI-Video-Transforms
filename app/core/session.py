@@ -97,6 +97,7 @@ class ActivityType(Enum):
     TOOL_USE = "tool_use"
     TOOL_RESULT = "tool_result"
     SUBAGENT = "subagent"
+    FILE_SAVE = "file_save"  # Atomic file writing operations
     COMPLETED = "completed"
 
 
@@ -169,6 +170,16 @@ TOOL_DESCRIPTIONS: dict[str, str] = {
     "TodoWrite": "Updating task list",
 }
 
+# Tools that perform atomic file saving operations (get FILE_SAVE activity type)
+FILE_SAVE_TOOLS: frozenset[str] = frozenset(
+    {
+        "mcp__video-tools__write_file",
+        "mcp__video-tools__save_transcript",
+        "Write",
+        "Edit",
+    }
+)
+
 
 def get_activity_text(msg: Any) -> ActivityEvent | None:
     """
@@ -198,6 +209,15 @@ def get_activity_text(msg: Any) -> ActivityEvent | None:
                 if isinstance(first_content, ToolUseBlock):
                     tool_name = first_content.name
                     description = TOOL_DESCRIPTIONS.get(tool_name, tool_name)
+
+                    # Use FILE_SAVE activity type for file-saving tools
+                    if tool_name in FILE_SAVE_TOOLS:
+                        return ActivityEvent(
+                            activity_type=ActivityType.FILE_SAVE,
+                            message=f"💾 {description}",
+                            tool_name=tool_name,
+                        )
+
                     return ActivityEvent(
                         activity_type=ActivityType.TOOL_USE,
                         message=f"🔧 {description}",
