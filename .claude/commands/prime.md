@@ -16,6 +16,13 @@ All tracked files in the repository:
 
 ## Core Documentation
 
+### Claude Agent SDK Docs **HIGHLY IMPORTANT**
+@ai_docs/claude_agent_sdk/01_OVERVIEW_QUICKSTART.md
+@ai_docs/claude_agent_sdk/02_CORE_API_TOOLS.md
+@ai_docs/claude_agent_sdk/03_SESSION_PERMISSIONS_HOSTING.md
+@ai_docs/claude_agent_sdk/04_API_REFERENCE.md
+@ai_docs/claude_agent_sdk/05_FILE_CHECKPOINTING.md
+
 ### README.md — Project Overview
 @README.md
 

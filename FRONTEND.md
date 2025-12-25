@@ -30,7 +30,8 @@ app/static/js/
 │   ├── messages.js      # Message rendering with markdown
 │   ├── send.js          # Message sending with retry logic
 │   ├── session.js       # Session init and restoration
-│   └── status.js        # Agent status polling
+│   ├── status.js        # Agent status polling
+│   └── activity.js      # Real-time activity streaming (SSE)
 ├── panels/              # Sidebar panels
 │   ├── history.js       # Session history panel
 │   ├── transcripts.js   # Transcript library panel
@@ -107,12 +108,15 @@ Message rendering with XSS protection.
 export function addMessage(text, sender, usage);
 export function showLoading();           // Returns loadingId
 export function removeLoading(id);
+export function updateLoadingActivity(text);  // Real-time activity feedback
 export function showEmptyState();
 export function hideEmptyState();
 export function scrollToBottom();
 ```
 
 **Security**: All agent messages sanitized via DOMPurify before rendering.
+
+**Activity Display**: `updateLoadingActivity()` updates the loading indicator with real-time agent activity (e.g., "🔧 Transcribing video"). Smoothly transitions from loading dots to activity text.
 
 #### `chat/send.js`
 Message sending with retry logic and job detection.
@@ -154,6 +158,22 @@ export function renderStatus(status);
 ```
 
 **Status States**: `initializing`, `ready`, `processing`, `error`, `expired`
+
+#### `chat/activity.js`
+Real-time activity streaming via Server-Sent Events (SSE).
+
+```javascript
+export function startActivityStream(callback);  // Opens SSE connection
+export function stopActivityStream();           // Closes connection
+export function formatActivityText(event);      // Formats with emoji
+export function getActivityIcon(type);          // Returns icon class
+```
+
+**SSE Streaming**: Connects to `/chat/activity/{session_id}` for real-time activity events. Automatically falls back to polling (`/chat/activity/{id}/current`) if SSE fails.
+
+**Activity Types**: `thinking`, `tool_use`, `tool_result`, `subagent`, `completed`
+
+**Integration**: Activity stream starts when message is sent and stops when response completes. Updates loading indicator with current agent action.
 
 ### Jobs Module
 
@@ -357,6 +377,7 @@ chat/send.js
 ├── core/config.js (MAX_RETRIES, RETRY_DELAY_MS)
 ├── core/utils.js (sleep)
 ├── chat/messages.js
+├── chat/activity.js (startActivityStream, stopActivityStream)
 └── ui/toast.js
 
 kg/graph.js

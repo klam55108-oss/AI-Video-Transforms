@@ -220,7 +220,7 @@ export function addMessage(text, sender, usage = null) {
 }
 
 // ============================================
-// Loading Indicator
+// Loading Indicator with Activity Streaming
 // ============================================
 
 export function showLoading() {
@@ -233,11 +233,16 @@ export function showLoading() {
         <div class="avatar avatar-agent">
             <i class="ph-fill ph-robot text-lg" style="color: var(--accent-primary);"></i>
         </div>
-        <div class="message-agent" style="padding: 16px 24px;">
-            <div class="loading-dots">
-                <div class="loading-dot"></div>
-                <div class="loading-dot"></div>
-                <div class="loading-dot"></div>
+        <div class="message-agent loading-bubble" style="padding: 16px 24px; min-width: 120px;">
+            <div class="loading-content">
+                <div class="loading-dots">
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                </div>
+                <div class="loading-activity hidden" style="display: none;">
+                    <span class="activity-text text-sm" style="color: var(--text-secondary);"></span>
+                </div>
             </div>
         </div>
     `;
@@ -254,6 +259,44 @@ export function showLoading() {
     listContainer.appendChild(container);
     scrollToBottom();
     return id;
+}
+
+/**
+ * Update the loading indicator with activity text
+ * @param {string} loadingId - The loading element ID
+ * @param {string} activityText - Activity message to display (with emoji)
+ * @param {string|null} toolName - Optional tool name for context
+ */
+export function updateLoadingActivity(loadingId, activityText, toolName = null) {
+    const container = document.getElementById(loadingId);
+    if (!container) return;
+
+    const dotsEl = container.querySelector('.loading-dots');
+    const activityEl = container.querySelector('.loading-activity');
+    const textEl = container.querySelector('.activity-text');
+
+    if (!activityEl || !textEl) return;
+
+    if (activityText) {
+        // Hide dots, show activity text
+        if (dotsEl) dotsEl.style.display = 'none';
+        activityEl.style.display = 'flex';
+        activityEl.classList.remove('hidden');
+
+        // Update text with smooth transition
+        textEl.style.opacity = '0';
+        setTimeout(() => {
+            textEl.textContent = activityText;
+            textEl.style.opacity = '1';
+        }, 100);
+
+        scrollToBottom();
+    } else {
+        // Show dots, hide activity
+        if (dotsEl) dotsEl.style.display = 'flex';
+        activityEl.style.display = 'none';
+        activityEl.classList.add('hidden');
+    }
 }
 
 export function removeLoading(id) {

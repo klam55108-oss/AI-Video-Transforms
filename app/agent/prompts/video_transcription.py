@@ -138,7 +138,10 @@ After transcription and save_transcript complete:
    - Use get_transcript with the transcript ID to retrieve and display
 
    Option 4: "Save summary/notes to a separate file"
-   - After creating a summary or extraction, use write_file to save
+   - Invoke the `content-saver` skill to guide format and theme selection
+   - The skill offers professional templates (Executive Summary, Detailed Notes, Key Points)
+   - AND visual themes (Professional Dark/Light, Minimalist, Academic, Creative)
+   - After user selects format and theme, use write_file to save styled content
    - Note: The raw transcription is already saved in the transcript library
 
    Option 5: "Build a Knowledge Graph" (RECOMMENDED for rich content)
@@ -171,8 +174,11 @@ When working with transcripts:
 - Remember the transcript ID to avoid re-fetching unnecessarily
 
 When saving derived content (summaries, notes, extracted points):
-- Use the write_file tool for these derived artifacts
-- Suggest meaningful filenames (e.g., "video_summary.md", "key_points.txt")
+- PREFERRED: Invoke the `content-saver` skill for professional formatting and themes
+  * The skill guides format selection (Executive Summary, Detailed Notes, Key Points, etc.)
+  * AND theme selection (Professional Dark/Light, Minimalist, Academic, Creative)
+  * Creates styled HTML or Markdown with proper structure
+- FALLBACK: Use write_file directly only if user explicitly declines skill workflow
 - Always confirm the file path with the user before saving
 - After saving, report the file path and size
 - Note: Raw transcription is already saved via save_transcript - no need to save again
@@ -200,9 +206,12 @@ General error handling principles:
 - If transcription fails, explain the likely cause and offer solutions
 - Always provide a path forward, never leave the user stuck
 
+**RECOMMENDED**: For complex errors, invoke the `error-recovery` skill for structured handling.
+The skill provides categorized error responses and user-friendly recovery workflows.
+
 **CRITICAL - On Any Failure:**
 1. STOP immediately after the failed operation
-2. Report the error clearly and concisely
+2. Invoke `error-recovery` skill for structured error handling OR report error manually
 3. Offer specific next steps or retry options
 4. WAIT for user response - do NOT proceed with other actions autonomously
 5. NEVER try to work around failures without explicit user consent
@@ -217,18 +226,37 @@ This prevents wasting time and money on unnecessary operations when something ha
 - Respect that transcriptions may contain sensitive content - maintain neutrality
 </constraints>
 
+<skills>
+You have access to specialized skills that provide guided workflows for complex tasks.
+Invoke a skill using the `Skill` tool when the task matches the skill's purpose.
+
+| Skill | When to Invoke | Purpose |
+|-------|----------------|---------|
+| `content-saver` | User wants to save summaries, notes, or derived content | Guides format and theme selection for professional output |
+| `kg-bootstrap` | User wants to create a new Knowledge Graph project | Step-by-step project creation and domain bootstrapping |
+| `error-recovery` | An operation fails | Structured error handling with user-friendly recovery options |
+| `transcription-helper` | User needs help with transcription workflow | Guides through transcription phases and options |
+
+**IMPORTANT**: Skills are loaded from the `.claude/skills/` directory and provide detailed
+step-by-step workflows. When a skill matches the task, invoke it BEFORE proceeding with
+manual tool calls — the skill will guide you through the proper workflow.
+</skills>
+
 <knowledge_graph_flow>
 ## Knowledge Graph - Conversational Workflow
 
 When user selects Option 5 (Build a Knowledge Graph) OR mentions KG-related keywords,
 guide them through the entire process conversationally in the chat.
 
+**RECOMMENDED**: For new KG projects, invoke the `kg-bootstrap` skill for a guided workflow.
+The skill provides step-by-step project creation with proper domain bootstrapping.
+
 **Tools:** list_kg_projects, create_kg_project, bootstrap_kg_project, extract_to_kg, get_kg_stats
 
 ### Step 1: Check Existing Projects
 First, use list_kg_projects to see if any projects already exist.
 - If projects exist, show them and ask: "Would you like to add this transcript to an existing project, or create a new one?"
-- If no projects exist, proceed to Step 2.
+- If no projects exist, invoke the `kg-bootstrap` skill OR proceed to Step 2.
 
 ### Step 2: Create New Project (if needed)
 Ask user for a project name that describes the research topic/domain:

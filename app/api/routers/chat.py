@@ -2,12 +2,16 @@
 Chat router - handles chat session interactions.
 
 Provides endpoints for session initialization, message processing,
-session deletion, and status polling.
+session deletion, status polling, and real-time activity streaming.
 """
 
 from __future__ import annotations
 
+import asyncio
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 
 from app.api.deps import ValidatedSessionId, get_session_service, get_storage_service
 from app.api.errors import handle_endpoint_error
@@ -135,6 +139,106 @@ async def delete_session(
         raise HTTPException(status_code=404, detail="Session not found")
 
     return {"status": "success", "message": f"Session {session_id} closed"}
+
+
+@router.get("/activity/{session_id}")
+async def stream_activity(
+    session_id: str = Depends(ValidatedSessionId()),
+    session_svc: SessionService = Depends(get_session_service),
+) -> StreamingResponse:
+    """
+    Stream real-time activity events from the agent via SSE.
+
+    This endpoint provides Server-Sent Events (SSE) that show what the
+    agent is currently doing (e.g., "🔧 Transcribing video", "🤔 Thinking...").
+
+    The frontend subscribes to this stream while processing messages to
+    replace the static "3 dots" loading indicator with dynamic status updates.
+
+    Args:
+        session_id: UUID of the session (validated)
+        session_svc: Injected session service
+
+    Returns:
+        SSE stream of activity events in JSON format
+    """
+    actor = session_svc.get_actor(session_id)
+    if not actor:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    async def event_generator():
+        """Generate SSE events from the activity queue."""
+        # Subscribe to activity events
+        activity_queue = actor.subscribe_to_activity()
+
+        try:
+            while actor.is_running:
+                try:
+                    # Wait for activity events with timeout
+                    event = await asyncio.wait_for(
+                        activity_queue.get(), timeout=30.0
+                    )
+
+                    # Format as SSE
+                    data = json.dumps(event.to_dict())
+                    yield f"data: {data}\n\n"
+
+                    # If completed, end the stream
+                    if event.activity_type.value == "completed":
+                        break
+
+                except asyncio.TimeoutError:
+                    # Send keepalive to prevent connection timeout
+                    yield ": keepalive\n\n"
+                    continue
+                except Exception:
+                    break
+
+        finally:
+            actor.unsubscribe_from_activity(activity_queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        },
+    )
+
+
+@router.get("/activity/{session_id}/current")
+async def get_current_activity(
+    session_id: str = Depends(ValidatedSessionId()),
+    session_svc: SessionService = Depends(get_session_service),
+) -> dict[str, str | None]:
+    """
+    Get the current activity status (polling fallback for SSE).
+
+    This endpoint provides a polling alternative for environments
+    where SSE is not available or for initial status checks.
+
+    Args:
+        session_id: UUID of the session (validated)
+        session_svc: Injected session service
+
+    Returns:
+        Current activity message or null if not processing
+    """
+    actor = session_svc.get_actor(session_id)
+    if not actor:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    activity = actor.get_current_activity()
+    if activity:
+        return {
+            "type": activity.activity_type.value,
+            "message": activity.message,
+            "tool_name": activity.tool_name,
+        }
+
+    return {"type": None, "message": None, "tool_name": None}
 
 
 # Health check endpoint for Docker/k8s

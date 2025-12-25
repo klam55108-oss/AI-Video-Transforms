@@ -3780,6 +3780,43 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     }
 }
 
+/* Activity Streaming Indicator */
+.loading-content {
+    min-height: 24px;
+    display: flex;
+    align-items: center;
+}
+
+.loading-activity {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.activity-text {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    transition: opacity var(--duration-fast) var(--ease-out);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 300px;
+}
+
+/* Subtle pulse for activity text */
+.loading-activity .activity-text {
+    animation: activityPulse 2s var(--ease-in-out) infinite;
+}
+
+@keyframes activityPulse {
+    0%, 100% {
+        opacity: 0.8;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
 /* Smooth Fade-In for New Elements */
 @keyframes smoothFadeIn {
     from {

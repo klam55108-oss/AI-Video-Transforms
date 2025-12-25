@@ -6,9 +6,10 @@
 import { state } from '../core/state.js';
 import { MAX_RETRIES, RETRY_DELAY_MS } from '../core/config.js';
 import { sleep } from '../core/utils.js';
-import { addMessage, showLoading, removeLoading } from './messages.js';
+import { addMessage, showLoading, removeLoading, updateLoadingActivity } from './messages.js';
 import { showToast } from '../ui/toast.js';
 import { createJobProgressUI, loadJobs } from '../jobs/jobs.js';
+import { startActivityStream, stopActivityStream } from './activity.js';
 
 // ============================================
 // Job Detection Patterns
@@ -74,6 +75,11 @@ export async function sendMessage(message, showInUI = true) {
     const loadingId = showLoading();
     let lastError = null;
 
+    // Start activity stream to show real-time agent status
+    startActivityStream((activityText, toolName) => {
+        updateLoadingActivity(loadingId, activityText, toolName);
+    });
+
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
             const response = await fetch('/chat', {
@@ -90,6 +96,7 @@ export async function sendMessage(message, showInUI = true) {
             }
 
             if (response.status === 504) {
+                stopActivityStream();
                 removeLoading(loadingId);
                 showToast('Operation timed out', 'error');
                 addMessage('**Timeout:** The operation took too long. Please try again with a shorter video.', 'agent');
@@ -99,6 +106,7 @@ export async function sendMessage(message, showInUI = true) {
 
             if (response.status === 422) {
                 const errorData = await response.json();
+                stopActivityStream();
                 removeLoading(loadingId);
                 const errorMsg = errorData.detail || 'Invalid input';
                 showToast(errorMsg, 'error');
@@ -109,6 +117,7 @@ export async function sendMessage(message, showInUI = true) {
 
             // Handle session expired (410 Gone)
             if (response.status === 410) {
+                stopActivityStream();
                 removeLoading(loadingId);
                 showToast('Session expired. Please start a new session.', 'warning');
                 addMessage('**Session Expired**\n\nYour session has ended. This can happen after server restarts or prolonged inactivity.\n\nClick **"New Chat"** in the sidebar to start a fresh conversation.', 'agent');
@@ -133,6 +142,7 @@ export async function sendMessage(message, showInUI = true) {
             }
 
             const data = await response.json();
+            stopActivityStream();
             removeLoading(loadingId);
             addMessage(data.response, 'agent', data.usage);
 
@@ -164,6 +174,7 @@ export async function sendMessage(message, showInUI = true) {
     }
 
     // All retries failed
+    stopActivityStream();
     removeLoading(loadingId);
     showToast('Failed to send message', 'error');
     addMessage(`**Error:** ${lastError?.message || 'Unknown error'}. Please try again.`, 'agent');
