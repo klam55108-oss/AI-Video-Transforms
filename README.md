@@ -45,7 +45,7 @@ docker-compose up -d
 | **Knowledge Graphs** | Auto-bootstrap domain schemas, extract entities/relationships with source citations |
 | **Graph Visualization** | Interactive Cytoscape.js with search, type filtering, node inspector, evidence panel |
 | **Transcript Library** | Save, search, export (TXT/JSON/SRT/VTT), and full-text viewer |
-| **Chat Interface** | Markdown rendering, dark/light themes, 3-panel workspace layout |
+| **Chat Interface** | Markdown rendering, dark/light themes, 3-panel workspace layout, real-time activity streaming |
 
 ---
 
@@ -111,7 +111,7 @@ app/
 ├── agent/           # MCP tools + system prompts
 ├── kg/              # Domain models, graph storage, extraction
 ├── models/          # Pydantic schemas
-├── static/js/       # 31 ES modules (chat, kg, jobs, upload, workspace)
+├── static/js/       # 32 ES modules (chat, kg, jobs, upload, workspace)
 └── templates/       # Jinja2 HTML
 
 tests/               # 737 tests across 31 modules

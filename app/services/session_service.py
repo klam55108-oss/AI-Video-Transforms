@@ -95,6 +95,24 @@ class SessionService:
             self._active_sessions[session_id] = new_actor
             return new_actor
 
+    def get_actor(self, session_id: str) -> SessionActor | None:
+        """
+        Get existing actor for a session (does not create new one).
+
+        Used for activity streaming where we need direct access to the
+        actor without triggering creation.
+
+        Args:
+            session_id: UUID of the session
+
+        Returns:
+            SessionActor if exists and running, None otherwise
+        """
+        actor = self._active_sessions.get(session_id)
+        if actor and actor.is_running:
+            return actor
+        return None
+
     def get_status(self, session_id: str) -> SessionStatus:
         """
         Get current status of a session.

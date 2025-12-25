@@ -29,7 +29,7 @@ OPENAI_API_KEY=sk-...           # Required: gpt-4o-transcribe
 | Core | `app/core/` | SessionActor, config, cost tracking |
 | Agent | `app/agent/` | MCP tools, system prompts |
 | KG | `app/kg/` | Domain models, graph storage, extraction |
-| Frontend | `app/static/js/` | 31 ES modules (chat, kg, jobs, upload, workspace) |
+| Frontend | `app/static/js/` | 32 ES modules (chat, kg, jobs, upload, workspace) |
 
 ## Critical Patterns
 
@@ -92,6 +92,16 @@ Server Restart → restore_pending_jobs() recovers PENDING/RUNNING jobs
 
 Jobs are persisted at creation, every 10% progress, and on completion. On startup, `restore_pending_jobs()` recovers in-progress jobs.
 
+### Activity Streaming — Real-time agent status via SSE
+
+```
+Message sent → SSE connection opens → SessionActor emits ActivityEvents
+                                              ↓
+Frontend updates loading indicator ← Event stream: thinking → tool_use → completed
+```
+
+During message processing, `SessionActor._emit_activity()` broadcasts real-time events (thinking, tool_use, tool_result, subagent, completed) to SSE subscribers. Frontend falls back to polling if SSE unavailable.
+
 ## Code Standards
 
 See `.claude/rules/` for detailed guidelines:
@@ -105,6 +115,34 @@ See `.claude/rules/` for detailed guidelines:
 | @.claude/rules/kg.md | `app/kg/**` | Domain models, extraction |
 | @.claude/rules/frontend.md | `app/static/**` | XSS protection, ES modules |
 | @.claude/rules/config.md | — | Settings, env vars, caching |
+
+## SDK Agent Resources
+
+The runtime agent (not Claude Code) uses resources from `app/agent/resources/`:
+
+```
+app/agent/resources/
+├── CLAUDE.md                 # Agent instructions (loaded via setting_sources)
+├── README.md                 # Documentation
+└── .claude/
+    ├── settings.json         # Agent permissions
+    └── skills/
+        ├── transcription-helper/SKILL.md
+        ├── kg-bootstrap/SKILL.md
+        ├── error-recovery/SKILL.md
+        └── content-saver/SKILL.md
+```
+
+| Resource | Purpose |
+|----------|---------|
+| `CLAUDE.md` | Agent instructions loaded via `setting_sources=["project"]` |
+| `.claude/skills/` | Reusable workflow skills invocable by the agent |
+| `.claude/settings.json` | Agent permissions (MCP tool allowlist) |
+
+**SessionActor configuration** (`app/core/session.py`):
+- `cwd` → Points to `app/agent/resources/`
+- `setting_sources=["project"]` → Loads CLAUDE.md from cwd
+- `"Skill"` in `allowed_tools` → Enables skill invocation
 
 ## External MCP Servers
 

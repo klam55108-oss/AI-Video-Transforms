@@ -4,12 +4,19 @@ Session Management (Actor Pattern) for the Video Agent Web App.
 This module implements the SessionActor pattern to serialize access to the
 Claude Agent SDK for each user session, preventing race conditions and
 managing session lifecycle.
+
+Includes real-time activity streaming for transparent agent processing UX.
 """
+
+from __future__ import annotations
 
 import asyncio
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+from typing import Any
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -17,6 +24,8 @@ from claude_agent_sdk import (
     ClaudeSDKClient,
     ResultMessage,
     TextBlock,
+    ToolResultBlock,
+    ToolUseBlock,
 )
 
 from app.core.cost_tracking import UsageData
@@ -37,6 +46,9 @@ from app.models.structured import (
 
 # Logging configuration
 logger = logging.getLogger(__name__)
+
+# Agent resources directory for SDK setting_sources
+AGENT_RESOURCES_DIR = Path(__file__).parent.parent / "agent" / "resources"
 
 # Configuration constants (backward compatibility)
 # NOTE: These are now loaded from Settings but kept as module-level
@@ -74,6 +86,161 @@ class MessageResponse:
 
 
 # --------------------------------------------------------------------------
+# Activity Tracking for Real-Time UX
+# --------------------------------------------------------------------------
+
+
+class ActivityType(Enum):
+    """Types of agent activity for real-time display."""
+
+    THINKING = "thinking"
+    TOOL_USE = "tool_use"
+    TOOL_RESULT = "tool_result"
+    SUBAGENT = "subagent"
+    COMPLETED = "completed"
+
+
+@dataclass
+class ActivityEvent:
+    """An activity event emitted during agent processing.
+
+    These events are streamed to the frontend to provide real-time
+    visibility into what the agent is doing (instead of just "3 dots").
+    """
+
+    activity_type: ActivityType
+    message: str
+    tool_name: str | None = None
+    timestamp: float = field(default_factory=time.time)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize for SSE transmission."""
+        return {
+            "type": self.activity_type.value,
+            "message": self.message,
+            "tool_name": self.tool_name,
+            "timestamp": self.timestamp,
+        }
+
+
+# Activity streaming configuration
+ACTIVITY_QUEUE_MAX_SIZE: int = 100  # Max events per subscriber queue
+ACTIVITY_MAX_CONSECUTIVE_DROPS: int = 10  # Auto-unsubscribe after N drops
+
+
+@dataclass
+class ActivitySubscriber:
+    """Tracks a subscriber's queue and health for auto-cleanup.
+
+    When a subscriber stops consuming events (e.g., network issues),
+    consecutive_drops increases. After ACTIVITY_MAX_CONSECUTIVE_DROPS,
+    the subscriber is automatically removed to prevent memory leaks.
+    """
+
+    queue: asyncio.Queue[ActivityEvent]
+    consecutive_drops: int = 0
+
+
+# Tool name to human-friendly description mapping
+TOOL_DESCRIPTIONS: dict[str, str] = {
+    # Transcription tools
+    "mcp__video-tools__transcribe_video": "Transcribing video",
+    "mcp__video-tools__write_file": "Writing file",
+    "mcp__video-tools__save_transcript": "Saving transcript",
+    "mcp__video-tools__get_transcript": "Loading transcript",
+    "mcp__video-tools__list_transcripts": "Listing transcripts",
+    # Knowledge Graph tools
+    "mcp__video-tools__extract_to_kg": "Extracting knowledge",
+    "mcp__video-tools__list_kg_projects": "Listing KG projects",
+    "mcp__video-tools__create_kg_project": "Creating KG project",
+    "mcp__video-tools__bootstrap_kg_project": "Bootstrapping KG schema",
+    "mcp__video-tools__get_kg_stats": "Getting KG statistics",
+    # SDK built-in tools
+    "Skill": "Using skill",
+    "Read": "Reading file",
+    "Write": "Writing file",
+    "Edit": "Editing file",
+    "Bash": "Running command",
+    "Glob": "Finding files",
+    "Grep": "Searching files",
+    "WebSearch": "Searching web",
+    "WebFetch": "Fetching URL",
+    "Task": "Delegating to subagent",
+    "TodoWrite": "Updating task list",
+}
+
+
+def get_activity_text(msg: Any) -> ActivityEvent | None:
+    """
+    Extract activity information from a Claude SDK message.
+
+    This function inspects SDK messages to determine what the agent is doing,
+    providing real-time feedback for the frontend loading indicator.
+
+    Follows the pattern from Anthropic's Chief of Staff Agent cookbook.
+
+    Args:
+        msg: A message from the Claude Agent SDK stream
+
+    Returns:
+        ActivityEvent if activity detected, None otherwise
+    """
+    try:
+        class_name = msg.__class__.__name__
+
+        if "Assistant" in class_name:
+            if hasattr(msg, "content") and msg.content:
+                # Check first content block for tool use
+                first_content = (
+                    msg.content[0] if isinstance(msg.content, list) else msg.content
+                )
+
+                if isinstance(first_content, ToolUseBlock):
+                    tool_name = first_content.name
+                    description = TOOL_DESCRIPTIONS.get(tool_name, tool_name)
+                    return ActivityEvent(
+                        activity_type=ActivityType.TOOL_USE,
+                        message=f"🔧 {description}",
+                        tool_name=tool_name,
+                    )
+
+                if isinstance(first_content, TextBlock):
+                    return ActivityEvent(
+                        activity_type=ActivityType.THINKING,
+                        message="🤔 Thinking...",
+                    )
+
+            # Default for assistant messages
+            return ActivityEvent(
+                activity_type=ActivityType.THINKING,
+                message="🤔 Thinking...",
+            )
+
+        elif "User" in class_name:
+            # User messages contain tool results
+            if hasattr(msg, "content") and msg.content:
+                for block in (
+                    msg.content if isinstance(msg.content, list) else [msg.content]
+                ):
+                    if isinstance(block, ToolResultBlock):
+                        return ActivityEvent(
+                            activity_type=ActivityType.TOOL_RESULT,
+                            message="✅ Tool completed",
+                        )
+
+        elif "Result" in class_name:
+            return ActivityEvent(
+                activity_type=ActivityType.COMPLETED,
+                message="✨ Processing complete",
+            )
+
+    except (AttributeError, IndexError, TypeError):
+        pass
+
+    return None
+
+
+# --------------------------------------------------------------------------
 # Session Management (Actor Pattern)
 # --------------------------------------------------------------------------
 
@@ -83,6 +250,8 @@ class SessionActor:
     A dedicated actor that runs the ClaudeSDKClient in its own asyncio task.
     This prevents 'cancel scope' errors by ensuring the client is always
     accessed from the same task context.
+
+    Now includes activity streaming for real-time UX feedback during processing.
     """
 
     def __init__(self, session_id: str):
@@ -94,6 +263,16 @@ class SessionActor:
             maxsize=QUEUE_MAX_SIZE
         )
         self.greeting_queue: asyncio.Queue[MessageResponse] = asyncio.Queue(maxsize=1)
+
+        # Activity streaming for real-time UX updates
+        # Subscribers are wrapped in ActivitySubscriber for health tracking
+        self._activity_subscribers: dict[
+            asyncio.Queue[ActivityEvent], ActivitySubscriber
+        ] = {}
+        self._current_activity: ActivityEvent | None = (
+            None  # Track actual current activity
+        )
+
         self.active_task: asyncio.Task[None] | None = None
         self._running_event = asyncio.Event()
         self.last_activity: float = time.time()
@@ -224,6 +403,7 @@ class SessionActor:
                 raise RuntimeError("Session worker stopped unexpectedly")
         finally:
             self._is_processing = False
+            self._current_activity = None  # Clear activity tracking
             self.touch()
 
     def get_cumulative_usage(self) -> MessageUsage:
@@ -243,6 +423,118 @@ class SessionActor:
             cache_creation_tokens=self.session_cost.total_cache_creation_tokens,
             cache_read_tokens=self.session_cost.total_cache_read_tokens,
             cost_usd=self.session_cost.reported_cost_usd,
+        )
+
+    # --------------------------------------------------------------------------
+    # Activity Streaming Methods
+    # --------------------------------------------------------------------------
+
+    def subscribe_to_activity(self) -> asyncio.Queue[ActivityEvent]:
+        """
+        Subscribe to activity events for real-time streaming.
+
+        Returns a bounded queue (max ACTIVITY_QUEUE_MAX_SIZE events) that will
+        receive ActivityEvent objects as the agent processes messages.
+        Used by SSE endpoints for frontend streaming.
+
+        Subscribers are automatically removed if they consistently fail to
+        consume events (after ACTIVITY_MAX_CONSECUTIVE_DROPS drops).
+
+        Returns:
+            Queue for receiving activity events
+        """
+        subscriber_queue: asyncio.Queue[ActivityEvent] = asyncio.Queue(
+            maxsize=ACTIVITY_QUEUE_MAX_SIZE
+        )
+        self._activity_subscribers[subscriber_queue] = ActivitySubscriber(
+            queue=subscriber_queue,
+            consecutive_drops=0,
+        )
+        logger.debug(
+            f"Session {self.session_id}: Activity subscriber added "
+            f"(total: {len(self._activity_subscribers)})"
+        )
+        return subscriber_queue
+
+    def unsubscribe_from_activity(self, queue: asyncio.Queue[ActivityEvent]) -> None:
+        """
+        Unsubscribe from activity events.
+
+        Args:
+            queue: The subscriber queue to remove
+        """
+        self._activity_subscribers.pop(queue, None)
+        logger.debug(
+            f"Session {self.session_id}: Activity subscriber removed "
+            f"(remaining: {len(self._activity_subscribers)})"
+        )
+
+    def _emit_activity(self, event: ActivityEvent) -> None:
+        """
+        Emit an activity event to all subscribers (non-blocking).
+
+        Updates internal current activity tracking and broadcasts to all
+        subscribers. Subscribers that consistently fail to consume events
+        (queue full) are automatically unsubscribed after
+        ACTIVITY_MAX_CONSECUTIVE_DROPS consecutive failures.
+
+        Args:
+            event: The activity event to broadcast
+        """
+        # Track current activity for polling fallback
+        self._current_activity = event
+
+        # Collect subscribers to remove (can't modify dict during iteration)
+        to_remove: list[asyncio.Queue[ActivityEvent]] = []
+
+        for queue, subscriber in self._activity_subscribers.items():
+            try:
+                queue.put_nowait(event)
+                # Reset drop counter on successful delivery
+                subscriber.consecutive_drops = 0
+            except asyncio.QueueFull:
+                subscriber.consecutive_drops += 1
+                if subscriber.consecutive_drops >= ACTIVITY_MAX_CONSECUTIVE_DROPS:
+                    logger.warning(
+                        f"Session {self.session_id}: Auto-unsubscribing slow subscriber "
+                        f"after {subscriber.consecutive_drops} consecutive drops"
+                    )
+                    to_remove.append(queue)
+                else:
+                    logger.debug(
+                        f"Session {self.session_id}: Activity queue full, "
+                        f"drop {subscriber.consecutive_drops}/{ACTIVITY_MAX_CONSECUTIVE_DROPS}"
+                    )
+
+        # Remove dead subscribers
+        for queue in to_remove:
+            self._activity_subscribers.pop(queue, None)
+
+    def get_current_activity(self) -> ActivityEvent | None:
+        """
+        Get the current activity event (for polling fallback).
+
+        Returns the actual current activity being performed by the agent,
+        tracked via _emit_activity calls. This provides accurate status
+        for polling clients when SSE is unavailable.
+
+        Note: Activity is cleared when processing completes. If the agent
+        is processing but no specific activity has been emitted yet,
+        returns a generic "Processing" event.
+
+        Returns:
+            Current activity event or None if not processing
+        """
+        if not self._is_processing:
+            return None
+
+        # Return tracked activity if available, otherwise generic processing
+        if self._current_activity:
+            return self._current_activity
+
+        return ActivityEvent(
+            activity_type=ActivityType.THINKING,
+            message="🤔 Processing...",
         )
 
     def _extract_message_text(self, message: AssistantMessage) -> list[str]:
@@ -414,7 +706,13 @@ class SessionActor:
 
             options = ClaudeAgentOptions(
                 model=get_settings().claude_model,
-                system_prompt=SYSTEM_PROMPT,
+                system_prompt={
+                    "type": "preset",
+                    "preset": "claude_code",
+                    "append": SYSTEM_PROMPT,
+                },
+                cwd=str(AGENT_RESOURCES_DIR),
+                setting_sources=["project"],
                 mcp_servers={"video-tools": video_tools_server},
                 allowed_tools=[
                     # Transcription tools
@@ -429,6 +727,8 @@ class SessionActor:
                     "mcp__video-tools__create_kg_project",
                     "mcp__video-tools__bootstrap_kg_project",
                     "mcp__video-tools__get_kg_stats",
+                    # SDK resources
+                    "Skill",
                 ],
                 can_use_tool=permission_handler,
                 output_format={
@@ -508,6 +808,11 @@ class SessionActor:
                         response_error: str | None = None
 
                         async for message in client.receive_response():
+                            # Emit activity event for real-time UX feedback
+                            activity_event = get_activity_text(message)
+                            if activity_event:
+                                self._emit_activity(activity_event)
+
                             # Handle ResultMessage with subtype-aware error handling
                             if isinstance(message, ResultMessage):
                                 response_error = self._handle_result_message(message)
@@ -519,6 +824,14 @@ class SessionActor:
                                     self.session_cost.add_usage(usage_data)
 
                                 full_text.extend(self._extract_message_text(message))
+
+                        # Emit completion event
+                        self._emit_activity(
+                            ActivityEvent(
+                                activity_type=ActivityType.COMPLETED,
+                                message="✨ Response ready",
+                            )
+                        )
 
                         # Use error message if there was an error, otherwise use response
                         final_text = response_error or "\n".join(full_text)

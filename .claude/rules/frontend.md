@@ -18,7 +18,7 @@ app/static/js/
 ├── main.js           # Entry point, aggregates all modules
 ├── core/             # state.js, config.js, utils.js
 ├── ui/               # theme.js, toast.js, sidebar.js, header.js, mobile.js
-├── chat/             # messages.js, send.js, session.js, status.js
+├── chat/             # messages.js, send.js, session.js, status.js, activity.js
 ├── panels/           # history.js, transcripts.js, transcript-search.js, transcript-viewer.js
 ├── jobs/             # jobs.js, step-progress.js
 ├── upload/           # upload.js
@@ -63,6 +63,25 @@ const element = document.getElementById('my-element');  // Fragile timing
 - Use `fetch()` for all API calls
 - Handle unified error schema (code, message, detail, hint, retryable)
 - Show cost/usage data from response
+
+## Activity Streaming
+
+Real-time agent activity displayed during message processing:
+
+```javascript
+import { startActivityStream, stopActivityStream } from './chat/activity.js';
+import { updateLoadingActivity } from './chat/messages.js';
+
+// Start SSE stream before sending message
+startActivityStream(updateLoadingActivity);
+
+// Stop stream when response completes or errors
+stopActivityStream();
+```
+
+**Activity Types**: `thinking`, `tool_use`, `tool_result`, `subagent`, `completed`
+
+**Fallback**: Automatically falls back to polling if SSE connection fails.
 
 ## Job Sidebar & Auto-Continuation
 

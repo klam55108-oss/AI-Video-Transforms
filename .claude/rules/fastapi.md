@@ -17,7 +17,7 @@ paths: app/api/**/*.py, app/models/**/*.py, app/main.py
 
 | Router | Prefix | Description |
 |--------|--------|-------------|
-| `chat.py` | `/chat`, `/status` | Chat sessions, agent status |
+| `chat.py` | `/chat`, `/status`, `/chat/activity` | Chat sessions, agent status, activity streaming |
 | `history.py` | `/history` | Session history management |
 | `transcripts.py` | `/transcripts` | Transcript library |
 | `cost.py` | `/cost` | Token usage tracking |
