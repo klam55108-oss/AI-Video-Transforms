@@ -123,6 +123,24 @@ class ActivityEvent:
         }
 
 
+# Activity streaming configuration
+ACTIVITY_QUEUE_MAX_SIZE: int = 100  # Max events per subscriber queue
+ACTIVITY_MAX_CONSECUTIVE_DROPS: int = 10  # Auto-unsubscribe after N drops
+
+
+@dataclass
+class ActivitySubscriber:
+    """Tracks a subscriber's queue and health for auto-cleanup.
+
+    When a subscriber stops consuming events (e.g., network issues),
+    consecutive_drops increases. After ACTIVITY_MAX_CONSECUTIVE_DROPS,
+    the subscriber is automatically removed to prevent memory leaks.
+    """
+
+    queue: asyncio.Queue[ActivityEvent]
+    consecutive_drops: int = 0
+
+
 # Tool name to human-friendly description mapping
 TOOL_DESCRIPTIONS: dict[str, str] = {
     # Transcription tools
@@ -201,7 +219,9 @@ def get_activity_text(msg: Any) -> ActivityEvent | None:
         elif "User" in class_name:
             # User messages contain tool results
             if hasattr(msg, "content") and msg.content:
-                for block in msg.content if isinstance(msg.content, list) else [msg.content]:
+                for block in (
+                    msg.content if isinstance(msg.content, list) else [msg.content]
+                ):
                     if isinstance(block, ToolResultBlock):
                         return ActivityEvent(
                             activity_type=ActivityType.TOOL_RESULT,
@@ -244,10 +264,14 @@ class SessionActor:
         )
         self.greeting_queue: asyncio.Queue[MessageResponse] = asyncio.Queue(maxsize=1)
 
-        # Activity streaming queue for real-time UX updates
-        # Uses maxsize=0 (unlimited) to avoid blocking the SDK message loop
-        self.activity_queue: asyncio.Queue[ActivityEvent] = asyncio.Queue()
-        self._activity_subscribers: set[asyncio.Queue[ActivityEvent]] = set()
+        # Activity streaming for real-time UX updates
+        # Subscribers are wrapped in ActivitySubscriber for health tracking
+        self._activity_subscribers: dict[
+            asyncio.Queue[ActivityEvent], ActivitySubscriber
+        ] = {}
+        self._current_activity: ActivityEvent | None = (
+            None  # Track actual current activity
+        )
 
         self.active_task: asyncio.Task[None] | None = None
         self._running_event = asyncio.Event()
@@ -379,6 +403,7 @@ class SessionActor:
                 raise RuntimeError("Session worker stopped unexpectedly")
         finally:
             self._is_processing = False
+            self._current_activity = None  # Clear activity tracking
             self.touch()
 
     def get_cumulative_usage(self) -> MessageUsage:
@@ -408,15 +433,27 @@ class SessionActor:
         """
         Subscribe to activity events for real-time streaming.
 
-        Returns a queue that will receive ActivityEvent objects as the
-        agent processes messages. Used by SSE endpoints for frontend streaming.
+        Returns a bounded queue (max ACTIVITY_QUEUE_MAX_SIZE events) that will
+        receive ActivityEvent objects as the agent processes messages.
+        Used by SSE endpoints for frontend streaming.
+
+        Subscribers are automatically removed if they consistently fail to
+        consume events (after ACTIVITY_MAX_CONSECUTIVE_DROPS drops).
 
         Returns:
             Queue for receiving activity events
         """
-        subscriber_queue: asyncio.Queue[ActivityEvent] = asyncio.Queue()
-        self._activity_subscribers.add(subscriber_queue)
-        logger.debug(f"Session {self.session_id}: Activity subscriber added")
+        subscriber_queue: asyncio.Queue[ActivityEvent] = asyncio.Queue(
+            maxsize=ACTIVITY_QUEUE_MAX_SIZE
+        )
+        self._activity_subscribers[subscriber_queue] = ActivitySubscriber(
+            queue=subscriber_queue,
+            consecutive_drops=0,
+        )
+        logger.debug(
+            f"Session {self.session_id}: Activity subscriber added "
+            f"(total: {len(self._activity_subscribers)})"
+        )
         return subscriber_queue
 
     def unsubscribe_from_activity(self, queue: asyncio.Queue[ActivityEvent]) -> None:
@@ -426,38 +463,79 @@ class SessionActor:
         Args:
             queue: The subscriber queue to remove
         """
-        self._activity_subscribers.discard(queue)
-        logger.debug(f"Session {self.session_id}: Activity subscriber removed")
+        self._activity_subscribers.pop(queue, None)
+        logger.debug(
+            f"Session {self.session_id}: Activity subscriber removed "
+            f"(remaining: {len(self._activity_subscribers)})"
+        )
 
     def _emit_activity(self, event: ActivityEvent) -> None:
         """
         Emit an activity event to all subscribers (non-blocking).
 
+        Updates internal current activity tracking and broadcasts to all
+        subscribers. Subscribers that consistently fail to consume events
+        (queue full) are automatically unsubscribed after
+        ACTIVITY_MAX_CONSECUTIVE_DROPS consecutive failures.
+
         Args:
             event: The activity event to broadcast
         """
-        for subscriber in self._activity_subscribers:
+        # Track current activity for polling fallback
+        self._current_activity = event
+
+        # Collect subscribers to remove (can't modify dict during iteration)
+        to_remove: list[asyncio.Queue[ActivityEvent]] = []
+
+        for queue, subscriber in self._activity_subscribers.items():
             try:
-                subscriber.put_nowait(event)
+                queue.put_nowait(event)
+                # Reset drop counter on successful delivery
+                subscriber.consecutive_drops = 0
             except asyncio.QueueFull:
-                # Subscriber not consuming fast enough, skip
-                logger.warning(
-                    f"Session {self.session_id}: Activity subscriber queue full, dropping event"
-                )
+                subscriber.consecutive_drops += 1
+                if subscriber.consecutive_drops >= ACTIVITY_MAX_CONSECUTIVE_DROPS:
+                    logger.warning(
+                        f"Session {self.session_id}: Auto-unsubscribing slow subscriber "
+                        f"after {subscriber.consecutive_drops} consecutive drops"
+                    )
+                    to_remove.append(queue)
+                else:
+                    logger.debug(
+                        f"Session {self.session_id}: Activity queue full, "
+                        f"drop {subscriber.consecutive_drops}/{ACTIVITY_MAX_CONSECUTIVE_DROPS}"
+                    )
+
+        # Remove dead subscribers
+        for queue in to_remove:
+            self._activity_subscribers.pop(queue, None)
 
     def get_current_activity(self) -> ActivityEvent | None:
         """
-        Get the most recent activity event (for polling fallback).
+        Get the current activity event (for polling fallback).
+
+        Returns the actual current activity being performed by the agent,
+        tracked via _emit_activity calls. This provides accurate status
+        for polling clients when SSE is unavailable.
+
+        Note: Activity is cleared when processing completes. If the agent
+        is processing but no specific activity has been emitted yet,
+        returns a generic "Processing" event.
 
         Returns:
-            Most recent activity event or None
+            Current activity event or None if not processing
         """
-        if self._is_processing:
-            return ActivityEvent(
-                activity_type=ActivityType.THINKING,
-                message="🤔 Processing...",
-            )
-        return None
+        if not self._is_processing:
+            return None
+
+        # Return tracked activity if available, otherwise generic processing
+        if self._current_activity:
+            return self._current_activity
+
+        return ActivityEvent(
+            activity_type=ActivityType.THINKING,
+            message="🤔 Processing...",
+        )
 
     def _extract_message_text(self, message: AssistantMessage) -> list[str]:
         """
@@ -748,10 +826,12 @@ class SessionActor:
                                 full_text.extend(self._extract_message_text(message))
 
                         # Emit completion event
-                        self._emit_activity(ActivityEvent(
-                            activity_type=ActivityType.COMPLETED,
-                            message="✨ Response ready",
-                        ))
+                        self._emit_activity(
+                            ActivityEvent(
+                                activity_type=ActivityType.COMPLETED,
+                                message="✨ Response ready",
+                            )
+                        )
 
                         # Use error message if there was an error, otherwise use response
                         final_text = response_error or "\n".join(full_text)

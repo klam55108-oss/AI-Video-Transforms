@@ -155,6 +155,16 @@ async def stream_activity(
     The frontend subscribes to this stream while processing messages to
     replace the static "3 dots" loading indicator with dynamic status updates.
 
+    SSE Keepalive Note:
+        The 30-second keepalive timeout is chosen to work with most reverse
+        proxies. However, some aggressive proxies (e.g., Cloudflare with
+        default settings, certain load balancers) may timeout SSE connections
+        at 60-100 seconds of inactivity. If users report SSE disconnections
+        behind such proxies, consider:
+        - Reducing the keepalive interval (e.g., to 15 seconds)
+        - Configuring the proxy's timeout settings
+        - Using the polling fallback (/chat/activity/{id}/current)
+
     Args:
         session_id: UUID of the session (validated)
         session_svc: Injected session service
@@ -175,9 +185,7 @@ async def stream_activity(
             while actor.is_running:
                 try:
                     # Wait for activity events with timeout
-                    event = await asyncio.wait_for(
-                        activity_queue.get(), timeout=30.0
-                    )
+                    event = await asyncio.wait_for(activity_queue.get(), timeout=30.0)
 
                     # Format as SSE
                     data = json.dumps(event.to_dict())

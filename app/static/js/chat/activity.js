@@ -18,8 +18,17 @@ let activityUpdateCallback = null;
 /** @type {number|null} */
 let pollingIntervalId = null;
 
+/** @type {number|null} */
+let debounceTimeoutId = null;
+
+/** @type {{text: string, toolName: string|null}|null} */
+let pendingActivity = null;
+
 // Use SSE by default, fall back to polling if needed
 let usePollingFallback = false;
+
+// Debounce interval to smooth rapid tool sequences (ms)
+const ACTIVITY_DEBOUNCE_MS = 150;
 
 // ============================================
 // Activity Text Formatting
@@ -35,6 +44,46 @@ function formatActivityText(event) {
 
     // Use the server-provided message directly (includes emojis)
     return event.message || '';
+}
+
+/**
+ * Debounced activity update to smooth rapid tool sequences.
+ * Prevents UI flicker when tools execute in quick succession.
+ * @param {string} text - Activity text to display
+ * @param {string|null} toolName - Optional tool name
+ */
+function debouncedActivityUpdate(text, toolName) {
+    // Store the latest activity
+    pendingActivity = { text, toolName };
+
+    // Clear any existing timeout
+    if (debounceTimeoutId) {
+        clearTimeout(debounceTimeoutId);
+    }
+
+    // Schedule the update after debounce interval
+    debounceTimeoutId = setTimeout(() => {
+        if (pendingActivity && activityUpdateCallback) {
+            activityUpdateCallback(pendingActivity.text, pendingActivity.toolName);
+            pendingActivity = null;
+        }
+        debounceTimeoutId = null;
+    }, ACTIVITY_DEBOUNCE_MS);
+}
+
+/**
+ * Flush any pending debounced activity immediately.
+ * Called when stream ends to ensure final state is shown.
+ */
+function flushPendingActivity() {
+    if (debounceTimeoutId) {
+        clearTimeout(debounceTimeoutId);
+        debounceTimeoutId = null;
+    }
+    if (pendingActivity && activityUpdateCallback) {
+        activityUpdateCallback(pendingActivity.text, pendingActivity.toolName);
+        pendingActivity = null;
+    }
 }
 
 // ============================================
@@ -71,12 +120,14 @@ export function startActivityStream(onUpdate) {
                 const data = JSON.parse(event.data);
                 const text = formatActivityText(data);
 
-                if (text && activityUpdateCallback) {
-                    activityUpdateCallback(text, data.tool_name || null);
+                if (text) {
+                    // Use debounced update to smooth rapid tool sequences
+                    debouncedActivityUpdate(text, data.tool_name || null);
                 }
 
-                // Stop stream on completion
+                // Stop stream on completion (flush pending first)
                 if (data.type === 'completed') {
+                    flushPendingActivity();
                     stopActivityStream();
                 }
             } catch (err) {
@@ -112,12 +163,22 @@ export function stopActivityStream() {
         pollingIntervalId = null;
     }
 
+    // Clean up debounce state
+    if (debounceTimeoutId) {
+        clearTimeout(debounceTimeoutId);
+        debounceTimeoutId = null;
+    }
+    pendingActivity = null;
+
     activityUpdateCallback = null;
 }
 
 // ============================================
 // Polling Fallback
 // ============================================
+
+// Polling interval - reduced from 500ms to 1000ms to lower server load
+const POLLING_INTERVAL_MS = 1000;
 
 /**
  * Start polling for activity (fallback when SSE fails)
@@ -131,17 +192,18 @@ function startPollingFallback() {
             if (!response.ok) return;
 
             const data = await response.json();
-            if (data.type && data.message && activityUpdateCallback) {
-                activityUpdateCallback(data.message, data.tool_name || null);
+            if (data.type && data.message) {
+                // Use debouncing for consistency with SSE path
+                debouncedActivityUpdate(data.message, data.tool_name || null);
             }
         } catch (err) {
             // Silently ignore polling errors
         }
     };
 
-    // Poll immediately, then every 500ms
+    // Poll immediately, then at configured interval
     pollActivity();
-    pollingIntervalId = setInterval(pollActivity, 500);
+    pollingIntervalId = setInterval(pollActivity, POLLING_INTERVAL_MS);
 }
 
 // ============================================
