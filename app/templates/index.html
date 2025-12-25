@@ -273,7 +273,8 @@
                                    id="transcript-search"
                                    class="transcript-search-input"
                                    placeholder="Search..."
-                                   autocomplete="off">
+                                   autocomplete="off"
+                                   aria-label="Search transcripts">
                             <button type="button"
                                     id="transcript-search-clear"
                                     class="transcript-search-clear hidden"
@@ -313,9 +314,9 @@
                 <p class="user-status">Free Plan</p>
             </div>
             <!-- Theme Toggle in Profile Area -->
-            <button type="button" id="theme-toggle" class="theme-toggle" title="Toggle theme">
-                <i class="ph-fill ph-moon theme-toggle-icon moon-icon"></i>
-                <i class="ph-fill ph-sun theme-toggle-icon sun-icon"></i>
+            <button type="button" id="theme-toggle" class="theme-toggle" title="Toggle theme" aria-label="Toggle dark/light theme">
+                <i class="ph-fill ph-moon theme-toggle-icon moon-icon" aria-hidden="true"></i>
+                <i class="ph-fill ph-sun theme-toggle-icon sun-icon" aria-hidden="true"></i>
             </button>
         </div>
     </aside>
@@ -443,7 +444,8 @@
                            id="kg-graph-search"
                            class="graph-search-input"
                            placeholder="Search entities..."
-                           autocomplete="off">
+                           autocomplete="off"
+                           aria-label="Search entities in knowledge graph">
                     <button type="button"
                             id="kg-search-clear"
                             class="search-clear-btn hidden"
@@ -494,8 +496,8 @@
                 <form id="chat-form">
                     <div class="input-container">
                         <!-- Attach Button -->
-                        <button id="attach-btn" type="button" class="input-btn" title="Attach video file">
-                            <i class="ph-bold ph-paperclip text-lg"></i>
+                        <button id="attach-btn" type="button" class="input-btn" title="Attach video file" aria-label="Attach video file">
+                            <i class="ph-bold ph-paperclip text-lg" aria-hidden="true"></i>
                         </button>
 
                         <!-- Text Input -->
@@ -504,11 +506,12 @@
                             rows="1"
                             class="input-textarea"
                             placeholder="Paste a YouTube URL or ask a question..."
+                            aria-label="Message input - paste a YouTube URL or ask a question"
                         ></textarea>
 
                         <!-- Send Button -->
-                        <button type="submit" id="send-btn" class="input-btn input-btn-primary" title="Send message (Ctrl+Enter)">
-                            <i class="ph-bold ph-paper-plane-right text-lg"></i>
+                        <button type="submit" id="send-btn" class="input-btn input-btn-primary" title="Send message (Ctrl+Enter)" aria-label="Send message">
+                            <i class="ph-bold ph-paper-plane-right text-lg" aria-hidden="true"></i>
                         </button>
                     </div>
                     <p class="text-center text-[10px] text-[var(--text-muted)] mt-3">
@@ -550,6 +553,7 @@
                         type="text"
                         id="transcript-viewer-search"
                         placeholder="Search in transcript..."
+                        aria-label="Search in transcript content"
                         class="w-full pl-9 pr-4 py-2 text-sm rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] focus:border-transparent transition-shadow"
                     />
                 </div>

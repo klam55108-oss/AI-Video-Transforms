@@ -278,8 +278,8 @@ Track completion of items.
 ### GitHub Style
 ```html
 <ul>
-  <li class="task-list-item"><input type="checkbox" checked disabled> Completed task</li>
-  <li class="task-list-item"><input type="checkbox" disabled> Pending task</li>
+  <li class="task-list-item"><label><input type="checkbox" checked disabled> Completed task</label></li>
+  <li class="task-list-item"><label><input type="checkbox" disabled> Pending task</label></li>
 </ul>
 ```
 

@@ -369,8 +369,8 @@ dd {
 ### Task List
 ```html
 <ul>
-  <li class="task-list-item"><input type="checkbox" checked> Completed task</li>
-  <li class="task-list-item"><input type="checkbox"> Pending task</li>
+  <li class="task-list-item"><label><input type="checkbox" checked> Completed task</label></li>
+  <li class="task-list-item"><label><input type="checkbox"> Pending task</label></li>
 </ul>
 ```
 
