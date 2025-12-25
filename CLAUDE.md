@@ -6,7 +6,7 @@ AI-powered video transcription and knowledge graph extraction.
 
 ```bash
 uv run python -m app.main              # Dev server → http://127.0.0.1:8000
-uv run pytest                          # 737 tests
+uv run pytest                          # 691 tests
 uv run mypy .                          # Type check (strict)
 uv run ruff check . && ruff format .   # Lint + format
 ```
@@ -79,6 +79,8 @@ Agent auto-responds with results ← Hidden callback message ← Job completes
 ```
 
 When background jobs complete, `triggerJobCompletionCallback()` sends a hidden message to the agent. This creates seamless conversation flow where async work automatically continues the chat.
+
+**Race Condition Handling**: Jobs may complete while `state.isProcessing` is still true from a prior request. The `sendMessageWhenReady()` function in `jobs/jobs.js` retries at 500ms intervals (max 20 attempts / 10 seconds) until processing clears, preventing silent callback drops.
 
 ### Job Persistence — Jobs survive server restarts
 

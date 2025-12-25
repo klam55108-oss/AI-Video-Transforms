@@ -79,9 +79,9 @@ startActivityStream(updateLoadingActivity);
 stopActivityStream();
 ```
 
-**Activity Types**: `thinking`, `tool_use`, `tool_result`, `subagent`, `completed`
+**Activity Types**: `thinking`, `tool_use`, `tool_result`, `subagent`, `file_save`, `completed`
 
-**Fallback**: Automatically falls back to polling if SSE connection fails.
+**Timing**: Activity debounced at 150ms to smooth rapid tool sequences. Polling fallback uses 1000ms intervals.
 
 ## Job Sidebar & Auto-Continuation
 
@@ -98,6 +98,8 @@ triggerJobFailureCallback(job);     // Handles errors via agent
 ```
 
 **Pattern**: `window.sendMessage(message, false)` sends without UI display, enabling seamless agent responses.
+
+**Race Condition Handling**: `sendMessageWhenReady()` retries callbacks at 500ms intervals (max 10s) until `state.isProcessing` clears.
 
 ## Global Window Exports
 
