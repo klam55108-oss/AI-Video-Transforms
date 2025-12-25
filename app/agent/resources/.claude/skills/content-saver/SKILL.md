@@ -188,6 +188,19 @@ Premium themes include rich components. Reference `themes/COMPONENTS.md` for:
 | Print Styles | Yes | Yes | Yes | Yes | Yes |
 | Responsive | Yes | Yes | Yes | Yes | Yes |
 
+## External Dependencies
+
+Some premium themes load fonts from Google Fonts CDN:
+
+| Theme | CDN Fonts | Fallback Fonts |
+|-------|-----------|----------------|
+| **Neural AI** | Orbitron, Inter, JetBrains Mono | system sans-serif, monospace |
+| **Glassmorphism** | Plus Jakarta Sans, Inter, Fira Code | DM Sans, system-ui, monospace |
+| **Notion Style** | Inter | -apple-system, system-ui |
+| **Terminal Hacker** | VT323, Fira Code, Share Tech Mono | Source Code Pro, monospace |
+
+**Offline/Restricted Environments**: All themes include fallback fonts that work without internet access. The design will remain functional with system fonts.
+
 ## Critical Rules
 
 1. **Always Confirm** — Never save without confirming format, theme, filename

@@ -25,6 +25,13 @@ A futuristic, cyberpunk-inspired theme with glowing accents, subtle animations, 
 ## CSS Styling
 
 ```css
+/*
+ * External CDN Dependencies: Google Fonts (Orbitron, Inter, JetBrains Mono)
+ * Fallback fonts ensure the theme works in offline/restricted environments:
+ * - Headings: Falls back to system sans-serif
+ * - Body: Falls back to system-ui
+ * - Code: Falls back to monospace
+ */
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {

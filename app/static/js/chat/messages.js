@@ -4,7 +4,7 @@
 // ============================================
 
 import { PURIFY_CONFIG } from '../core/config.js';
-import { copyToClipboard } from '../core/utils.js';
+import { copyToClipboard, escapeHtml } from '../core/utils.js';
 import { showToast } from '../ui/toast.js';
 
 // ============================================
@@ -301,7 +301,12 @@ export function showLoading() {
             <i class="ph-fill ph-robot text-lg" style="color: var(--accent-primary);"></i>
         </div>
         <div class="activity-indicator" data-loading-id="${id}">
-            <!-- Neural Orb with orbital rings -->
+            <!--
+                Neural Orb with orbital rings
+                NOTE: data-activity is dynamically updated by updateLoadingActivity()
+                to change the orb's CSS theming (colors, animations) based on activity type.
+                Values: thinking, tool_use, tool_result, subagent, file_save, completed
+            -->
             <div class="neural-orb" data-activity="thinking">
                 <div class="neural-orb-ring"></div>
                 <div class="neural-orb-ring"></div>
@@ -443,23 +448,13 @@ function updateActivityTimeline(timelineEl, history) {
         return;
     }
 
+    // Use escapeHtml from utils.js for consistency across the codebase
     timelineEl.innerHTML = itemsToShow.map(item => `
         <div class="activity-timeline-item">
             <i class="ph-bold ph-check"></i>
-            <span>${escapeHtmlForTimeline(item)}</span>
+            <span>${escapeHtml(item)}</span>
         </div>
     `).join('');
-}
-
-/**
- * Simple HTML escape for timeline items
- * @param {string} text - Text to escape
- * @returns {string} Escaped text
- */
-function escapeHtmlForTimeline(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
 }
 
 export function removeLoading(id) {

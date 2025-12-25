@@ -26,6 +26,13 @@ A retro terminal/hacker aesthetic with phosphor green text, CRT effects, and nos
 ## CSS Styling
 
 ```css
+/*
+ * External CDN Dependencies: Google Fonts (VT323, Fira Code, Share Tech Mono)
+ * Fallback fonts ensure the theme works in offline/restricted environments:
+ * - Headings: Falls back to Share Tech Mono, then monospace
+ * - Body: Falls back to Source Code Pro, then monospace
+ * - Code: Falls back to Courier New, then monospace
+ */
 @import url('https://fonts.googleapis.com/css2?family=VT323&family=Fira+Code:wght@400;500&family=Share+Tech+Mono&display=swap');
 
 :root {

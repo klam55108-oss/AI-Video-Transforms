@@ -502,12 +502,38 @@ function stopSidebarPolling() {
 // ============================================
 
 // Track jobs that have already triggered callbacks to prevent duplicates
+// Uses array to maintain insertion order for cleanup
+let completedJobCallbacksList = [];
 const completedJobCallbacks = new Set();
+
+// Maximum number of completed job IDs to retain (prevents memory accumulation in long sessions)
+const MAX_COMPLETED_CALLBACKS = 100;
 
 // Retry configuration for job callbacks
 // Handles race condition when job completes while a message is processing
 const CALLBACK_RETRY_DELAY_MS = 500;
 const CALLBACK_MAX_RETRIES = 20;  // 10 seconds max wait
+
+/**
+ * Add a job ID to the completed callbacks tracker with automatic cleanup.
+ * Prevents memory accumulation during long-running sessions by removing
+ * oldest entries when the limit is exceeded.
+ * @param {string} jobId - Job ID to track
+ */
+function trackCompletedCallback(jobId) {
+    if (completedJobCallbacks.has(jobId)) {
+        return; // Already tracked
+    }
+
+    completedJobCallbacks.add(jobId);
+    completedJobCallbacksList.push(jobId);
+
+    // Cleanup oldest entries if we exceed the limit
+    while (completedJobCallbacksList.length > MAX_COMPLETED_CALLBACKS) {
+        const oldestId = completedJobCallbacksList.shift();
+        completedJobCallbacks.delete(oldestId);
+    }
+}
 
 /**
  * Wait for isProcessing to be false, then send message.
@@ -528,6 +554,9 @@ async function sendMessageWhenReady(message, jobId, maxRetries = CALLBACK_MAX_RE
                 if (success) {
                     console.log(`Job ${jobId} callback sent successfully (attempt ${attempt + 1})`);
                     return true;
+                } else if (attempt === 0) {
+                    // Log when sendMessage returns false (not an exception) for debugging
+                    console.log(`Job ${jobId} callback returned false, will retry...`);
                 }
             } catch (err) {
                 console.warn(`Job ${jobId} callback error:`, err);
@@ -550,11 +579,11 @@ async function sendMessageWhenReady(message, jobId, maxRetries = CALLBACK_MAX_RE
  * @param {Object} job - The completed job object
  */
 function triggerJobCompletionCallback(job) {
-    // Prevent duplicate callbacks
+    // Prevent duplicate callbacks (with automatic memory cleanup)
     if (completedJobCallbacks.has(job.id)) {
         return;
     }
-    completedJobCallbacks.add(job.id);
+    trackCompletedCallback(job.id);
 
     // Don't trigger if sendMessage isn't available
     if (typeof window.sendMessage !== 'function') {
@@ -580,11 +609,11 @@ function triggerJobCompletionCallback(job) {
  * @param {Object} job - The failed job object
  */
 function triggerJobFailureCallback(job) {
-    // Prevent duplicate callbacks
+    // Prevent duplicate callbacks (with automatic memory cleanup)
     if (completedJobCallbacks.has(job.id)) {
         return;
     }
-    completedJobCallbacks.add(job.id);
+    trackCompletedCallback(job.id);
 
     // Don't trigger if sendMessage isn't available
     if (typeof window.sendMessage !== 'function') {
@@ -609,5 +638,6 @@ export function cleanupAllJobPollers() {
     jobProgressPollers.clear();
     stopSidebarPolling();
     completedJobCallbacks.clear();
+    completedJobCallbacksList = [];
     lastKnownJobStatuses.clear();
 }

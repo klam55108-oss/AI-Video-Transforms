@@ -24,6 +24,13 @@ A stunning modern theme featuring frosted glass effects, soft gradients, and ele
 ## CSS Styling
 
 ```css
+/*
+ * External CDN Dependencies: Google Fonts (Plus Jakarta Sans, Inter, Fira Code)
+ * Fallback fonts ensure the theme works in offline/restricted environments:
+ * - Headings: Falls back to DM Sans, then system sans-serif
+ * - Body: Falls back to system-ui
+ * - Code: Falls back to SF Mono, then monospace
+ */
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=Inter:wght@400;500;600&family=Fira+Code:wght@400;500&display=swap');
 
 :root {

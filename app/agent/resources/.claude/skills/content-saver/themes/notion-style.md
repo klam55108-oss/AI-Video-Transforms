@@ -27,6 +27,12 @@ A clean, productivity-focused theme inspired by Notion's elegant interface. Feat
 ## CSS Styling
 
 ```css
+/*
+ * External CDN Dependencies: Google Fonts (Inter)
+ * Fallback fonts ensure the theme works in offline/restricted environments:
+ * - All text: Falls back to -apple-system, system-ui
+ * - Code: Falls back to Roboto Mono, Menlo, monospace
+ */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
