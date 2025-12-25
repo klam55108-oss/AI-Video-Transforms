@@ -5,6 +5,7 @@
 
 import { getJobPollInterval } from '../core/config.js';
 import { escapeHtml } from '../core/utils.js';
+import { state } from '../core/state.js';
 import { showToast } from '../ui/toast.js';
 import { renderStepProgress, renderSidebarStepProgress } from './step-progress.js';
 
@@ -503,6 +504,47 @@ function stopSidebarPolling() {
 // Track jobs that have already triggered callbacks to prevent duplicates
 const completedJobCallbacks = new Set();
 
+// Retry configuration for job callbacks
+// Handles race condition when job completes while a message is processing
+const CALLBACK_RETRY_DELAY_MS = 500;
+const CALLBACK_MAX_RETRIES = 20;  // 10 seconds max wait
+
+/**
+ * Wait for isProcessing to be false, then send message.
+ * This handles the race condition where a job completes while
+ * the agent is still processing the previous message.
+ *
+ * @param {string} message - Message to send
+ * @param {string} jobId - Job ID for logging
+ * @param {number} maxRetries - Maximum retry attempts
+ * @returns {Promise<boolean>} Whether the message was sent
+ */
+async function sendMessageWhenReady(message, jobId, maxRetries = CALLBACK_MAX_RETRIES) {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        // Check if we can send (not currently processing)
+        if (!state.isProcessing) {
+            try {
+                const success = await window.sendMessage(message, false);
+                if (success) {
+                    console.log(`Job ${jobId} callback sent successfully (attempt ${attempt + 1})`);
+                    return true;
+                }
+            } catch (err) {
+                console.warn(`Job ${jobId} callback error:`, err);
+            }
+        } else if (attempt === 0) {
+            console.log(`Job ${jobId} callback waiting for processing to complete...`);
+        }
+
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, CALLBACK_RETRY_DELAY_MS));
+    }
+
+    console.warn(`Job ${jobId} callback failed after ${maxRetries} retries`);
+    showToast('Job completed but failed to notify agent', 'warning');
+    return false;
+}
+
 /**
  * Trigger agent callback when a job completes successfully
  * @param {Object} job - The completed job object
@@ -528,10 +570,9 @@ function triggerJobCompletionCallback(job) {
         message = `The background job "${job.type}" has completed successfully. Please show me the result and what options I have next.`;
     }
 
-    // Send the message but don't show it as a user message (internal trigger)
-    // Using false for showInUI so it appears seamless
+    // Send the message with retry logic to handle race conditions
     console.log(`Job ${job.id} completed, triggering agent continuation`);
-    window.sendMessage(message, false);
+    sendMessageWhenReady(message, job.id);
 }
 
 /**
@@ -554,8 +595,9 @@ function triggerJobFailureCallback(job) {
     const errorMsg = job.error || 'Unknown error';
     const message = `The ${job.type} job failed with error: "${errorMsg}". What should I do? Can you suggest alternatives or help me troubleshoot?`;
 
+    // Send the message with retry logic to handle race conditions
     console.log(`Job ${job.id} failed, triggering agent error handling`);
-    window.sendMessage(message, false);
+    sendMessageWhenReady(message, job.id);
 }
 
 // ============================================

@@ -3780,13 +3780,335 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     }
 }
 
-/* Activity Streaming Indicator */
+/* ==============================================
+   NEURAL ACTIVITY STREAMING INDICATOR
+   "Command Center" Aesthetic with orbital pulses
+   ============================================== */
+
+/* Activity Container - Glassmorphism card */
+.activity-indicator {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-5);
+    background: linear-gradient(
+        135deg,
+        rgba(var(--accent-rgb, 0, 217, 255), 0.03) 0%,
+        rgba(var(--accent-rgb, 0, 217, 255), 0.01) 100%
+    );
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(var(--accent-rgb, 0, 217, 255), 0.08);
+    border-radius: var(--radius-2xl);
+    position: relative;
+    overflow: hidden;
+    min-width: 280px;
+    max-width: 420px;
+}
+
+/* Ambient glow behind indicator */
+.activity-indicator::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(
+        circle at center,
+        rgba(var(--accent-rgb, 0, 217, 255), 0.04) 0%,
+        transparent 50%
+    );
+    animation: ambientRotate 20s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes ambientRotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Neural Orb - Central pulsing indicator */
+.neural-orb {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Core orb with gradient */
+.neural-orb-core {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent-gradient);
+    box-shadow:
+        0 0 20px rgba(var(--accent-rgb, 0, 217, 255), 0.4),
+        inset 0 -2px 6px rgba(0, 0, 0, 0.2),
+        inset 0 2px 6px rgba(255, 255, 255, 0.2);
+    animation: orbPulse 2s var(--ease-in-out) infinite;
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.neural-orb-core i {
+    font-size: 14px;
+    color: var(--on-accent);
+    animation: iconFloat 2s var(--ease-in-out) infinite;
+}
+
+@keyframes iconFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-1px); }
+}
+
+@keyframes orbPulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow:
+            0 0 20px rgba(var(--accent-rgb, 0, 217, 255), 0.4),
+            inset 0 -2px 6px rgba(0, 0, 0, 0.2),
+            inset 0 2px 6px rgba(255, 255, 255, 0.2);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow:
+            0 0 30px rgba(var(--accent-rgb, 0, 217, 255), 0.6),
+            inset 0 -2px 6px rgba(0, 0, 0, 0.2),
+            inset 0 2px 6px rgba(255, 255, 255, 0.2);
+    }
+}
+
+/* Orbital rings that pulse outward */
+.neural-orb-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 1.5px solid rgba(var(--accent-rgb, 0, 217, 255), 0.3);
+    animation: ringExpand 2.5s var(--ease-out) infinite;
+    pointer-events: none;
+}
+
+.neural-orb-ring:nth-child(1) {
+    width: 36px;
+    height: 36px;
+    animation-delay: 0s;
+}
+
+.neural-orb-ring:nth-child(2) {
+    width: 36px;
+    height: 36px;
+    animation-delay: 0.8s;
+}
+
+.neural-orb-ring:nth-child(3) {
+    width: 36px;
+    height: 36px;
+    animation-delay: 1.6s;
+}
+
+@keyframes ringExpand {
+    0% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.6;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(2.2);
+        opacity: 0;
+    }
+}
+
+/* Activity Content Area */
+.activity-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding-top: 2px;
+}
+
+/* Activity type label (small, above main text) */
+.activity-type-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent-primary);
+    opacity: 0.8;
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.activity-type-label::before {
+    content: '';
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    animation: dotBlink 1s var(--ease-in-out) infinite;
+}
+
+@keyframes dotBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* Main activity text with typewriter cursor */
+.activity-text-main {
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.4;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.activity-text-main::after {
+    content: '';
+    width: 2px;
+    height: 1.1em;
+    background: var(--accent-primary);
+    animation: cursorBlink 0.8s step-end infinite;
+    margin-left: 2px;
+}
+
+@keyframes cursorBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+/* Activity timeline (recent steps) */
+.activity-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: var(--space-1);
+    padding-top: var(--space-2);
+    border-top: 1px solid rgba(var(--accent-rgb, 0, 217, 255), 0.06);
+}
+
+.activity-timeline-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 11px;
+    color: var(--text-muted);
+    opacity: 0.7;
+    transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.activity-timeline-item:hover {
+    opacity: 1;
+}
+
+.activity-timeline-item i {
+    font-size: 10px;
+    width: 14px;
+    text-align: center;
+    color: var(--status-success);
+}
+
+.activity-timeline-item span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Tool-specific orb color variants */
+.neural-orb[data-activity="thinking"] .neural-orb-core {
+    background: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);
+}
+
+.neural-orb[data-activity="thinking"] ~ .activity-content .activity-type-label {
+    color: #a855f7;
+}
+
+.neural-orb[data-activity="thinking"] ~ .activity-content .activity-type-label::before,
+.neural-orb[data-activity="thinking"] ~ .activity-content .activity-text-main::after {
+    background: #a855f7;
+}
+
+.neural-orb[data-activity="tool_use"] .neural-orb-core {
+    background: linear-gradient(135deg, #00d9ff 0%, #0ea5e9 100%);
+}
+
+.neural-orb[data-activity="tool_result"] .neural-orb-core {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.neural-orb[data-activity="tool_result"] ~ .activity-content .activity-type-label {
+    color: #10b981;
+}
+
+.neural-orb[data-activity="tool_result"] ~ .activity-content .activity-type-label::before,
+.neural-orb[data-activity="tool_result"] ~ .activity-content .activity-text-main::after {
+    background: #10b981;
+}
+
+.neural-orb[data-activity="subagent"] .neural-orb-core {
+    background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
+}
+
+.neural-orb[data-activity="subagent"] ~ .activity-content .activity-type-label {
+    color: #f59e0b;
+}
+
+.neural-orb[data-activity="subagent"] ~ .activity-content .activity-type-label::before,
+.neural-orb[data-activity="subagent"] ~ .activity-content .activity-text-main::after {
+    background: #f59e0b;
+}
+
+/* File Save - Blue/Cyan gradient for storage operations */
+.neural-orb[data-activity="file_save"] .neural-orb-core {
+    background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+}
+
+.neural-orb[data-activity="file_save"] ~ .activity-content .activity-type-label {
+    color: #3b82f6;
+}
+
+.neural-orb[data-activity="file_save"] ~ .activity-content .activity-type-label::before,
+.neural-orb[data-activity="file_save"] ~ .activity-content .activity-text-main::after {
+    background: #3b82f6;
+}
+
+/* Entry animation for activity indicator */
+.activity-indicator {
+    animation: activitySlideIn 0.4s var(--ease-out) forwards;
+}
+
+@keyframes activitySlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Legacy loading-content wrapper */
 .loading-content {
     min-height: 24px;
     display: flex;
     align-items: center;
 }
 
+/* Legacy fallback styles (for basic dots mode) */
 .loading-activity {
     display: flex;
     align-items: center;
@@ -3803,18 +4125,13 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     max-width: 300px;
 }
 
-/* Subtle pulse for activity text */
-.loading-activity .activity-text {
-    animation: activityPulse 2s var(--ease-in-out) infinite;
+/* Define accent RGB for use in rgba() */
+:root {
+    --accent-rgb: 0, 217, 255;
 }
 
-@keyframes activityPulse {
-    0%, 100% {
-        opacity: 0.8;
-    }
-    50% {
-        opacity: 1;
-    }
+[data-theme="light"] {
+    --accent-rgb: 245, 158, 11;
 }
 
 /* Smooth Fade-In for New Elements */
