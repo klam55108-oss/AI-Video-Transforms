@@ -484,14 +484,16 @@ select:focus-visible,
 }
 
 /* Firefox Scrollbar Support (CRITICAL for cross-browser consistency) */
-* {
-    scrollbar-width: thin;
-    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
-}
+@supports (scrollbar-width: thin) {
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    }
 
-/* Firefox thin scrollbar for sidebar */
-.sidebar-scroll {
-    scrollbar-width: thin;
+    /* Firefox thin scrollbar for sidebar */
+    .sidebar-scroll {
+        scrollbar-width: thin;
+    }
 }
 
 /* ==============================================
