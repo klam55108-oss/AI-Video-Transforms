@@ -2,18 +2,12 @@
 // ============================================
 
 import { state, KG_PROJECT_STORAGE_KEY } from '../core/state.js';
+import { escapeHtml } from '../core/utils.js';
 import { showToast } from '../ui/toast.js';
 import { showKGPanel, hideKGPanel } from '../ui/workspace.js';
 import { kgClient } from './api.js';
 import { startKGPolling, stopKGPolling, refreshKGProjectStatus } from './polling.js';
 import { updateKGUI } from './ui.js';
-
-// escapeHtml utility (temporary - will import from utils once available)
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
 
 function toggleKGPanel() {
     if (!state.kgContent || !state.kgCaret) return;

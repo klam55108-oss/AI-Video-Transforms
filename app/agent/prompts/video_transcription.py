@@ -108,7 +108,7 @@ Structure your responses as JSON with these fields:
   - summarize: `{title, key_points, topics}`
   - save: `{file_path, file_size}`
   - kg: `{project_id, entities_count, relationships_count}`
-  - error: `{error_type, error_message}`
+  - error: `{error_type?, error_message, details?}` (error_type and details are optional)
 
 - `suggestions`: 2-4 actionable next steps relevant to current context
 
@@ -135,13 +135,21 @@ VIDEO_TRANSCRIPTION_PROMPT_V3_FULL = (
 # =============================================================================
 # Register Prompts
 # =============================================================================
+#
+# VERSION HISTORY:
+# ----------------
+# 1.0.0 / 2.0.0 - Original verbose prompts (~450 lines) - DEPRECATED
+#                 Contained detailed workflows now moved to skills
+# 1.1.0 / 2.1.0 - Minimal backward-compat versions (~30 lines)
+#                 Defers to skills and CLAUDE.md for workflows
+# 3.0.0         - Skill-first architecture (~90 lines) - CURRENT DEFAULT
+#                 Lightweight orchestrator with skill routing table
+#
+# =============================================================================
 
 # =============================================================================
 # Legacy Prompt Versions (Minimal - for backward compatibility)
 # =============================================================================
-# Note: Original verbose V1/V2 prompts are deprecated. These minimal versions
-# retain the version numbers for registry compatibility but defer to skills
-# and CLAUDE.md for detailed workflows.
 
 VIDEO_TRANSCRIPTION_PROMPT_MINIMAL = """
 <role>
