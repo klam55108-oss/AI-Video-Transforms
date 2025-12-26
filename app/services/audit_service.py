@@ -17,9 +17,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import stat
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any
+
+import aiofiles
 
 from app.core.config import get_settings
 from app.models.audit import (
@@ -34,10 +38,8 @@ from app.models.audit import (
 
 logger = logging.getLogger(__name__)
 
-# Configuration
-AUDIT_RETENTION_HOURS: int = 168  # 7 days (matches job retention)
-MAX_EVENTS_PER_SESSION: int = 10000  # Prevent unbounded growth
-CACHE_MAX_SESSIONS: int = 50  # LRU cache size for session audit logs
+# Security: File permissions for audit logs (owner: rw, group: r, others: none)
+AUDIT_FILE_MODE: int = stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP  # 0o640
 
 
 class AuditService:
@@ -65,6 +67,11 @@ class AuditService:
         self._sessions_path = self._audit_path / "sessions"
         self._stats_path = self._audit_path / "global_stats.json"
 
+        # Configuration from settings (not magic numbers)
+        self._retention_hours = settings.audit_retention_hours
+        self._max_events_per_session = settings.audit_max_events_per_session
+        self._cache_max_sessions = settings.audit_cache_max_sessions
+
         # In-memory cache with LRU eviction
         self._session_cache: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
         self._cache_lock = asyncio.Lock()
@@ -72,6 +79,9 @@ class AuditService:
         # Aggregate stats (cached, persisted periodically)
         self._stats = AuditStats()
         self._stats_dirty = False
+
+        # Track count of events with duration for accurate average calculation
+        self._events_with_duration_count: int = 0
 
         # Ensure directories exist
         self._sessions_path.mkdir(parents=True, exist_ok=True)
@@ -122,19 +132,21 @@ class AuditService:
                 self._session_cache.move_to_end(session_id)
                 return self._session_cache[session_id]
 
-            # Load from disk
+            # Load from disk using async I/O
             session_path = self._get_session_path(session_id)
             events: list[dict[str, Any]] = []
 
             if session_path.exists():
                 try:
-                    data = json.loads(session_path.read_text())
+                    async with aiofiles.open(session_path, mode="r") as f:
+                        content = await f.read()
+                    data = json.loads(content)
                     events = data.get("events", [])
                 except Exception as e:
                     logger.error(f"Failed to load audit log for {session_id}: {e}")
 
             # Cache with LRU eviction
-            if len(self._session_cache) >= CACHE_MAX_SESSIONS:
+            if len(self._session_cache) >= self._cache_max_sessions:
                 self._session_cache.popitem(last=False)  # Remove oldest
 
             self._session_cache[session_id] = events
@@ -143,7 +155,7 @@ class AuditService:
     async def _save_session_events(
         self, session_id: str, events: list[dict[str, Any]]
     ) -> None:
-        """Persist session events to disk.
+        """Persist session events to disk using async I/O.
 
         Args:
             session_id: The session to save events for.
@@ -156,7 +168,12 @@ class AuditService:
                 "event_count": len(events),
                 "events": events,
             }
-            session_path.write_text(json.dumps(data, indent=2))
+            # Use aiofiles for non-blocking async I/O
+            async with aiofiles.open(session_path, mode="w") as f:
+                await f.write(json.dumps(data, indent=2))
+
+            # Set secure file permissions (owner: rw, group: r, others: none)
+            os.chmod(session_path, AUDIT_FILE_MODE)
         except Exception as e:
             logger.error(f"Failed to save audit log for {session_id}: {e}")
 
@@ -174,10 +191,12 @@ class AuditService:
         # Load existing events
         events = await self._load_session_events(session_id)
 
-        # Enforce per-session limit
-        if len(events) >= MAX_EVENTS_PER_SESSION:
-            # Remove oldest events (keep most recent)
-            events = events[-(MAX_EVENTS_PER_SESSION - 1) :]
+        # Enforce per-session limit to prevent unbounded growth.
+        # Logic: If at capacity (N events), keep N-1 oldest before appending new event.
+        # Result: After append, we have exactly N events (the limit).
+        # Example: If max=10000 and we have 10000 events, slice keeps 9999, then append = 10000.
+        if len(events) >= self._max_events_per_session:
+            events = events[-(self._max_events_per_session - 1) :]
             logger.warning(
                 f"Audit log for {session_id} exceeded max size, pruning old events"
             )
@@ -215,18 +234,20 @@ class AuditService:
                 elif event.success is False:
                     self._stats.tools_failed += 1
 
-                # Update average duration
+                # Update average duration using accurate count of events with duration.
+                # Using succeeded + failed is inaccurate because some events may lack duration.
                 if event.duration_ms is not None:
+                    self._events_with_duration_count += 1
+                    n = self._events_with_duration_count
+
                     if self._stats.avg_tool_duration_ms is None:
                         self._stats.avg_tool_duration_ms = event.duration_ms
                     else:
-                        # Running average
-                        n = self._stats.tools_succeeded + self._stats.tools_failed
-                        if n > 0:
-                            self._stats.avg_tool_duration_ms = (
-                                (self._stats.avg_tool_duration_ms * (n - 1))
-                                + event.duration_ms
-                            ) / n
+                        # Running average: new_avg = (old_avg * (n-1) + new_value) / n
+                        self._stats.avg_tool_duration_ms = (
+                            (self._stats.avg_tool_duration_ms * (n - 1))
+                            + event.duration_ms
+                        ) / n
 
         elif isinstance(event, SessionAuditEvent):
             if event.event_type == AuditEventType.SESSION_STOP:
@@ -352,7 +373,7 @@ class AuditService:
         """
         import time
 
-        cutoff_time = time.time() - (AUDIT_RETENTION_HOURS * 3600)
+        cutoff_time = time.time() - (self._retention_hours * 3600)
         cleaned = 0
 
         try:

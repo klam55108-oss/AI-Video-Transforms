@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import time
+from pathlib import Path
 from typing import Any, Callable, Coroutine
 
 from app.models.audit import (
@@ -41,17 +42,36 @@ HookCallback = Callable[
 
 # Dangerous command patterns to block in Bash tool
 DANGEROUS_BASH_PATTERNS: list[str] = [
+    # Destructive file operations
     "rm -rf /",
     "rm -rf ~",
     "rm -rf /*",
+    "sudo rm -rf",
+    # Disk operations
     "dd if=",
-    ":(){:|:&};:",  # Fork bomb
-    "chmod -R 777 /",
     "mkfs.",
     "> /dev/sda",
+    # System compromise
+    ":(){:|:&};:",  # Fork bomb
+    "chmod -R 777 /",
+    # Remote code execution via pipe-to-shell
     "wget -O- | sh",
     "curl | sh",
     "curl | bash",
+    "wget | sh",
+    "wget | bash",
+    # Obfuscated payload execution
+    "base64 -d | sh",
+    "base64 -d | bash",
+    "base64 --decode | sh",
+    # Shell eval (common attack vector)
+    "eval $(",
+    "eval \"$(",
+    # Python eval
+    "python -c \"import os;",
+    "python3 -c \"import os;",
+    # Suppress output and background (hiding malicious activity)
+    ">/dev/null 2>&1 &",
 ]
 
 # System paths that should never be written to
@@ -180,10 +200,18 @@ class AuditHookFactory:
                     return f"Dangerous command pattern detected: {pattern}"
 
         # Check file operations for protected paths
+        # Resolve symlinks to prevent bypass attacks (e.g., /tmp/link -> /etc/passwd)
         if tool_name in ("Write", "Edit"):
             file_path = tool_input.get("file_path", "")
+            try:
+                # Resolve symlinks and normalize path for security check
+                resolved_path = str(Path(file_path).resolve())
+            except (OSError, ValueError):
+                # If path resolution fails, use original path
+                resolved_path = file_path
+
             for protected in PROTECTED_PATHS:
-                if file_path.startswith(protected):
+                if resolved_path.startswith(protected):
                     return f"Cannot modify protected path: {protected}"
 
         return None
@@ -291,7 +319,10 @@ class AuditHookFactory:
             # Truncate very long lists
             max_items = 50
             if len(tool_response) > max_items:
-                return tool_response[:max_items] + [f"... [truncated, {len(tool_response)} items total]"]
+                # Use a dict marker to maintain type consistency and indicate truncation
+                truncated = [self._sanitize_response(item) for item in tool_response[:max_items]]
+                truncated.append({"__truncated__": True, "total_items": len(tool_response)})
+                return truncated
             return [self._sanitize_response(item) for item in tool_response]
 
         # Return primitives as-is
@@ -389,10 +420,11 @@ def create_audit_hooks(
     factory = AuditHookFactory(session_id, audit_service)
 
     # Import HookMatcher from SDK
+    # This is expected to fail in some environments (e.g., testing without SDK)
     try:
         from claude_agent_sdk import HookMatcher
     except ImportError:
-        logger.warning("HookMatcher not available, audit hooks disabled")
+        logger.info("HookMatcher not available, audit hooks disabled")
         return {}
 
     # Return hooks configuration with HookMatcher instances

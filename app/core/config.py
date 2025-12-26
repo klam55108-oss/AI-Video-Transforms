@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     export_ttl_hours: int = 24  # Auto-cleanup exports older than this
     batch_export_max_projects: int = 50  # Max projects in single batch export
 
+    # Audit trail configuration
+    audit_retention_hours: int = 168  # 7 days (matches job retention)
+    audit_max_events_per_session: int = 10000  # Prevent unbounded growth
+    audit_cache_max_sessions: int = 50  # LRU cache size for session audit logs
+    audit_poll_interval_ms: int = 3000  # Frontend audit panel poll interval
+
 
 @lru_cache
 def get_settings() -> Settings:

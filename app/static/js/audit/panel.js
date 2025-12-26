@@ -46,7 +46,12 @@ function getAuditStatsContainer() {
 let isAuditPanelExpanded = false;
 let auditPollingInterval = null;
 let lastEventCount = 0;
-const AUDIT_POLL_INTERVAL_MS = 3000;
+let lastFirstEventId = null;  // Track first event ID to detect content changes
+
+// Use server-injected config for consistency with other poll intervals
+function getAuditPollInterval() {
+    return window.APP_CONFIG?.AUDIT_POLL_INTERVAL_MS || 3000;
+}
 
 // ============================================
 // Panel Toggle
@@ -86,7 +91,7 @@ export function startAuditPolling() {
             loadCurrentSessionAudit();
             loadAuditStats();
         }
-    }, AUDIT_POLL_INTERVAL_MS);
+    }, getAuditPollInterval());
 }
 
 export function stopAuditPolling() {
@@ -164,11 +169,14 @@ function renderAuditEvents(entries, totalCount) {
 
     if (emptyEl) emptyEl.classList.add('hidden');
 
-    // Check if we need to re-render (new events)
-    if (entries.length === lastEventCount) {
+    // Check if we need to re-render by comparing count AND first event ID.
+    // Comparing only count would miss updates if events are replaced (same count, different content).
+    const firstEventId = entries[0]?.id || null;
+    if (entries.length === lastEventCount && firstEventId === lastFirstEventId) {
         return; // No change
     }
     lastEventCount = entries.length;
+    lastFirstEventId = firstEventId;
 
     // Render events
     eventsList.innerHTML = entries.map(entry => renderAuditEventItem(entry)).join('');
