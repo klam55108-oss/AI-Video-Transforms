@@ -2,18 +2,12 @@
 // ============================================
 
 import { state, KG_PROJECT_STORAGE_KEY } from '../core/state.js';
+import { escapeHtml } from '../core/utils.js';
 import { showToast } from '../ui/toast.js';
 import { showKGPanel, hideKGPanel } from '../ui/workspace.js';
 import { kgClient } from './api.js';
 import { startKGPolling, stopKGPolling, refreshKGProjectStatus } from './polling.js';
 import { updateKGUI } from './ui.js';
-
-// escapeHtml utility (temporary - will import from utils once available)
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
 
 function toggleKGPanel() {
     if (!state.kgContent || !state.kgCaret) return;
@@ -32,6 +26,29 @@ function toggleKGPanel() {
     }
 
     state.kgToggle?.setAttribute('aria-expanded', !isOpen);
+}
+
+/**
+ * Toggle the KG advanced section (stats, exports)
+ */
+function toggleKGAdvanced() {
+    const advanced = document.getElementById('kg-advanced');
+    const caret = document.getElementById('kg-more-caret');
+    const toggle = document.getElementById('kg-more-toggle');
+
+    if (!advanced) return;
+
+    const isOpen = advanced.classList.contains('open');
+
+    if (isOpen) {
+        advanced.classList.remove('open');
+        caret?.classList.remove('open');
+        toggle?.setAttribute('aria-expanded', 'false');
+    } else {
+        advanced.classList.add('open');
+        caret?.classList.add('open');
+        toggle?.setAttribute('aria-expanded', 'true');
+    }
 }
 
 async function loadKGProjects() {
@@ -302,6 +319,7 @@ async function selectKGProject(projectId) {
 
 export {
     toggleKGPanel,
+    toggleKGAdvanced,
     loadKGProjects,
     renderKGProjectList,
     selectKGProject,

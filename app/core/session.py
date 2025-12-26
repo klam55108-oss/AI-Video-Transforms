@@ -54,6 +54,16 @@ logger = logging.getLogger(__name__)
 # Agent resources directory for SDK setting_sources
 AGENT_RESOURCES_DIR = Path(__file__).parent.parent / "agent" / "resources"
 
+# Initial greeting prompt - delegates to transcription-helper skill Phase 1
+# NOTE: "Phase 1" is coupled to skill docs in:
+#   app/agent/resources/.claude/skills/transcription-helper/SKILL.md
+GREETING_PROMPT = (
+    "Greet me briefly and use the transcription-helper skill "
+    "to guide me through Phase 1 (gathering input). "
+    "Keep the greeting concise - just introduce yourself and ask "
+    "what I'd like to transcribe."
+)
+
 # Configuration constants (backward compatibility)
 # NOTE: These are now loaded from Settings but kept as module-level
 # accessors for backward compatibility with existing code
@@ -769,7 +779,9 @@ class SessionActor:
                     "Skill",
                 ],
                 can_use_tool=permission_handler,
-                hooks=hooks if hooks else None,
+                # Type ignore: SDK Hooks type uses abstract protocol, but our AuditHooks
+                # implementation satisfies the interface. mypy can't verify duck typing here.
+                hooks=hooks if hooks else None,  # type: ignore[arg-type]
                 output_format={
                     "type": "json_schema",
                     "schema": get_output_schema(),
@@ -779,17 +791,9 @@ class SessionActor:
 
             async with ClaudeSDKClient(options) as client:
                 # Handle Initial Greeting
+                # Uses transcription-helper skill Phase 1 for consistent UX
                 try:
-                    initial_prompt = (
-                        'Start by greeting me following your <phase name="gathering_input"> workflow. '
-                        "Your greeting MUST include: "
-                        "(1) mention you use gpt-4o-transcribe model, "
-                        "(2) list accepted formats (local files AND YouTube URLs), "
-                        "(3) ask about language with ISO code examples, "
-                        "(4) ask about quality preferences (domain terms, filler words, formatting). "
-                        "Be thorough - include ALL four points."
-                    )
-                    await client.query(initial_prompt)
+                    await client.query(GREETING_PROMPT)
 
                     greeting_text = []
                     error_message: str | None = None

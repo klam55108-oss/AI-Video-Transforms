@@ -591,10 +591,15 @@ function triggerJobCompletionCallback(job) {
         return;
     }
 
-    // Build a natural message to continue the conversation
+    // Build a message that triggers the appropriate skill workflow
+    // NOTE: Phase names (e.g., "Phase 4") are coupled to skill documentation in:
+    //   app/agent/resources/.claude/skills/transcription-helper/SKILL.md
+    // If skill phases are renamed, update this callback message accordingly.
     let message;
     if (job.type === 'transcription') {
-        message = `The transcription job has completed successfully. Please show me the transcript and let me know what I can do with it (save it, create a knowledge graph, etc.).`;
+        // Explicitly invoke the transcription-helper skill Phase 4 workflow
+        // This ensures consistent, well-structured post-transcription UX
+        message = `The transcription job has completed successfully. Use the transcription-helper skill to present the results following the Phase 4 workflow (show transcript ID, preview, metadata, and the 5 follow-up options).`;
     } else {
         message = `The background job "${job.type}" has completed successfully. Please show me the result and what options I have next.`;
     }

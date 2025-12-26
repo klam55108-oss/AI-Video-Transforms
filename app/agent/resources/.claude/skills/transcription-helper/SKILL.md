@@ -5,14 +5,28 @@ description: Guides users through video transcription workflow from input to out
 
 # Transcription Helper
 
+## Entry Points
+
+This skill can be invoked at different stages:
+
+| Entry Point | When | Start At |
+|-------------|------|----------|
+| New transcription | User wants to transcribe video | Phase 1 |
+| Job completed | Background transcription job finished | Phase 4 |
+| Resume workflow | User returns to a saved transcript | Phase 4 |
+
+**Job Completion Flow**: When a transcription job completes, the system automatically
+requests Phase 4 to present results and options to the user.
+
 ## Workflow Phases
 
 ### Phase 1: Gathering Input
-1. Greet briefly and ask for:
-   - Video source (local file or YouTube URL)
-   - Language (optional — auto-detection available)
-   - Domain vocabulary (optional — improves accuracy)
-2. Keep it concise. Don't overwhelm with options.
+1. Greet briefly (mention you use gpt-4o-transcribe for high accuracy)
+2. Ask for:
+   - Video source (local file path or YouTube URL)
+   - Language (optional — e.g., 'en', 'es', 'zh' — auto-detects if not specified)
+   - Domain vocabulary (optional — technical terms, proper nouns to improve accuracy)
+3. Keep it concise. Don't overwhelm with detailed explanations.
 
 ### Phase 2: User Confirmation
 ONLY proceed after explicit confirmation ("yes", "proceed", "confirm", "go ahead"):
