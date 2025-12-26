@@ -42,6 +42,7 @@ export {
 export { initGraphSearch, performGraphSearch, navigateToNode, hideSearchResults, toggleTypeFilter, clearAllFilters } from './search.js';
 export {
     toggleKGPanel,
+    toggleKGAdvanced,
     loadKGProjects,
     renderKGProjectList,
     selectKGProject,
@@ -67,3 +68,4 @@ window.kg_handleDropdownSelect = panel.handleDropdownSelect;
 window.kg_deleteKGProject = panel.deleteKGProject;
 window.kg_loadKGProjects = panel.loadKGProjects;
 window.kg_selectKGProject = panel.selectKGProject;
+window.kg_toggleAdvanced = panel.toggleKGAdvanced;

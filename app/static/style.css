@@ -643,6 +643,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     color: var(--text-primary);
 }
 
+.header-dropdown-btn:active {
+    transform: scale(0.98);
+}
+
 .header-dropdown-btn i:first-child {
     font-size: var(--text-lg);
 }
@@ -724,6 +728,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     color: var(--text-primary);
 }
 
+.header-control-btn:active {
+    transform: scale(0.95);
+}
+
 .header-control-btn i {
     font-size: var(--text-lg);
 }
@@ -787,6 +795,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     background: var(--bg-elevated);
     border-color: var(--accent-primary);
     box-shadow: var(--shadow-glow);
+}
+
+.theme-toggle:active {
+    transform: scale(0.95);
 }
 
 .theme-toggle-icon {
@@ -1095,6 +1107,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     color: var(--text-primary);
 }
 
+.input-btn:active {
+    transform: scale(0.95);
+}
+
 .input-btn-primary {
     background: var(--accent-gradient);
     color: white;
@@ -1181,6 +1197,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     color: var(--text-primary);
 }
 
+.btn-ghost:active {
+    transform: scale(0.98);
+}
+
 /* ==============================================
    CARDS & SURFACES
    ============================================== */
@@ -1214,7 +1234,7 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 }
 
 .toast {
-    pointer-events: auto;
+    pointer-events: none;
     min-width: 320px;
     max-width: 400px;
     padding: var(--space-4) var(--space-5);
@@ -1229,7 +1249,9 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
-    animation: toastSlideIn var(--duration-slower) var(--ease-spring) forwards;
+    animation:
+        toastSlideIn var(--duration-slower) var(--ease-spring) forwards,
+        toastEnablePointer 0s var(--duration-slower) forwards;
     -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
     backdrop-filter: blur(var(--glass-blur-heavy));
 }
@@ -1269,6 +1291,12 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     }
 }
 
+@keyframes toastEnablePointer {
+    to {
+        pointer-events: auto;
+    }
+}
+
 @keyframes toastFadeOut {
     from {
         opacity: 1;
@@ -1278,6 +1306,35 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
         opacity: 0;
         transform: translateX(20px);
     }
+}
+
+/* Toast Button Styles */
+.toast .close-btn,
+.toast .copy-debug-btn {
+    opacity: 0.6;
+    transition: all var(--duration-normal) var(--ease-out);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: var(--space-1);
+    border-radius: var(--radius-sm);
+}
+
+.toast .close-btn:hover,
+.toast .copy-debug-btn:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.toast .close-btn:active,
+.toast .copy-debug-btn:active {
+    transform: scale(0.9);
+    opacity: 1;
+}
+
+.toast .copy-debug-btn {
+    font-size: var(--text-xs);
+    padding: var(--space-1) var(--space-2);
 }
 
 /* ==============================================
@@ -1337,6 +1394,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 .code-copy-btn:hover {
     background: rgba(255, 255, 255, 0.15);
     color: white;
+}
+
+.code-copy-btn:active {
+    transform: scale(0.95);
 }
 
 /* ==============================================
@@ -1584,6 +1645,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     background: var(--sidebar-hover);
     color: var(--sidebar-text-primary);
     transform: translateX(2px);
+}
+
+.panel-toggle:active {
+    transform: translateX(1px) scale(0.98);
 }
 
 .panel-caret {
@@ -1865,6 +1930,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
 }
 
+.kg-discovery-item .discovery-btn.accept:active {
+    transform: scale(0.9);
+}
+
 .kg-discovery-item .discovery-btn.reject {
     background: rgba(239, 68, 68, 0.12);
     color: var(--status-error);
@@ -1875,6 +1944,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     background: rgba(239, 68, 68, 0.2);
     border-color: var(--status-error);
     box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+}
+
+.kg-discovery-item .discovery-btn.reject:active {
+    transform: scale(0.9);
 }
 
 /* Stats Cards */
@@ -1898,6 +1971,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 #kg-export button:hover {
     background: rgba(0, 217, 255, 0.08);
     transform: translateY(-1px);
+}
+
+#kg-export button:active {
+    transform: translateY(0) scale(0.98);
 }
 
 /* Fade out animation for confirmed/rejected items */
@@ -2035,6 +2112,49 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     }
 }
 
+/* Mobile Graph Controls Enhancement */
+@media (max-width: 768px) {
+    .graph-control-btn {
+        min-width: 44px;
+        min-height: 44px;
+        padding: var(--space-2);
+    }
+
+    .graph-controls {
+        top: auto;
+        bottom: var(--space-4);
+        right: var(--space-3);
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+
+    .graph-layout-options {
+        flex-direction: column;
+        min-width: 120px;
+    }
+
+    .graph-controls-group {
+        background: var(--glass-bg);
+        backdrop-filter: blur(var(--glass-blur));
+        border-radius: var(--radius-xl);
+        padding: var(--space-2);
+    }
+
+    .graph-legend {
+        position: fixed;
+        bottom: 80px;
+        right: var(--space-3);
+        max-height: 40vh;
+        overflow-y: auto;
+        transform: translateX(calc(100% + var(--space-3)));
+        transition: transform var(--duration-slow) var(--ease-out);
+    }
+
+    .graph-legend.visible {
+        transform: translateX(0);
+    }
+}
+
 /* ==============================================
    USAGE/COST BADGE
    ============================================== */
@@ -2153,6 +2273,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     border-color: var(--border-subtle);
 }
 
+#history-list button:active {
+    transform: scale(0.98);
+}
+
 #history-list button:focus-visible {
     border-color: var(--accent-primary);
     box-shadow: var(--focus-ring);
@@ -2174,6 +2298,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 
 #transcripts-list > div:hover {
     border-color: var(--border-subtle);
+}
+
+#transcripts-list > div:active {
+    transform: scale(0.98);
 }
 
 /* ==============================================
@@ -2297,6 +2425,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 .kg-dropdown-toggle:hover {
     border-color: var(--border-default);
     background: rgba(255, 255, 255, 0.05);
+}
+
+.kg-dropdown-toggle:active {
+    transform: scale(0.98);
 }
 
 .kg-dropdown-toggle:focus-visible {
@@ -2449,6 +2581,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 
 .kg-view-btn:hover {
     color: var(--sidebar-text-secondary);
+}
+
+.kg-view-btn:active {
+    transform: scale(0.98);
 }
 
 .kg-view-btn.active {
@@ -2645,6 +2781,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 .sidebar-job-cancel:hover {
     color: var(--status-error);
     background: rgba(239, 68, 68, 0.1);
+}
+
+.sidebar-job-cancel:active {
+    transform: scale(0.9);
 }
 
 .sidebar-job-progress {
@@ -2959,6 +3099,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     color: var(--text-primary);
 }
 
+.search-clear-btn:active {
+    transform: scale(0.9);
+}
+
 .search-clear-btn.hidden {
     display: none;
 }
@@ -3177,6 +3321,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     background: var(--bg-tertiary);
 }
 
+.search-result-item:active {
+    transform: scale(0.98);
+}
+
 .search-result-item.selected {
     background: var(--accent-primary);
 }
@@ -3253,6 +3401,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     color: var(--text-primary);
 }
 
+.graph-control-btn:active {
+    transform: scale(0.95);
+}
+
 .graph-control-btn.active {
     background: var(--accent-primary);
     color: var(--on-accent);
@@ -3296,6 +3448,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 .graph-layout-option:hover {
     background: var(--bg-tertiary);
     color: var(--text-primary);
+}
+
+.graph-layout-option:active {
+    transform: scale(0.98);
 }
 
 .graph-layout-option.active {
@@ -3627,6 +3783,10 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 
 .evidence-item:hover {
     transform: translateX(2px);
+}
+
+.evidence-item:active {
+    transform: translateX(1px) scale(0.98);
 }
 
 .evidence-item blockquote {

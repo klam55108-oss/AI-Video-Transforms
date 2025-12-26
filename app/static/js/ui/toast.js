@@ -59,7 +59,7 @@ export function showToast(message, type = 'info', options = {}) {
     // Add "Copy Debug Info" button for errors with code
     if (type === 'error' && (code || detail)) {
         toastContent += `
-            <button class="copy-debug-btn opacity-60 hover:opacity-100 transition-opacity text-xs px-2 py-1 rounded hover:bg-black/10" title="Copy debug info">
+            <button class="copy-debug-btn" title="Copy debug info">
                 <i class="ph-bold ph-copy text-sm"></i>
             </button>
         `;
@@ -67,7 +67,7 @@ export function showToast(message, type = 'info', options = {}) {
 
     // Close button
     toastContent += `
-            <button class="close-btn opacity-60 hover:opacity-100 transition-opacity">
+            <button class="close-btn">
                 <i class="ph-bold ph-x"></i>
             </button>
         </div>

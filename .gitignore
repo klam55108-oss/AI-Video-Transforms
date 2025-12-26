@@ -54,6 +54,7 @@ ENV/
 *.swo
 *~
 .DS_Store
+.hintrc
 
 # =============================================================================
 # Testing & Type Checking
@@ -90,6 +91,10 @@ analysis/
 # Archive directory for deprecated/old files
 archive/
 
+Build_Beautiful_AI_Websites.md
+zed_complete_guide_ubuntu.md
+DESIGN_SYSTEM.md
+
 # Runtime logs
 logs/
 
@@ -109,7 +114,6 @@ data/**
 !data/sessions/
 !data/sessions/.gitkeep
 !data/transcripts/
-!data/transcripts/.gitkeep
 uploads/**
 !uploads/
 !uploads/.gitkeep
