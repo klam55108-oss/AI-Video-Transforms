@@ -4,7 +4,7 @@
 // Handles sidebar panel rendering and real-time audit event display
 
 import { state } from '../core/state.js';
-import { escapeHtml, formatRelativeTime } from '../core/utils.js';
+import { escapeHtml } from '../core/utils.js';
 import { fetchAuditStats, fetchSessionAuditLog, fetchAuditSessions, triggerAuditCleanup } from './api.js';
 
 // ============================================

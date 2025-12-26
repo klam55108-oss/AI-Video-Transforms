@@ -308,7 +308,8 @@ class AuditHookFactory:
             # Truncate very long strings
             max_len = 5000
             if len(tool_response) > max_len:
-                return tool_response[:max_len] + f"... [truncated, {len(tool_response)} chars total]"
+                total = len(tool_response)
+                return f"{tool_response[:max_len]}... [truncated, {total} chars total]"
             return tool_response
 
         if isinstance(tool_response, dict):
