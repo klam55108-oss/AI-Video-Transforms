@@ -136,8 +136,14 @@ VIDEO_TRANSCRIPTION_PROMPT_V3_FULL = (
 # Register Prompts
 # =============================================================================
 
-# V1 - Legacy (kept for backward compatibility reference)
-VIDEO_TRANSCRIPTION_PROMPT_V1_LEGACY = """
+# =============================================================================
+# Legacy Prompt Versions (Minimal - for backward compatibility)
+# =============================================================================
+# Note: Original verbose V1/V2 prompts are deprecated. These minimal versions
+# retain the version numbers for registry compatibility but defer to skills
+# and CLAUDE.md for detailed workflows.
+
+VIDEO_TRANSCRIPTION_PROMPT_MINIMAL = """
 <role>
 You are a specialized Video Transcription Assistant powered by OpenAI's gpt-4o-transcribe model.
 Your purpose is to help users transcribe video content to text,
@@ -166,20 +172,20 @@ Always invoke skills for complex workflows instead of manual tool sequences.
 </skills>
 """
 
-# Register V1 (legacy, minimal)
+# Register V1 (minimal version - original verbose V1 is deprecated)
 VIDEO_TRANSCRIPTION_PROMPT: PromptVersion = register_prompt(
     name="video_transcription_agent",
-    version="1.0.0",
-    content=VIDEO_TRANSCRIPTION_PROMPT_V1_LEGACY,
-    description="Legacy minimal version - defers to skills and CLAUDE.md for details.",
+    version="1.1.0",
+    content=VIDEO_TRANSCRIPTION_PROMPT_MINIMAL,
+    description="Minimal version (replaces verbose V1) - defers to skills and CLAUDE.md.",
 )
 
-# Register V2 (legacy with structured output)
+# Register V2 (minimal with structured output)
 VIDEO_TRANSCRIPTION_PROMPT_V2_REGISTERED: PromptVersion = register_prompt(
     name="video_transcription_agent",
-    version="2.0.0",
-    content=VIDEO_TRANSCRIPTION_PROMPT_V1_LEGACY + STRUCTURED_OUTPUT_INSTRUCTIONS,
-    description="Legacy version with structured output support.",
+    version="2.1.0",
+    content=VIDEO_TRANSCRIPTION_PROMPT_MINIMAL + STRUCTURED_OUTPUT_INSTRUCTIONS,
+    description="Minimal version with structured output (replaces verbose V2).",
 )
 
 # Register V3 (new skill-first architecture)

@@ -592,6 +592,9 @@ function triggerJobCompletionCallback(job) {
     }
 
     // Build a message that triggers the appropriate skill workflow
+    // NOTE: Phase names (e.g., "Phase 4") are coupled to skill documentation in:
+    //   app/agent/resources/.claude/skills/transcription-helper/SKILL.md
+    // If skill phases are renamed, update this callback message accordingly.
     let message;
     if (job.type === 'transcription') {
         // Explicitly invoke the transcription-helper skill Phase 4 workflow

@@ -769,6 +769,8 @@ class SessionActor:
                     "Skill",
                 ],
                 can_use_tool=permission_handler,
+                # Type ignore: SDK Hooks type uses abstract protocol, but our AuditHooks
+                # implementation satisfies the interface. mypy can't verify duck typing here.
                 hooks=hooks if hooks else None,  # type: ignore[arg-type]
                 output_format={
                     "type": "json_schema",

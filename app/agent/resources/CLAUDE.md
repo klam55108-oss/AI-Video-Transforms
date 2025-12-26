@@ -60,10 +60,7 @@ Skills provide authoritative step-by-step workflows. **Always invoke skills for 
 | `content-saver` | Professional formatting with themes | User wants to save summaries/notes |
 | `error-recovery` | Structured error handling | Any operation fails |
 
-**Skill Invocation:**
-```
-Use the Skill tool with skill name: "transcription-helper"
-```
+**Skill Invocation:** Use the `Skill` tool with the skill name (e.g., `transcription-helper`).
 
 ## Critical Rules
 
