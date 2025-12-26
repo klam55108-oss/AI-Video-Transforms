@@ -302,6 +302,50 @@
                     <p id="jobs-empty" class="text-xs text-[var(--sidebar-text-muted)] px-2 py-1">No active jobs</p>
                 </div>
             </div>
+
+            <!-- Audit Section (Collapsible) - Agent Tool Monitoring -->
+            <div id="audit-section">
+                <button type="button" id="audit-toggle" class="panel-toggle text-sm font-medium text-[var(--sidebar-text-secondary)]">
+                    <i class="ph-fill ph-shield-check text-lg mr-3 text-[var(--sidebar-text-muted)]"></i>
+                    <span>Audit Trail</span>
+                    <span id="audit-count-badge" class="hidden ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-[var(--accent-secondary)] text-white">0</span>
+                    <i id="audit-caret" class="ph-bold ph-caret-right panel-caret text-[var(--sidebar-text-muted)]"></i>
+                </button>
+                <div id="audit-content" class="panel-content ml-8 mt-1 hidden">
+                    <!-- Audit Statistics Summary -->
+                    <div id="audit-stats" class="mb-3">
+                        <div class="audit-stats-grid">
+                            <div class="audit-stat">
+                                <div class="audit-stat-value">-</div>
+                                <div class="audit-stat-label">Invoked</div>
+                            </div>
+                            <div class="audit-stat audit-stat-success">
+                                <div class="audit-stat-value">-</div>
+                                <div class="audit-stat-label">Success</div>
+                            </div>
+                            <div class="audit-stat audit-stat-blocked">
+                                <div class="audit-stat-value">-</div>
+                                <div class="audit-stat-label">Blocked</div>
+                            </div>
+                            <div class="audit-stat">
+                                <div class="audit-stat-value">-</div>
+                                <div class="audit-stat-label">Avg Time</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Audit Events List -->
+                    <div class="space-y-1.5">
+                        <p class="text-[10px] font-semibold text-[var(--sidebar-text-muted)] uppercase tracking-wider">
+                            Recent Events
+                        </p>
+                        <div id="audit-events-list" class="audit-events-list sidebar-scroll max-h-[280px] overflow-y-auto space-y-1.5">
+                            <!-- Events populated by JS -->
+                        </div>
+                        <p id="audit-empty" class="text-xs text-[var(--sidebar-text-muted)] px-2 py-1">No audit events yet</p>
+                    </div>
+                </div>
+            </div>
         </nav>
 
         <!-- User Profile Footer -->

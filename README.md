@@ -45,6 +45,7 @@ docker-compose up -d
 | **Knowledge Graphs** | Auto-bootstrap domain schemas, extract entities/relationships with source citations |
 | **Graph Visualization** | Interactive Cytoscape.js with search, type filtering, node inspector, evidence panel |
 | **Transcript Library** | Save, search, export (TXT/JSON/SRT/VTT), and full-text viewer |
+| **Audit Trail** | Real-time tool usage logging, security blocking, session lifecycle tracking via SDK hooks |
 | **Chat Interface** | Markdown rendering, dark/light themes, 3-panel workspace layout, real-time activity streaming |
 
 ---
@@ -71,10 +72,11 @@ Create Project  →  Bootstrap  →  Confirm Discoveries  →  Extract  →  Exp
 ├───────────────────┬─────────────────────┬───────────────────────┤
 │    API Layer      │   Services Layer    │     Core Layer        │
 │  ─────────────    │   ───────────────   │   ──────────────      │
-│  8 Routers        │  SessionService     │  SessionActor         │
+│  9 Routers        │  SessionService     │  SessionActor         │
 │  Dependency Inj.  │  StorageService     │  Cost Tracking        │
 │  Error Handlers   │  KnowledgeGraphSvc  │  Config               │
-│                   │  JobQueueService    │                       │
+│                   │  JobQueueService    │  Audit Hooks          │
+│                   │  AuditService       │                       │
 ├───────────────────┴─────────────────────┴───────────────────────┤
 │                 Claude Agent SDK + MCP Tools                    │
 └─────────────────────────────────────────────────────────────────┘
@@ -105,9 +107,9 @@ HTTP Request → input_queue → [SessionActor] → response_queue → Response
 
 ```
 app/
-├── api/routers/     # 8 endpoint routers
-├── services/        # Session, Storage, KG, JobQueue services
-├── core/            # SessionActor, config, cost tracking
+├── api/routers/     # 9 endpoint routers
+├── services/        # Session, Storage, KG, JobQueue, Audit services
+├── core/            # SessionActor, config, cost tracking, audit hooks
 ├── agent/           # MCP tools + system prompts
 ├── kg/              # Domain models, graph storage, extraction
 ├── models/          # Pydantic schemas

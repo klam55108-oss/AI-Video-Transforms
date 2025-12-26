@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -34,6 +34,7 @@ from app.agent import video_tools_server
 from app.agent.prompts import SYSTEM_PROMPT
 from app.core.config import get_settings
 from app.core.cost_tracking import SessionCost
+from app.core.hooks import create_audit_hooks
 from app.core.permissions import (
     create_permission_handler,
     get_default_permission_config,
@@ -43,6 +44,9 @@ from app.models.structured import (
     AgentResponse as StructuredAgentResponse,
     get_output_schema,
 )
+
+if TYPE_CHECKING:
+    from app.services.audit_service import AuditService
 
 # Logging configuration
 logger = logging.getLogger(__name__)
@@ -274,8 +278,13 @@ class SessionActor:
     Now includes activity streaming for real-time UX feedback during processing.
     """
 
-    def __init__(self, session_id: str):
+    def __init__(
+        self,
+        session_id: str,
+        audit_service: AuditService | None = None,
+    ):
         self.session_id = session_id
+        self._audit_service = audit_service
         self.input_queue: asyncio.Queue[str | None] = asyncio.Queue(
             maxsize=QUEUE_MAX_SIZE
         )
@@ -724,6 +733,15 @@ class SessionActor:
                 f"starts with: {SYSTEM_PROMPT[:100]!r}..."
             )
 
+            # Create audit hooks if audit service is available
+            hooks = {}
+            if self._audit_service:
+                hooks = create_audit_hooks(self.session_id, self._audit_service)
+                logger.info(
+                    f"Session {self.session_id}: Audit hooks enabled "
+                    f"({len(hooks)} hook types)"
+                )
+
             options = ClaudeAgentOptions(
                 model=get_settings().claude_model,
                 system_prompt={
@@ -751,6 +769,7 @@ class SessionActor:
                     "Skill",
                 ],
                 can_use_tool=permission_handler,
+                hooks=hooks if hooks else None,
                 output_format={
                     "type": "json_schema",
                     "schema": get_output_schema(),

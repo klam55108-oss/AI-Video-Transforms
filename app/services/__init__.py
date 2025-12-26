@@ -14,6 +14,7 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI
 
+from app.services.audit_service import AuditService
 from app.services.job_queue_service import JobQueueService
 from app.services.kg_service import KnowledgeGraphService
 from app.services.session_service import SessionService
@@ -38,6 +39,7 @@ class ServiceContainer:
         self._transcription: TranscriptionService | None = None
         self._kg: KnowledgeGraphService | None = None
         self._job_queue: JobQueueService | None = None
+        self._audit: AuditService | None = None
         self._cleanup_task: asyncio.Task[None] | None = None
         self._job_processor_task: asyncio.Task[None] | None = None
 
@@ -86,6 +88,15 @@ class ServiceContainer:
             )
         return self._job_queue
 
+    @property
+    def audit(self) -> AuditService:
+        """Get audit service instance."""
+        if self._audit is None:
+            raise RuntimeError(
+                "ServiceContainer not initialized - call startup() first"
+            )
+        return self._audit
+
     async def startup(self) -> None:
         """
         Initialize all services and start background tasks.
@@ -99,7 +110,8 @@ class ServiceContainer:
 
         # Initialize services in dependency order
         self._storage = StorageService()
-        self._session = SessionService()
+        self._audit = AuditService(data_path=Path("data"))
+        self._session = SessionService(audit_service=self._audit)
         self._transcription = TranscriptionService(self._storage)
         self._kg = KnowledgeGraphService(data_path=Path("data"))
         self._job_queue = JobQueueService()
@@ -155,6 +167,7 @@ class ServiceContainer:
         self._transcription = None
         self._kg = None
         self._job_queue = None
+        self._audit = None
 
         logger.info("Service container shutdown complete")
 
@@ -219,6 +232,7 @@ __all__ = [
     "ServiceContainer",
     "get_services",
     "services_lifespan",
+    "AuditService",
     "JobQueueService",
     "KnowledgeGraphService",
     "SessionService",

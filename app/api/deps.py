@@ -11,6 +11,7 @@ from fastapi import HTTPException
 
 from app.core.validators import PROJECT_ID_PATTERN, SHORT_ID_PATTERN, UUID_PATTERN
 from app.services import (
+    AuditService,
     JobQueueService,
     KnowledgeGraphService,
     SessionService,
@@ -175,3 +176,13 @@ def get_job_queue_service() -> JobQueueService:
         JobQueueService instance from the global container
     """
     return get_services().job_queue
+
+
+def get_audit_service() -> AuditService:
+    """
+    Dependency provider for AuditService.
+
+    Returns:
+        AuditService instance from the global container
+    """
+    return get_services().audit

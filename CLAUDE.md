@@ -28,9 +28,9 @@ GEMINI_API_KEY=...              # Gemini 3 Flash skill (querying-gemini)
 
 | Layer | Location | Purpose |
 |-------|----------|---------|
-| API | `app/api/` | 8 routers, dependency injection, error handlers |
-| Services | `app/services/` | Session, Storage, KG, JobQueue |
-| Core | `app/core/` | SessionActor, config, cost tracking |
+| API | `app/api/` | 9 routers, dependency injection, error handlers |
+| Services | `app/services/` | Session, Storage, KG, JobQueue, Audit |
+| Core | `app/core/` | SessionActor, config, cost tracking, hooks |
 | Agent | `app/agent/` | MCP tools, system prompts |
 | KG | `app/kg/` | Domain models, graph storage, extraction |
 | Frontend | `app/static/js/` | 32 ES modules (chat, kg, jobs, upload, workspace) |
@@ -107,6 +107,33 @@ Frontend updates loading indicator ← Event stream: thinking → tool_use → c
 ```
 
 During message processing, `SessionActor._emit_activity()` broadcasts real-time events (thinking, tool_use, tool_result, subagent, completed) to SSE subscribers. Frontend falls back to polling if SSE unavailable.
+
+### Audit Hooks — Track all tool usage for compliance and security
+
+```
+PreToolUse  → Check dangerous ops, log intent → Block or continue
+PostToolUse → Log results, timing, success   → Audit trail
+Stop        → Log session termination        → Lifecycle tracking
+SubagentStop→ Log subagent completions       → Delegation tracking
+```
+
+The `AuditHookFactory` in `app/core/hooks.py` creates session-bound hooks that:
+1. **Block dangerous operations** — Prevents `rm -rf /`, protected path writes, fork bombs
+2. **Log tool usage** — Pre/post events with inputs, outputs, timing
+3. **Track success/failure** — Heuristic detection from tool responses
+4. **Sanitize responses** — Truncates large outputs to prevent log bloat
+
+**Hook Integration** (`app/core/session.py`):
+```python
+from app.core.hooks import create_audit_hooks
+
+hooks = create_audit_hooks(session_id, audit_service)
+options = ClaudeAgentOptions(hooks=hooks, ...)
+```
+
+**Protected Paths**: `/etc/`, `/usr/`, `/bin/`, `/sbin/`, `/boot/`, `/dev/`, `/proc/`, `/sys/`, `/var/log/`, `/root/`
+
+**Dangerous Patterns**: `rm -rf /`, `dd if=`, fork bombs, `mkfs.`, `chmod -R 777 /`, pipe-to-shell
 
 ## Code Standards
 

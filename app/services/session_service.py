@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from typing import TYPE_CHECKING
 
 from app.core.session import (
     CLEANUP_INTERVAL_SECONDS,
@@ -20,6 +21,9 @@ from app.core.session import (
     SessionActor,
 )
 from app.models.service import ServiceUnavailableError, SessionStatus
+
+if TYPE_CHECKING:
+    from app.services.audit_service import AuditService
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +37,16 @@ class SessionService:
     by wrapping (not replacing) the existing implementation.
     """
 
-    def __init__(self) -> None:
-        """Initialize session service with empty session registry."""
+    def __init__(self, audit_service: AuditService | None = None) -> None:
+        """Initialize session service with empty session registry.
+
+        Args:
+            audit_service: Optional AuditService for hook-based audit logging.
+                If provided, enables SDK hooks for tool usage tracking.
+        """
         self._active_sessions: dict[str, SessionActor] = {}
         self._sessions_lock = asyncio.Lock()
+        self._audit_service = audit_service
 
     async def get_or_create(self, session_id: str) -> SessionActor:
         """
@@ -73,7 +83,7 @@ class SessionService:
         if not os.environ.get("ANTHROPIC_API_KEY"):
             raise ServiceUnavailableError("ANTHROPIC_API_KEY not configured")
 
-        new_actor = SessionActor(session_id)
+        new_actor = SessionActor(session_id, audit_service=self._audit_service)
         await new_actor.start()
 
         # Second check: add to dict, handling race condition

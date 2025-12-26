@@ -6,7 +6,7 @@ paths: app/static/**/*.*, app/templates/**/*.*
 
 ## Stack
 
-- **ES Modules** — 31 modules in `app/static/js/`
+- **ES Modules** — 34 modules in `app/static/js/`
 - **Tailwind CSS** via CDN (no build step)
 - **Jinja2** templates in `app/templates/`
 - **CDN Libraries**: Marked.js, DOMPurify, Cytoscape.js
@@ -22,6 +22,7 @@ app/static/js/
 ├── panels/           # history.js, transcripts.js, transcript-search.js, transcript-viewer.js
 ├── jobs/             # jobs.js, step-progress.js
 ├── upload/           # upload.js
+├── audit/            # index.js, api.js, panel.js (audit trail)
 ├── ui/               # workspace.js (3-panel resizable layout)
 └── kg/               # 10 modules (api, panel, graph, search, inspector, evidence, etc.)
 ```
