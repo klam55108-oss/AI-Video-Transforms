@@ -18,8 +18,6 @@ from app.main import app
 from app.models.audit import (
     AuditEventType,
     AuditLogEntry,
-    AuditLogResponse,
-    AuditStats,
     SessionAuditEvent,
     ToolAuditEvent,
 )
@@ -129,9 +127,7 @@ class TestAuditService:
         return AuditService(data_path=tmp_path)
 
     @pytest.mark.asyncio
-    async def test_log_and_retrieve_event(
-        self, audit_service: AuditService
-    ) -> None:
+    async def test_log_and_retrieve_event(self, audit_service: AuditService) -> None:
         """Test logging an event and retrieving it."""
         event = ToolAuditEvent(
             event_type=AuditEventType.PRE_TOOL_USE,
@@ -190,9 +186,7 @@ class TestAuditService:
         assert stats.tools_blocked == 1
 
     @pytest.mark.asyncio
-    async def test_list_sessions_with_audits(
-        self, audit_service: AuditService
-    ) -> None:
+    async def test_list_sessions_with_audits(self, audit_service: AuditService) -> None:
         """Test listing sessions that have audit logs."""
         # Create events for multiple sessions
         for session_id in ["session-a", "session-b", "session-c"]:
@@ -231,17 +225,13 @@ class TestAuditService:
             )
 
         # Get first page
-        page1 = await audit_service.get_session_audit_log(
-            session_id, limit=3, offset=0
-        )
+        page1 = await audit_service.get_session_audit_log(session_id, limit=3, offset=0)
         assert len(page1.entries) == 3
         assert page1.total_count == 10
         assert page1.has_more is True
 
         # Get second page
-        page2 = await audit_service.get_session_audit_log(
-            session_id, limit=3, offset=3
-        )
+        page2 = await audit_service.get_session_audit_log(session_id, limit=3, offset=3)
         assert len(page2.entries) == 3
         assert page2.has_more is True
 
@@ -267,9 +257,7 @@ class TestAuditAPI:
         return AuditService(data_path=tmp_path)
 
     @pytest.mark.asyncio
-    async def test_get_stats_endpoint(
-        self, mock_audit_service: AuditService
-    ) -> None:
+    async def test_get_stats_endpoint(self, mock_audit_service: AuditService) -> None:
         """Test GET /audit/stats endpoint."""
         app.dependency_overrides[get_audit_service] = lambda: mock_audit_service
 
@@ -353,9 +341,7 @@ class TestAuditAPI:
             app.dependency_overrides.pop(get_audit_service, None)
 
     @pytest.mark.asyncio
-    async def test_cleanup_endpoint(
-        self, mock_audit_service: AuditService
-    ) -> None:
+    async def test_cleanup_endpoint(self, mock_audit_service: AuditService) -> None:
         """Test POST /audit/cleanup endpoint."""
         app.dependency_overrides[get_audit_service] = lambda: mock_audit_service
 
@@ -388,9 +374,7 @@ class TestHookFactory:
         return AuditService(data_path=tmp_path)
 
     @pytest.mark.asyncio
-    async def test_pre_tool_use_logs_event(
-        self, audit_service: AuditService
-    ) -> None:
+    async def test_pre_tool_use_logs_event(self, audit_service: AuditService) -> None:
         """Test that pre_tool_use hook logs events."""
         from app.core.hooks import AuditHookFactory
 
@@ -455,9 +439,7 @@ class TestHookFactory:
         assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
 
     @pytest.mark.asyncio
-    async def test_post_tool_use_logs_result(
-        self, audit_service: AuditService
-    ) -> None:
+    async def test_post_tool_use_logs_result(self, audit_service: AuditService) -> None:
         """Test that post_tool_use hook logs results."""
         from app.core.hooks import AuditHookFactory
 
@@ -492,8 +474,7 @@ class TestHookFactory:
 
         # Post event should have duration
         post_events = [
-            e for e in log.entries
-            if e.event_type == AuditEventType.POST_TOOL_USE.value
+            e for e in log.entries if e.event_type == AuditEventType.POST_TOOL_USE.value
         ]
         assert len(post_events) == 1
         assert post_events[0].duration_ms is not None
@@ -779,9 +760,7 @@ class TestConcurrentLogging:
         return AuditService(data_path=tmp_path)
 
     @pytest.mark.asyncio
-    async def test_concurrent_event_logging(
-        self, audit_service: AuditService
-    ) -> None:
+    async def test_concurrent_event_logging(self, audit_service: AuditService) -> None:
         """Test that concurrent event logging works correctly."""
         session_id = "concurrent-session"
 
@@ -846,7 +825,6 @@ class TestCacheEviction:
     @pytest.mark.asyncio
     async def test_cache_eviction_on_max_sessions(self, tmp_path: Path) -> None:
         """Test that cache evicts oldest sessions when max is reached."""
-        from app.core.config import get_settings
 
         # Create service with custom settings
         # The default cache_max_sessions is 50, but we'll test eviction logic
