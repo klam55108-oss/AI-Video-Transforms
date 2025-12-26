@@ -6,7 +6,7 @@ AI-powered video transcription and knowledge graph extraction.
 
 ```bash
 uv run python -m app.main              # Dev server → http://127.0.0.1:8000
-uv run pytest                          # 691 tests
+uv run pytest                          # 647 tests
 uv run mypy .                          # Type check (strict)
 uv run ruff check . && ruff format .   # Lint + format
 ```
@@ -14,8 +14,12 @@ uv run ruff check . && ruff format .   # Lint + format
 ## Environment
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-...    # Required: Claude Agent SDK
-OPENAI_API_KEY=sk-...           # Required: gpt-4o-transcribe
+# Required
+ANTHROPIC_API_KEY=sk-ant-...    # Claude Agent SDK
+OPENAI_API_KEY=sk-...           # gpt-4o-transcribe
+
+# Optional (for Claude Code skills)
+GEMINI_API_KEY=...              # Gemini 3 Flash skill (querying-gemini)
 ```
 
 ## Architecture
@@ -146,14 +150,23 @@ app/agent/resources/
 - `setting_sources=["project"]` → Loads CLAUDE.md from cwd
 - `"Skill"` in `allowed_tools` → Enables skill invocation
 
-## External MCP Servers
+## Claude Code Skills
 
-For Claude Code (not the app agent):
+For Claude Code (not the app agent), these skills provide multi-model AI capabilities:
 
-| Server | Purpose |
-|--------|---------|
-| `mcp_servers/codex/` | GPT-5.2 via OpenAI Responses API (@.claude/rules/codex-mcp.md) |
-| `mcp_servers/gemini/` | Gemini CLI wrapper (@.claude/rules/gemini-mcp.md) |
+| Skill | Location | Purpose |
+|-------|----------|---------|
+| `querying-gemini` | `.claude/skills/querying-gemini/` | Gemini 3 Flash for code analysis, generation, and bug fixing |
+| `querying-gpt52` | `.claude/skills/querying-gpt52/` | GPT-5.2 for high-reasoning analysis and comprehensive output |
+| `council-advice` | `.claude/skills/council-advice/` | Multi-model advisory council (Gemini + GPT-5.2 → Opus Judge) |
+| `frontend-design` | `.claude/skills/frontend-design/` | Frontend design patterns and best practices |
+
+**Usage**: Skills are invoked via their script files in `scripts/` subdirectories.
+
+**API Keys Required**:
+- `GEMINI_API_KEY` or `GOOGLE_API_KEY` for Gemini skills
+- `OPENAI_API_KEY` for GPT-5.2 skills
+- `ANTHROPIC_API_KEY` for Opus Judge in council-advice
 
 ## Documentation
 

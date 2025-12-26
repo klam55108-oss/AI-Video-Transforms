@@ -3,7 +3,7 @@
 > Transform videos into searchable transcripts and knowledge graphs through an intelligent AI chat interface.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-691%20passing-brightgreen.svg)](#development)
+[![Tests](https://img.shields.io/badge/tests-647%20passing-brightgreen.svg)](#development)
 [![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#development)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -97,7 +97,7 @@ HTTP Request → input_queue → [SessionActor] → response_queue → Response
 | **Knowledge Graph** | NetworkX, Cytoscape.js |
 | **Media** | FFmpeg, pydub, yt-dlp |
 | **Frontend** | ES Modules, Tailwind CSS, Marked.js, DOMPurify |
-| **Quality** | mypy (strict), ruff, pytest (691 tests) |
+| **Quality** | mypy (strict), ruff, pytest (647 tests) |
 
 ---
 
@@ -114,7 +114,7 @@ app/
 ├── static/js/       # 32 ES modules (chat, kg, jobs, upload, workspace)
 └── templates/       # Jinja2 HTML
 
-tests/               # 691 tests across 31 modules
+tests/               # 647 tests across 31 modules
 data/                # Runtime storage
 ```
 
@@ -137,10 +137,16 @@ uv run ruff check . && ruff format .   # Lint + format
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...    # Claude Agent SDK
-OPENAI_API_KEY=sk-...            # gpt-4o-transcribe
+OPENAI_API_KEY=sk-...           # gpt-4o-transcribe
 ```
 
-**Optional:** See [CLAUDE.md](CLAUDE.md) for all configuration options.
+**Optional (for Claude Code development skills):**
+
+```bash
+GEMINI_API_KEY=...              # Gemini 3 Flash skill
+```
+
+See [CLAUDE.md](CLAUDE.md) for all configuration options.
 
 ---
 
