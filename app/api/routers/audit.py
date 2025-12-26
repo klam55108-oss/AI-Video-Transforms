@@ -111,6 +111,12 @@ async def cleanup_old_logs(
     Removes audit logs older than the retention period (default 7 days).
     This is also done automatically during scheduled cleanups.
 
+    Security Note:
+        This endpoint is unauthenticated. In production deployments with
+        multi-user access, consider adding authentication/authorization
+        (e.g., admin-only access via a dependency like `Depends(require_admin)`).
+        For single-user local deployments, this is acceptable.
+
     Returns:
         Number of sessions cleaned up
     """

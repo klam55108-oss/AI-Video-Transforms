@@ -76,6 +76,11 @@ class AuditService:
         self._session_cache: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
         self._cache_lock = asyncio.Lock()
 
+        # Per-session locks to prevent race conditions during concurrent writes.
+        # Using a dict of locks allows concurrent writes to different sessions
+        # while serializing writes to the same session (prevents event loss).
+        self._session_locks: dict[str, asyncio.Lock] = {}
+
         # Aggregate stats (cached, persisted periodically)
         self._stats = AuditStats()
         self._stats_dirty = False
@@ -115,6 +120,22 @@ class AuditService:
     def _get_session_path(self, session_id: str) -> Path:
         """Get the file path for a session's audit log."""
         return self._sessions_path / f"{session_id}.json"
+
+    def _get_session_lock(self, session_id: str) -> asyncio.Lock:
+        """Get or create a lock for a specific session.
+
+        Per-session locks prevent race conditions when multiple concurrent
+        requests try to log events to the same session.
+
+        Args:
+            session_id: The session to get a lock for.
+
+        Returns:
+            An asyncio.Lock for the session.
+        """
+        if session_id not in self._session_locks:
+            self._session_locks[session_id] = asyncio.Lock()
+        return self._session_locks[session_id]
 
     async def _load_session_events(self, session_id: str) -> list[dict[str, Any]]:
         """Load events for a session from disk or cache.
@@ -181,6 +202,7 @@ class AuditService:
         """Log an audit event.
 
         Persists the event to both cache and disk, updating aggregate stats.
+        Uses per-session locks to prevent race conditions during concurrent writes.
 
         Args:
             event: The audit event to log.
@@ -188,30 +210,34 @@ class AuditService:
         session_id = event.session_id
         event_dict = event.model_dump()
 
-        # Load existing events
-        events = await self._load_session_events(session_id)
+        # Acquire per-session lock to ensure atomic read-modify-write.
+        # This prevents race conditions where concurrent requests could lose events.
+        session_lock = self._get_session_lock(session_id)
+        async with session_lock:
+            # Load existing events
+            events = await self._load_session_events(session_id)
 
-        # Enforce per-session limit to prevent unbounded growth.
-        # Logic: If at capacity (N events), keep N-1 oldest before appending new event.
-        # Result: After append, we have exactly N events (the limit).
-        # Example: If max=10000 and we have 10000 events, slice keeps 9999, then append = 10000.
-        if len(events) >= self._max_events_per_session:
-            events = events[-(self._max_events_per_session - 1) :]
-            logger.warning(
-                f"Audit log for {session_id} exceeded max size, pruning old events"
-            )
+            # Enforce per-session limit to prevent unbounded growth.
+            # Logic: If at capacity (N events), keep N-1 oldest before appending.
+            # Result: After append, we have exactly N events (the limit).
+            # Example: max=10000, have 10000 → slice keeps 9999, append = 10000.
+            if len(events) >= self._max_events_per_session:
+                events = events[-(self._max_events_per_session - 1) :]
+                logger.warning(
+                    f"Audit log for {session_id} exceeded max size, pruning old events"
+                )
 
-        # Append new event
-        events.append(event_dict)
+            # Append new event
+            events.append(event_dict)
 
-        # Update cache
-        async with self._cache_lock:
-            self._session_cache[session_id] = events
+            # Update cache (requires separate lock for cache data structure)
+            async with self._cache_lock:
+                self._session_cache[session_id] = events
 
-        # Persist to disk
-        await self._save_session_events(session_id, events)
+            # Persist to disk (inside session lock to ensure consistency)
+            await self._save_session_events(session_id, events)
 
-        # Update aggregate stats
+        # Update aggregate stats (outside lock - not session-specific)
         self._update_stats(event)
 
         logger.debug(

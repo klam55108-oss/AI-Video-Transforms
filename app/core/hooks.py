@@ -21,6 +21,7 @@ Usage:
 from __future__ import annotations
 
 import logging
+import re
 import time
 from pathlib import Path
 from typing import Any, Callable, Coroutine
@@ -72,6 +73,45 @@ DANGEROUS_BASH_PATTERNS: list[str] = [
     "python3 -c \"import os;",
     # Suppress output and background (hiding malicious activity)
     ">/dev/null 2>&1 &",
+    # Reverse shell patterns
+    "bash -i >& /dev/tcp/",
+    "bash -i >&/dev/tcp/",
+    "nc -e /bin/",
+    "nc -e /bin/sh",
+    "nc -e /bin/bash",
+    "/dev/tcp/",  # Bash network redirects
+    "mkfifo /tmp/",  # Named pipe for reverse shells
+    # Credential exfiltration
+    "cat /etc/shadow",
+    "cat /etc/passwd",
+    "cat ~/.ssh/",
+    "cat ~/.aws/",
+    "cat ~/.gnupg/",
+    # Environment variable exfiltration (API keys, secrets)
+    "printenv | curl",
+    "env | curl",
+    "printenv | nc",
+    "env | nc",
+]
+
+# Patterns for sensitive data that should be redacted from audit logs.
+# These are compiled regex patterns for performance.
+SENSITIVE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    # API keys (common formats)
+    (re.compile(r"sk-[a-zA-Z0-9]{20,}", re.IGNORECASE), "[REDACTED_API_KEY]"),
+    (re.compile(r"sk-ant-[a-zA-Z0-9\-]{20,}", re.IGNORECASE), "[REDACTED_ANTHROPIC_KEY]"),
+    (re.compile(r"api[_-]?key[\"']?\s*[:=]\s*[\"']?[a-zA-Z0-9\-_]{20,}", re.IGNORECASE), "[REDACTED_API_KEY]"),
+    # AWS credentials
+    (re.compile(r"AKIA[A-Z0-9]{16}"), "[REDACTED_AWS_KEY]"),
+    (re.compile(r"aws[_-]?secret[_-]?access[_-]?key[\"']?\s*[:=]\s*[\"']?[a-zA-Z0-9/+=]{40}", re.IGNORECASE), "[REDACTED_AWS_SECRET]"),
+    # Generic secrets/passwords in key-value format
+    (re.compile(r"password[\"']?\s*[:=]\s*[\"']?[^\s\"',]{8,}", re.IGNORECASE), "password=[REDACTED]"),
+    (re.compile(r"secret[\"']?\s*[:=]\s*[\"']?[^\s\"',]{8,}", re.IGNORECASE), "secret=[REDACTED]"),
+    (re.compile(r"token[\"']?\s*[:=]\s*[\"']?[a-zA-Z0-9\-_]{20,}", re.IGNORECASE), "token=[REDACTED]"),
+    # Bearer tokens
+    (re.compile(r"Bearer\s+[a-zA-Z0-9\-_\.]{20,}", re.IGNORECASE), "Bearer [REDACTED]"),
+    # Private keys
+    (re.compile(r"-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----[\s\S]*?-----END", re.IGNORECASE), "[REDACTED_PRIVATE_KEY]"),
 ]
 
 # System paths that should never be written to
@@ -201,6 +241,13 @@ class AuditHookFactory:
 
         # Check file operations for protected paths
         # Resolve symlinks to prevent bypass attacks (e.g., /tmp/link -> /etc/passwd)
+        #
+        # Edge case note: Path.resolve() may not fully resolve symlinks if the
+        # target doesn't exist yet (e.g., writing a new file via symlink to a
+        # non-existent path). In practice, this is acceptable because:
+        # 1. Creating new files in protected dirs still requires the dir to exist
+        # 2. The parent directory check would catch most bypass attempts
+        # 3. OS-level permissions provide additional protection
         if tool_name in ("Write", "Edit"):
             file_path = tool_input.get("file_path", "")
             try:
@@ -290,10 +337,24 @@ class AuditHookFactory:
 
         return True  # Default to success
 
+    def _redact_sensitive_data(self, text: str) -> str:
+        """Redact sensitive data (API keys, passwords, etc.) from text.
+
+        Args:
+            text: The text to redact.
+
+        Returns:
+            Text with sensitive patterns replaced by redaction markers.
+        """
+        for pattern, replacement in SENSITIVE_PATTERNS:
+            text = pattern.sub(replacement, text)
+        return text
+
     def _sanitize_response(self, tool_response: Any) -> Any:
         """Sanitize tool response for safe storage.
 
-        Truncates very large responses to prevent bloating audit logs.
+        Truncates very large responses and redacts sensitive data
+        (API keys, passwords, tokens) to prevent data leakage in audit logs.
 
         Args:
             tool_response: The raw tool response.
@@ -305,12 +366,14 @@ class AuditHookFactory:
             return None
 
         if isinstance(tool_response, str):
+            # Redact sensitive data before truncation
+            sanitized = self._redact_sensitive_data(tool_response)
             # Truncate very long strings
             max_len = 5000
-            if len(tool_response) > max_len:
-                total = len(tool_response)
-                return f"{tool_response[:max_len]}... [truncated, {total} chars total]"
-            return tool_response
+            if len(sanitized) > max_len:
+                total = len(sanitized)
+                return f"{sanitized[:max_len]}... [truncated, {total} chars total]"
+            return sanitized
 
         if isinstance(tool_response, dict):
             # Recursively sanitize dict values
