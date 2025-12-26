@@ -42,6 +42,10 @@ app/static/js/
 │   └── step-progress.js # Step-by-step progress indicator
 ├── upload/              # File uploads
 │   └── upload.js        # Video upload handling
+├── audit/               # Audit trail system
+│   ├── index.js         # Module aggregator
+│   ├── api.js           # Audit API client
+│   └── panel.js         # Audit sidebar panel UI
 ├── ui/                  # UI components
 │   └── workspace.js     # 3-panel resizable workspace layout
 └── kg/                  # Knowledge Graph visualization
@@ -222,6 +226,48 @@ export function getStepsForJobType(jobType);
 - `transcription`: queued → downloading → extracting_audio → transcribing → processing → finalizing
 - `bootstrap`: queued → processing → finalizing
 - `extraction`: queued → processing → finalizing
+
+### Audit Module
+
+#### `audit/index.js`
+Aggregates and re-exports all audit module functions.
+
+#### `audit/api.js`
+Audit API client for fetching audit logs and stats.
+
+```javascript
+export const auditClient = {
+    getStats(),                           // Aggregate audit statistics
+    listSessions(limit),                  // Sessions with audit logs
+    getSessionAuditLog(sessionId, opts),  // Detailed session audit log
+};
+```
+
+**Event Types**: `pre_tool_use`, `post_tool_use`, `tool_blocked`, `session_stop`, `subagent_stop`
+
+#### `audit/panel.js`
+Audit sidebar panel with real-time event display.
+
+```javascript
+export function initAuditPanel();
+export function loadAuditEvents();
+export function toggleAuditPanel();
+export function refreshAuditStats();
+```
+
+**Features**:
+- Real-time tool usage visualization with success/failure badges
+- Blocked operations highlighted with warning icons
+- Tool duration timing display
+- Session-filtered view with pagination
+- Aggregate statistics (tools invoked, blocked, success rate)
+
+**Event Display**: Each audit entry shows:
+- Timestamp with relative time formatting
+- Tool name with icon
+- Success/failure status badge
+- Duration in milliseconds (for completed tools)
+- Block reason (for blocked operations)
 
 ### Panels Modules
 
@@ -429,6 +475,11 @@ window.resetGraphView
 window.cancelJob
 window.loadJobs
 window.sendMessage   // Enables job callbacks to trigger agent messages
+
+// Audit Trail
+window.loadAuditEvents
+window.toggleAuditPanel
+window.refreshAuditStats
 ```
 
 ---

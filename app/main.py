@@ -33,6 +33,7 @@ logging.getLogger("claude_agent_sdk").addFilter(ExitCodeFilter())
 # Import application components
 from app.api.errors import register_exception_handlers  # noqa: E402
 from app.api.routers import (  # noqa: E402
+    audit_router,
     chat_router,
     cost_router,
     health_router,
@@ -73,6 +74,7 @@ app.include_router(cost_router)
 app.include_router(upload_router)
 app.include_router(jobs_router)
 app.include_router(kg.router)
+app.include_router(audit_router)
 
 
 if __name__ == "__main__":

@@ -39,6 +39,19 @@ import { initTranscriptViewer, openTranscriptViewer, closeModal } from './panels
 import { cleanupAllJobPollers, cancelJob, toggleJobsPanel, loadJobs } from './jobs/jobs.js';
 
 // ============================================
+// Audit Module Imports
+// ============================================
+import {
+    toggleAuditPanel,
+    startAuditPolling,
+    stopAuditPolling,
+    loadCurrentSessionAudit,
+    loadAuditStats,
+    handleAuditCleanup,
+    initAuditPanel
+} from './audit/index.js';
+
+// ============================================
 // Upload Module Imports
 // ============================================
 import { initFileUpload } from './upload/upload.js';
@@ -129,6 +142,9 @@ window.kg_clearAllFilters = clearAllFilters;
 window.cancelJob = cancelJob;
 window.loadJobs = loadJobs;
 
+// Audit
+window.handleAuditCleanup = handleAuditCleanup;
+
 // Chat (for job completion callback)
 window.sendMessage = sendMessage;
 
@@ -182,10 +198,12 @@ function initEventListeners() {
     const historyToggle = document.getElementById('history-toggle');
     const transcriptsToggle = document.getElementById('transcripts-toggle');
     const jobsToggle = document.getElementById('jobs-toggle');
+    const auditToggle = document.getElementById('audit-toggle');
 
     historyToggle?.addEventListener('click', toggleHistoryPanel);
     transcriptsToggle?.addEventListener('click', toggleTranscriptsPanel);
     jobsToggle?.addEventListener('click', toggleJobsPanel);
+    auditToggle?.addEventListener('click', toggleAuditPanel);
 
     // KG Panel toggle
     state.kgToggle?.addEventListener('click', toggleKGPanel);
@@ -285,6 +303,7 @@ function initSidebarData() {
 window.addEventListener('beforeunload', () => {
     stopKGPolling();
     stopStatusPolling();
+    stopAuditPolling();
     cleanupAllJobPollers();
 });
 
@@ -293,6 +312,7 @@ document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
         stopKGPolling();
         stopStatusPolling();
+        stopAuditPolling();
     } else {
         startStatusPolling();
         if (state.kgCurrentProjectId) {
@@ -350,6 +370,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const graphBtn = document.getElementById('kg-view-graph-btn');
     listBtn?.classList.add('active');
     graphBtn?.classList.remove('active');
+
+    // Initialize audit panel
+    initAuditPanel();
 
     // Initialize chat session (must run after DOM is ready)
     // This fetches session history and displays the initial greeting
