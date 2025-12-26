@@ -67,10 +67,10 @@ DANGEROUS_BASH_PATTERNS: list[str] = [
     "base64 --decode | sh",
     # Shell eval (common attack vector)
     "eval $(",
-    'eval "$(',
+    "eval \"$(",
     # Python eval
-    'python -c "import os;',
-    'python3 -c "import os;',
+    "python -c \"import os;",
+    "python3 -c \"import os;",
     # Suppress output and background (hiding malicious activity)
     ">/dev/null 2>&1 &",
     # Reverse shell patterns
@@ -99,47 +99,19 @@ DANGEROUS_BASH_PATTERNS: list[str] = [
 SENSITIVE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     # API keys (common formats)
     (re.compile(r"sk-[a-zA-Z0-9]{20,}", re.IGNORECASE), "[REDACTED_API_KEY]"),
-    (
-        re.compile(r"sk-ant-[a-zA-Z0-9\-]{20,}", re.IGNORECASE),
-        "[REDACTED_ANTHROPIC_KEY]",
-    ),
-    (
-        re.compile(
-            r"api[_-]?key[\"']?\s*[:=]\s*[\"']?[a-zA-Z0-9\-_]{20,}", re.IGNORECASE
-        ),
-        "[REDACTED_API_KEY]",
-    ),
+    (re.compile(r"sk-ant-[a-zA-Z0-9\-]{20,}", re.IGNORECASE), "[REDACTED_ANTHROPIC_KEY]"),
+    (re.compile(r"api[_-]?key[\"']?\s*[:=]\s*[\"']?[a-zA-Z0-9\-_]{20,}", re.IGNORECASE), "[REDACTED_API_KEY]"),
     # AWS credentials
     (re.compile(r"AKIA[A-Z0-9]{16}"), "[REDACTED_AWS_KEY]"),
-    (
-        re.compile(
-            r"aws[_-]?secret[_-]?access[_-]?key[\"']?\s*[:=]\s*[\"']?[a-zA-Z0-9/+=]{40}",
-            re.IGNORECASE,
-        ),
-        "[REDACTED_AWS_SECRET]",
-    ),
+    (re.compile(r"aws[_-]?secret[_-]?access[_-]?key[\"']?\s*[:=]\s*[\"']?[a-zA-Z0-9/+=]{40}", re.IGNORECASE), "[REDACTED_AWS_SECRET]"),
     # Generic secrets/passwords in key-value format
-    (
-        re.compile(r"password[\"']?\s*[:=]\s*[\"']?[^\s\"',]{8,}", re.IGNORECASE),
-        "password=[REDACTED]",
-    ),
-    (
-        re.compile(r"secret[\"']?\s*[:=]\s*[\"']?[^\s\"',]{8,}", re.IGNORECASE),
-        "secret=[REDACTED]",
-    ),
-    (
-        re.compile(r"token[\"']?\s*[:=]\s*[\"']?[a-zA-Z0-9\-_]{20,}", re.IGNORECASE),
-        "token=[REDACTED]",
-    ),
+    (re.compile(r"password[\"']?\s*[:=]\s*[\"']?[^\s\"',]{8,}", re.IGNORECASE), "password=[REDACTED]"),
+    (re.compile(r"secret[\"']?\s*[:=]\s*[\"']?[^\s\"',]{8,}", re.IGNORECASE), "secret=[REDACTED]"),
+    (re.compile(r"token[\"']?\s*[:=]\s*[\"']?[a-zA-Z0-9\-_]{20,}", re.IGNORECASE), "token=[REDACTED]"),
     # Bearer tokens
     (re.compile(r"Bearer\s+[a-zA-Z0-9\-_\.]{20,}", re.IGNORECASE), "Bearer [REDACTED]"),
     # Private keys
-    (
-        re.compile(
-            r"-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----[\s\S]*?-----END", re.IGNORECASE
-        ),
-        "[REDACTED_PRIVATE_KEY]",
-    ),
+    (re.compile(r"-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----[\s\S]*?-----END", re.IGNORECASE), "[REDACTED_PRIVATE_KEY]"),
 ]
 
 # System paths that should never be written to
@@ -412,12 +384,8 @@ class AuditHookFactory:
             max_items = 50
             if len(tool_response) > max_items:
                 # Use a dict marker to maintain type consistency and indicate truncation
-                truncated = [
-                    self._sanitize_response(item) for item in tool_response[:max_items]
-                ]
-                truncated.append(
-                    {"__truncated__": True, "total_items": len(tool_response)}
-                )
+                truncated = [self._sanitize_response(item) for item in tool_response[:max_items]]
+                truncated.append({"__truncated__": True, "total_items": len(tool_response)})
                 return truncated
             return [self._sanitize_response(item) for item in tool_response]
 
@@ -451,7 +419,9 @@ class AuditHookFactory:
         )
         await self.audit_service.log_event(event)
 
-        logger.info(f"Session {self.session_id}: Stop - {stop_reason or 'completed'}")
+        logger.info(
+            f"Session {self.session_id}: Stop - {stop_reason or 'completed'}"
+        )
 
         return {}
 

@@ -64,7 +64,6 @@ import {
     kgClient,
     // Panel
     toggleKGPanel,
-    toggleKGAdvanced,
     loadKGProjects,
     selectKGProject,
     toggleKGDropdown,
@@ -208,9 +207,6 @@ function initEventListeners() {
 
     // KG Panel toggle
     state.kgToggle?.addEventListener('click', toggleKGPanel);
-
-    // KG Advanced section toggle (More button)
-    document.getElementById('kg-more-toggle')?.addEventListener('click', toggleKGAdvanced);
 
     // KG Dropdown
     state.kgDropdownToggle?.addEventListener('click', toggleKGDropdown);

@@ -181,72 +181,60 @@
                             </button>
                         </div>
 
-                        <!-- Advanced Section Toggle -->
-                        <button type="button" id="kg-more-toggle" class="panel-toggle text-xs hidden" aria-expanded="false">
-                            <i class="ph-bold ph-dots-three-outline"></i>
-                            <span>More</span>
-                            <i id="kg-more-caret" class="ph-bold ph-caret-right panel-caret"></i>
-                        </button>
-
-                        <!-- Advanced Section Content -->
-                        <div id="kg-advanced" class="panel-content ml-4">
-                            <div class="space-y-2 pt-1">
-                                <!-- Graph Stats -->
-                                <div id="kg-stats" class="space-y-1.5">
-                                    <p class="text-[10px] font-semibold text-[var(--sidebar-text-muted)] uppercase tracking-wider">
-                                        Graph Stats
-                                    </p>
-                                    <div class="grid grid-cols-2 gap-1.5 text-[10px]">
-                                        <div class="px-2 py-1.5 rounded-md bg-[var(--sidebar-hover)]">
-                                            <span class="text-[var(--sidebar-text-muted)]">Entities</span>
-                                            <span id="kg-stat-nodes" class="ml-1 font-semibold text-[var(--sidebar-text-primary)]">0</span>
-                                        </div>
-                                        <div class="px-2 py-1.5 rounded-md bg-[var(--sidebar-hover)]">
-                                            <span class="text-[var(--sidebar-text-muted)]">Relations</span>
-                                            <span id="kg-stat-edges" class="ml-1 font-semibold text-[var(--sidebar-text-primary)]">0</span>
-                                        </div>
-                                    </div>
+                        <!-- Graph Stats -->
+                        <div id="kg-stats" class="hidden space-y-1.5">
+                            <p class="text-[10px] font-semibold text-[var(--sidebar-text-muted)] uppercase tracking-wider">
+                                Graph Stats
+                            </p>
+                            <div class="grid grid-cols-2 gap-1.5 text-[10px]">
+                                <div class="px-2 py-1.5 rounded-md bg-[var(--sidebar-hover)]">
+                                    <span class="text-[var(--sidebar-text-muted)]">Entities</span>
+                                    <span id="kg-stat-nodes" class="ml-1 font-semibold text-[var(--sidebar-text-primary)]">0</span>
                                 </div>
-
-                                <!-- Export Buttons -->
-                                <div id="kg-export" class="space-y-2">
-                                    <div class="flex gap-2">
-                                        <button type="button"
-                                                id="kg-export-json"
-                                                class="flex-1 text-[10px] px-2 py-1.5 rounded-md font-medium
-                                                       border border-[var(--sidebar-border)] text-[var(--sidebar-text-secondary)]
-                                                       hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all"
-                                                aria-label="Export graph as JSON">
-                                            <i class="ph-bold ph-brackets-curly mr-1"></i>JSON
-                                        </button>
-                                        <button type="button"
-                                                id="kg-export-csv"
-                                                class="flex-1 text-[10px] px-2 py-1.5 rounded-md font-medium
-                                                       border border-[var(--sidebar-border)] text-[var(--sidebar-text-secondary)]
-                                                       hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all"
-                                                aria-label="Export graph as CSV">
-                                            <i class="ph-bold ph-table mr-1"></i>CSV
-                                        </button>
-                                        <button type="button"
-                                                id="kg-export-graphml"
-                                                class="flex-1 text-[10px] px-2 py-1.5 rounded-md font-medium
-                                                       border border-[var(--sidebar-border)] text-[var(--sidebar-text-secondary)]
-                                                       hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all"
-                                                aria-label="Export graph as GraphML">
-                                            <i class="ph-bold ph-share-network mr-1"></i>GraphML
-                                        </button>
-                                    </div>
-                                    <!-- Batch Export Button -->
-                                    <button type="button"
-                                            id="kg-batch-export"
-                                            class="w-full text-[10px] px-2 py-1.5 rounded-md font-medium
-                                                   border border-dashed border-[var(--sidebar-border)] text-[var(--sidebar-text-muted)]
-                                                   hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all"
-                                            aria-label="Export all projects">
-                                        <i class="ph-bold ph-download-simple mr-1"></i>Export All Projects
-                                    </button>
+                                <div class="px-2 py-1.5 rounded-md bg-[var(--sidebar-hover)]">
+                                    <span class="text-[var(--sidebar-text-muted)]">Relations</span>
+                                    <span id="kg-stat-edges" class="ml-1 font-semibold text-[var(--sidebar-text-primary)]">0</span>
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Export Buttons -->
+                        <div id="kg-export" class="hidden space-y-2">
+                            <div class="flex gap-2">
+                                <button type="button"
+                                        id="kg-export-json"
+                                        class="flex-1 text-[10px] px-2 py-1.5 rounded-md font-medium
+                                               border border-[var(--sidebar-border)] text-[var(--sidebar-text-secondary)]
+                                               hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all"
+                                        aria-label="Export graph as JSON">
+                                    <i class="ph-bold ph-brackets-curly mr-1"></i>JSON
+                                </button>
+                                <button type="button"
+                                        id="kg-export-csv"
+                                        class="flex-1 text-[10px] px-2 py-1.5 rounded-md font-medium
+                                               border border-[var(--sidebar-border)] text-[var(--sidebar-text-secondary)]
+                                               hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all"
+                                        aria-label="Export graph as CSV">
+                                    <i class="ph-bold ph-table mr-1"></i>CSV
+                                </button>
+                                <button type="button"
+                                        id="kg-export-graphml"
+                                        class="flex-1 text-[10px] px-2 py-1.5 rounded-md font-medium
+                                               border border-[var(--sidebar-border)] text-[var(--sidebar-text-secondary)]
+                                               hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all"
+                                        aria-label="Export graph as GraphML">
+                                    <i class="ph-bold ph-share-network mr-1"></i>GraphML
+                                </button>
+                            </div>
+                            <!-- Batch Export Button -->
+                            <button type="button"
+                                    id="kg-batch-export"
+                                    class="w-full text-[10px] px-2 py-1.5 rounded-md font-medium
+                                           border border-dashed border-[var(--sidebar-border)] text-[var(--sidebar-text-muted)]
+                                           hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-all"
+                                    aria-label="Export all projects">
+                                <i class="ph-bold ph-download-simple mr-1"></i>Export All Projects
+                            </button>
                         </div>
 
                         <!-- Empty State -->

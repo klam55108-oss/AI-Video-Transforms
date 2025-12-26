@@ -34,29 +34,6 @@ function toggleKGPanel() {
     state.kgToggle?.setAttribute('aria-expanded', !isOpen);
 }
 
-/**
- * Toggle the KG advanced section (stats, exports)
- */
-function toggleKGAdvanced() {
-    const advanced = document.getElementById('kg-advanced');
-    const caret = document.getElementById('kg-more-caret');
-    const toggle = document.getElementById('kg-more-toggle');
-
-    if (!advanced) return;
-
-    const isOpen = advanced.classList.contains('open');
-
-    if (isOpen) {
-        advanced.classList.remove('open');
-        caret?.classList.remove('open');
-        toggle?.setAttribute('aria-expanded', 'false');
-    } else {
-        advanced.classList.add('open');
-        caret?.classList.add('open');
-        toggle?.setAttribute('aria-expanded', 'true');
-    }
-}
-
 async function loadKGProjects() {
     // Show skeleton loader in dropdown
     if (state.kgDropdownList) {
@@ -325,7 +302,6 @@ async function selectKGProject(projectId) {
 
 export {
     toggleKGPanel,
-    toggleKGAdvanced,
     loadKGProjects,
     renderKGProjectList,
     selectKGProject,

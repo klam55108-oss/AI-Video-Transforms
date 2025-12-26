@@ -769,7 +769,7 @@ class SessionActor:
                     "Skill",
                 ],
                 can_use_tool=permission_handler,
-                hooks=hooks if hooks else None,  # type: ignore[arg-type]
+                hooks=hooks if hooks else None,
                 output_format={
                     "type": "json_schema",
                     "schema": get_output_schema(),
@@ -779,13 +779,15 @@ class SessionActor:
 
             async with ClaudeSDKClient(options) as client:
                 # Handle Initial Greeting
-                # Uses transcription-helper skill Phase 1 for consistent UX
                 try:
                     initial_prompt = (
-                        "Greet me briefly and use the transcription-helper skill "
-                        "to guide me through Phase 1 (gathering input). "
-                        "Keep the greeting concise - just introduce yourself and ask "
-                        "what I'd like to transcribe."
+                        'Start by greeting me following your <phase name="gathering_input"> workflow. '
+                        "Your greeting MUST include: "
+                        "(1) mention you use gpt-4o-transcribe model, "
+                        "(2) list accepted formats (local files AND YouTube URLs), "
+                        "(3) ask about language with ISO code examples, "
+                        "(4) ask about quality preferences (domain terms, filler words, formatting). "
+                        "Be thorough - include ALL four points."
                     )
                     await client.query(initial_prompt)
 

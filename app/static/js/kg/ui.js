@@ -13,16 +13,14 @@ function updateKGUI(project) {
     updateKGStats(project);
 
     const hasData = project.thing_count > 0 || project.connection_count > 0;
+    state.kgExport?.classList.toggle('hidden', !hasData);
 
     // Show view toggle if we have data
     const viewToggle = document.getElementById('kg-view-toggle');
     viewToggle?.classList.toggle('hidden', !hasData);
 
-    // Show "More" toggle when project has data (stats/export controlled by advanced panel)
-    const moreToggle = document.getElementById('kg-more-toggle');
-    if (moreToggle) {
-        moreToggle.classList.toggle('hidden', !hasData);
-    }
+    // Show stats if we have data
+    state.kgStats?.classList.toggle('hidden', !hasData);
 
     if (state.kgPendingBadge) {
         if (project.pending_confirmations > 0) {

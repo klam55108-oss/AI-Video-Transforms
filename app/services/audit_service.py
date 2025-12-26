@@ -110,7 +110,9 @@ class AuditService:
             return
 
         try:
-            self._stats_path.write_text(json.dumps(self._stats.model_dump(), indent=2))
+            self._stats_path.write_text(
+                json.dumps(self._stats.model_dump(), indent=2)
+            )
             self._stats_dirty = False
         except Exception as e:
             logger.error(f"Failed to save audit stats: {e}")
@@ -350,7 +352,9 @@ class AuditService:
         await self._save_stats()
         return self._stats
 
-    async def list_sessions_with_audits(self, limit: int = 50) -> list[dict[str, Any]]:
+    async def list_sessions_with_audits(
+        self, limit: int = 50
+    ) -> list[dict[str, Any]]:
         """List sessions that have audit logs.
 
         Args:

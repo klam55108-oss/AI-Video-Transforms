@@ -5,19 +5,6 @@ description: Guides users through video transcription workflow from input to out
 
 # Transcription Helper
 
-## Entry Points
-
-This skill can be invoked at different stages:
-
-| Entry Point | When | Start At |
-|-------------|------|----------|
-| New transcription | User wants to transcribe video | Phase 1 |
-| Job completed | Background transcription job finished | Phase 4 |
-| Resume workflow | User returns to a saved transcript | Phase 4 |
-
-**Job Completion Flow**: When a transcription job completes, the system automatically
-requests Phase 4 to present results and options to the user.
-
 ## Workflow Phases
 
 ### Phase 1: Gathering Input
