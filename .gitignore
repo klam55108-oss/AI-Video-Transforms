@@ -93,12 +93,13 @@ archive/
 # Runtime logs
 logs/
 
+# Legacy MCP servers (migrated to .claude/skills/)
+# - mcp_servers/gemini/ → .claude/skills/querying-gemini/
+# - mcp_servers/codex/  → .claude/skills/querying-gpt52/
+mcp_servers/
+
 # Gemini CLI configuration (user-level)
 .gemini/
-
-# Root GEMINI.md is transient (hook moves it to mcp_servers/gemini/)
-# Note: mcp_servers/gemini/GEMINI.md IS tracked (project context)
-/GEMINI.md
 
 # Runtime storage directories (sessions, transcripts)
 # Keep directory structure but ignore contents except .gitkeep

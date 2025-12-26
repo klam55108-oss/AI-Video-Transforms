@@ -10,7 +10,7 @@ paths: tests/**/*.py
 - Fixtures defined in `tests/conftest.py`
 - Run: `uv run pytest` or `uv run pytest -v` for verbose
 
-## Test Organization (601 tests across 29 modules)
+## Test Organization (647 tests across 31 modules)
 
 ### Core Tests
 | File | Description |
@@ -48,10 +48,6 @@ paths: tests/**/*.py
 | `test_kg_templates.py` | Prompt templates |
 | `test_kg_tools.py` | Bootstrap/extraction tools |
 
-### MCP Server Tests
-| File | Description |
-|------|-------------|
-| `test_codex_mcp.py` | Codex tools, error handling |
 
 ## Async Tests
 

@@ -1,6 +1,6 @@
 ---
 name: council-advice
-description: Multi-model AI council for actionable project advice. Leverages Gemini CLI MCP and GPT-5.2 scripts in parallel, then synthesizes through an Opus Judge for stage-appropriate, non-overkill recommendations. Use when seeking architectural guidance, code review synthesis, or implementation planning.
+description: Multi-model AI council for actionable project advice. Leverages Gemini 3 Flash and GPT-5.2 skills in parallel, then synthesizes through an Opus Judge for stage-appropriate, non-overkill recommendations. Use when seeking architectural guidance, code review synthesis, or implementation planning.
 ---
 
 # Council Advice
@@ -27,7 +27,7 @@ A multi-model advisory council that provides actionable, stage-appropriate recom
                          ▼                    ▼                    ▼
                 ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
                 │ GEMINI ADVISOR  │  │ GPT-5.2 ADVISOR │  │ CONTEXT LOADER  │
-                │                 │  │                 │  │                 │
+                │ (Gemini 3 Flash)│  │                 │  │                 │
                 │ gemini_analyze  │  │ gpt52_analyze   │  │ Read project    │
                 │ gemini_query    │  │ gpt52_query     │  │ files & stage   │
                 └────────┬────────┘  └────────┬────────┘  └────────┬────────┘
@@ -78,19 +78,30 @@ When the user asks for council advice on any topic:
 
 Execute these advisor consultations **in parallel** for maximum efficiency:
 
-### Gemini Advisor
-Use `mcp__gemini-cli__gemini_analyze` for code/architecture analysis or `mcp__gemini-cli__gemini_query` for general guidance.
+### Gemini 3 Flash Advisor
 
-**Prompt template for Gemini:**
+Use the `querying-gemini` skill scripts for intelligent analysis:
+
+**For code/architecture analysis:**
+```bash
+python .claude/skills/querying-gemini/scripts/gemini_analyze.py \
+  --target "$TARGET_PATH" \
+  --focus-areas "architecture,quality,security,performance" \
+  --analysis-type comprehensive \
+  --output-format json
 ```
-You are the Gemini Advisor on a multi-model council. Analyze the following request and provide your expert recommendations.
 
-REQUEST: {user_request}
+**For general guidance queries:**
+```bash
+python .claude/skills/querying-gemini/scripts/gemini_query.py \
+  --prompt "You are the Gemini Advisor on a multi-model council. Analyze the following request and provide your expert recommendations.
+
+REQUEST: $USER_REQUEST
 
 CONTEXT:
-- Project Stage: {stage}
-- Project Purpose: {purpose}
-- Technical Stack: {tech_stack}
+- Project Stage: $STAGE
+- Project Purpose: $PURPOSE
+- Technical Stack: $TECH_STACK
 
 Provide:
 1. Your assessment of the situation
@@ -98,11 +109,20 @@ Provide:
 3. Potential risks or concerns
 4. Alternative approaches if applicable
 
-Be thorough but practical. Focus on actionable insights.
+Be thorough but practical. Focus on actionable insights." \
+  --thinking-level high \
+  --output-format json
 ```
 
+**Gemini 3 Flash Advantages:**
+- 1M token context window (analyze very large codebases)
+- Pro-level intelligence at Flash speed
+- Configurable thinking levels (minimal/low/medium/high)
+- Cost-effective: $0.50/1M input, $3/1M output
+
 ### GPT-5.2 Advisor
-Use `gpt52_analyze.py` for deep code analysis or `gpt52_query.py` for high-reasoning guidance.
+
+Use the `querying-gpt52` skill scripts for high-reasoning analysis:
 
 **For code analysis:**
 ```bash
@@ -137,7 +157,14 @@ Provide depth and rigor in your analysis." \
   --output-format json
 ```
 
+**GPT-5.2 Advantages:**
+- 400K token context window
+- 128K token max output (comprehensive responses)
+- Extended reasoning with `xhigh` level
+- Aug 2025 knowledge cutoff
+
 ### Context Loader
+
 Simultaneously read relevant project files to understand:
 - Current implementation state
 - Project structure
@@ -150,13 +177,13 @@ After receiving council responses, execute the Opus Judge script:
 ```bash
 python .claude/skills/council-advice/scripts/opus_judge.py \
   --gemini-response "$GEMINI_RESPONSE" \
-  --gpt52-response "$GPT52_RESPONSE" \
+  --codex-response "$GPT52_RESPONSE" \
   --project-stage "$PROJECT_STAGE" \
   --project-purpose "$PROJECT_PURPOSE" \
   --request "$ORIGINAL_REQUEST"
 ```
 
-**Note**: GPT-5.2 advisor scripts must use `--output-format json` so the Opus Judge can properly parse the responses.
+**Note**: Both advisor scripts must use `--output-format json` so the Opus Judge can properly parse the responses.
 
 The Opus Judge:
 1. **Receives** multi-model reviews
@@ -241,7 +268,16 @@ The final output follows this structure for seamless conversion to implementatio
 ## Best Practices
 
 ### Parallel Execution
-Always execute Gemini MCP tools and GPT-5.2 scripts **in parallel** for maximum efficiency. Use Bash tool with `run_in_background: true` for the scripts, and call Gemini MCP tools in the same message.
+
+Always execute both advisor scripts **in parallel** for maximum efficiency. Use Bash tool with `run_in_background: true` for both scripts, then collect results.
+
+**Example parallel execution:**
+```bash
+# Run both advisors in background
+python .claude/skills/querying-gemini/scripts/gemini_query.py --prompt "..." --output-format json &
+python .claude/skills/querying-gpt52/scripts/gpt52_query.py --prompt "..." --output-format json &
+wait
+```
 
 ### Stage-Appropriate Advice
 
@@ -268,10 +304,35 @@ Always execute Gemini MCP tools and GPT-5.2 scripts **in parallel** for maximum 
 - Documentation-only requests
 - One-line code changes
 
+## Model Comparison
+
+| Feature | Gemini 3 Flash | GPT-5.2 |
+|---------|----------------|---------|
+| **Context Window** | 1,000,000 tokens | 400,000 tokens |
+| **Max Output** | 64,000 tokens | 128,000 tokens |
+| **Speed** | Faster | Slower |
+| **Thinking Levels** | minimal/low/medium/high | none/low/medium/high/xhigh |
+| **Best For** | Large codebases, speed-critical | Deep reasoning, comprehensive output |
+| **API Key** | `GEMINI_API_KEY` | `OPENAI_API_KEY` |
+
 ## Troubleshooting
 
-### Scripts Not Found
-Ensure the querying-gpt52 skill is installed:
+### Gemini Scripts Not Found
+
+Ensure the `querying-gemini` skill is installed:
+```bash
+ls -la .claude/skills/querying-gemini/scripts/
+```
+
+Expected files:
+- `gemini_query.py`
+- `gemini_analyze.py`
+- `gemini_code.py`
+- `gemini_fix.py`
+
+### GPT-5.2 Scripts Not Found
+
+Ensure the `querying-gpt52` skill is installed:
 ```bash
 ls -la .claude/skills/querying-gpt52/scripts/
 ```
@@ -281,29 +342,37 @@ Expected files:
 - `gpt52_analyze.py`
 - `gpt52_fix.py`
 
-### Gemini MCP Not Available
-Ensure the Gemini CLI MCP server is configured in `.mcp.json`:
-- `gemini-cli`: Gemini CLI wrapper
-
 ### Opus Judge Script Fails
+
 Check:
 1. `ANTHROPIC_API_KEY` is set
 2. Required packages installed (`anthropic>=0.50.0`)
 3. Script has execute permissions
 
-### GPT-5.2 Scripts Fail
-Check:
-1. `OPENAI_API_KEY` is set
-2. Scripts have execute permissions: `chmod +x .claude/skills/querying-gpt52/scripts/*.py`
-3. Python environment has required dependencies
+### API Key Issues
+
+Ensure the following environment variables are set:
+```bash
+# For Gemini 3 Flash
+export GEMINI_API_KEY=your-gemini-api-key
+# or
+export GOOGLE_API_KEY=your-google-api-key
+
+# For GPT-5.2
+export OPENAI_API_KEY=your-openai-api-key
+
+# For Opus Judge
+export ANTHROPIC_API_KEY=your-anthropic-api-key
+```
 
 ### Slow Response
-- Council consultation runs in parallel (~30-60s for GPT-5.2, ~10-30s for Gemini)
+
+- Council consultation runs in parallel (~30-60s for GPT-5.2, ~10-30s for Gemini 3 Flash)
 - Opus Judge adds ~30-60s
 - Total expected time: 1-2 minutes for comprehensive advice
 
 ## Related Documentation
 
 - [RUBRICS.md](RUBRICS.md) - Detailed evaluation rubrics for the Opus Judge
-- [Gemini MCP README](../../../mcp_servers/gemini/README.md)
+- [Querying Gemini Skill](../querying-gemini/SKILL.md) - Gemini 3 Flash script documentation
 - [Querying GPT-5.2 Skill](../querying-gpt52/SKILL.md) - GPT-5.2 script documentation
