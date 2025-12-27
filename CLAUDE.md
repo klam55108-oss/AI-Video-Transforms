@@ -1,6 +1,6 @@
-# Agent Video to Data
+# CognivAgent
 
-AI-powered video transcription and knowledge graph extraction.
+AI agent for video transcription and knowledge graph extraction.
 
 ## Quick Commands
 

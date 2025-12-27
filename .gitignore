@@ -91,6 +91,10 @@ analysis/
 # Archive directory for deprecated/old files
 archive/
 
+# Branding scaffolding (used by Claude Code for rebrand, not source of truth)
+# Canonical icons are in app/static/icons/
+cognivagent-branding/
+
 Build_Beautiful_AI_Websites.md
 zed_complete_guide_ubuntu.md
 DESIGN_SYSTEM.md

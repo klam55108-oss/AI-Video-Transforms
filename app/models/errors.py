@@ -1,5 +1,5 @@
 """
-Unified error schema for the VideoAgent API.
+Unified error schema for the CognivAgent API.
 
 Provides consistent error codes, messages, and hints for all API responses.
 All errors include retryability information and optional debugging details.

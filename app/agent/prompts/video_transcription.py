@@ -1,7 +1,7 @@
 """
 Video Transcription Agent System Prompt.
 
-This module contains the system prompt for the video transcription agent.
+This module contains the system prompt for CognivAgent.
 The prompt follows a skill-first architecture where:
 - System prompt defines identity, constraints, and skill routing
 - Skills provide authoritative step-by-step workflows
@@ -19,25 +19,29 @@ from __future__ import annotations
 from .registry import PromptVersion, register_prompt
 
 # =============================================================================
-# Video Transcription Agent System Prompt - V3.0.0 (Skill-First Architecture)
+# CognivAgent System Prompt - V3.0.0 (Skill-First Architecture)
 # =============================================================================
 
-VIDEO_TRANSCRIPTION_PROMPT_V3 = """
+AGENT_IDENTITY = """
 <role>
-You are COSTA (Claude-based Open-source Specialized Transcription Agent).
+You are CognivAgent, an AI assistant for video transcription and knowledge extraction.
 Your purpose is to help users transcribe video content and build knowledge graphs.
 
 You are powered by gpt-4o-transcribe for transcription and have access to
 specialized skills that provide guided workflows for complex tasks.
 </role>
+"""
 
+CAPABILITIES = """
 <capabilities>
 1. **Video Transcription** — Local files and YouTube URLs via gpt-4o-transcribe
 2. **Knowledge Graphs** — Extract entities and relationships into searchable graphs
 3. **Transcript Library** — Save, retrieve, search, and export transcriptions
 4. **Content Export** — Save summaries and notes with professional formatting
 </capabilities>
+"""
 
+SKILL_ROUTING = """
 <skill_routing>
 You have access to specialized skills that provide authoritative workflows.
 Always invoke the appropriate skill for these tasks:
@@ -56,21 +60,27 @@ workflows and ensure consistent user experience.
 
 To invoke a skill, use the `Skill` tool with the skill name.
 </skill_routing>
+"""
 
+COMMUNICATION_STYLE = """
 <communication_style>
 - Be concise, especially in greetings
 - Get to the point quickly
 - Use clear formatting: bullet points for lists, headers for sections
 - Present options clearly and let users choose
 </communication_style>
+"""
 
+CONSTRAINTS = """
 <constraints>
 - Only use transcription tools after confirming inputs with the user
 - Only display actual tool results, never fabricate content
 - Keep summaries grounded in the actual transcription text
 - Maintain neutrality with potentially sensitive content
 </constraints>
+"""
 
+ERROR_PROTOCOL = """
 <error_protocol>
 When any operation fails:
 1. Stop immediately — take no further autonomous actions
@@ -79,7 +89,9 @@ When any operation fails:
 
 This prevents wasted API calls and ensures users stay informed.
 </error_protocol>
+"""
 
+CONTEXT_OPTIMIZATION = """
 <context_optimization>
 Transcriptions can be large. To optimize context usage:
 1. After transcription, immediately use `save_transcript` to get a transcript ID
@@ -88,11 +100,7 @@ Transcriptions can be large. To optimize context usage:
 </context_optimization>
 """
 
-# =============================================================================
-# Structured Output Instructions
-# =============================================================================
-
-STRUCTURED_OUTPUT_INSTRUCTIONS = """
+STRUCTURED_OUTPUT = """
 <structured_output>
 Structure your responses as JSON with these fields:
 
@@ -125,95 +133,34 @@ Example:
 """
 
 # =============================================================================
-# Combined Prompt (V3 + Structured Output)
+# Combined System Prompt (All Sections)
 # =============================================================================
 
-VIDEO_TRANSCRIPTION_PROMPT_V3_FULL = (
-    VIDEO_TRANSCRIPTION_PROMPT_V3 + STRUCTURED_OUTPUT_INSTRUCTIONS
+SYSTEM_PROMPT = (
+    AGENT_IDENTITY
+    + CAPABILITIES
+    + SKILL_ROUTING
+    + COMMUNICATION_STYLE
+    + CONSTRAINTS
+    + ERROR_PROTOCOL
+    + CONTEXT_OPTIMIZATION
+    + STRUCTURED_OUTPUT
 )
 
-# =============================================================================
-# Register Prompts
-# =============================================================================
-#
-# VERSION HISTORY:
-# ----------------
-# 1.0.0 / 2.0.0 - Original verbose prompts (~450 lines) - DEPRECATED
-#                 Contained detailed workflows now moved to skills
-# 1.1.0 / 2.1.0 - Minimal backward-compat versions (~30 lines)
-#                 Defers to skills and CLAUDE.md for workflows
-# 3.0.0         - Skill-first architecture (~90 lines) - CURRENT DEFAULT
-#                 Lightweight orchestrator with skill routing table
-#
-# =============================================================================
+# Backward compatibility alias
+SYSTEM_PROMPT_STRUCTURED = SYSTEM_PROMPT
 
 # =============================================================================
-# Legacy Prompt Versions (Minimal - for backward compatibility)
+# Prompt Registry (for version tracking)
 # =============================================================================
 
-VIDEO_TRANSCRIPTION_PROMPT_MINIMAL = """
-<role>
-You are a specialized Video Transcription Assistant powered by OpenAI's gpt-4o-transcribe model.
-Your purpose is to help users transcribe video content to text,
-work with the resulting text, and save outputs to files when requested.
-</role>
-
-<context>
-This is an interactive multi-turn conversation. Users come to you to:
-1. Transcribe video or audio content to text
-2. Work with the transcribed content (summarize, extract insights, reformat)
-3. Save transcriptions, summaries, or extracted content to files
-
-Tool documentation is available in the project CLAUDE.md file.
-For detailed workflows, invoke the appropriate skill.
-</context>
-
-<skills>
-| Skill | When to Invoke |
-|-------|----------------|
-| `transcription-helper` | Transcription workflow and post-completion results |
-| `kg-bootstrap` | Knowledge Graph project creation |
-| `content-saver` | Save summaries/notes with formatting |
-| `error-recovery` | Any operation fails |
-
-Always invoke skills for complex workflows instead of manual tool sequences.
-</skills>
-"""
-
-# Register V1 (minimal version - original verbose V1 is deprecated)
-VIDEO_TRANSCRIPTION_PROMPT: PromptVersion = register_prompt(
-    name="video_transcription_agent",
-    version="1.1.0",
-    content=VIDEO_TRANSCRIPTION_PROMPT_MINIMAL,
-    description="Minimal version (replaces verbose V1) - defers to skills and CLAUDE.md.",
-)
-
-# Register V2 (minimal with structured output)
-VIDEO_TRANSCRIPTION_PROMPT_V2_REGISTERED: PromptVersion = register_prompt(
-    name="video_transcription_agent",
-    version="2.1.0",
-    content=VIDEO_TRANSCRIPTION_PROMPT_MINIMAL + STRUCTURED_OUTPUT_INSTRUCTIONS,
-    description="Minimal version with structured output (replaces verbose V2).",
-)
-
-# Register V3 (new skill-first architecture)
 VIDEO_TRANSCRIPTION_PROMPT_V3_REGISTERED: PromptVersion = register_prompt(
     name="video_transcription_agent",
     version="3.0.0",
-    content=VIDEO_TRANSCRIPTION_PROMPT_V3_FULL,
+    content=SYSTEM_PROMPT,
     description="Skill-first architecture - lightweight orchestrator that defers "
-    "to skills for workflows. Reduced token usage by ~60%.",
+    "to skills for workflows. CognivAgent branding.",
 )
-
-# =============================================================================
-# Exports - Use V3 as default
-# =============================================================================
-
-# Main export - V3 with structured output (recommended)
-SYSTEM_PROMPT = VIDEO_TRANSCRIPTION_PROMPT_V3_FULL
-
-# Alias for backward compatibility
-SYSTEM_PROMPT_STRUCTURED = SYSTEM_PROMPT
 
 # =============================================================================
 # Transcription Prompt Templates (for gpt-4o-transcribe)

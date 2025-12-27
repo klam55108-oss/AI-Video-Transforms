@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <defs>
+    <linearGradient id="cogniv-fav-bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00d9ff"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="1" y="1" width="14" height="14" rx="3" fill="url(#cogniv-fav-bgGrad)"/>
+
+  <!-- Simplified spokes -->
+  <line x1="8" y1="8" x2="4" y2="4" stroke="#0c0f14" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="8" y1="8" x2="12" y2="4" stroke="#0c0f14" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="8" y1="8" x2="4" y2="12" stroke="#0c0f14" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="8" y1="8" x2="12" y2="12" stroke="#0c0f14" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Simplified nodes -->
+  <circle cx="4" cy="4" r="1.5" fill="#0c0f14"/>
+  <circle cx="12" cy="4" r="1.5" fill="#0c0f14"/>
+  <circle cx="4" cy="12" r="1.5" fill="#0c0f14"/>
+  <circle cx="12" cy="12" r="1.5" fill="#0c0f14"/>
+
+  <!-- Center - simplified eye -->
+  <circle cx="8" cy="8" r="2.5" fill="#0c0f14"/>
+  <circle cx="8" cy="8" r="1.5" fill="#ffffff"/>
+</svg>

@@ -1,5 +1,6 @@
 services:
-  app:
+  cognivagent:
+    container_name: cognivagent
     build:
       context: .
       dockerfile: Dockerfile
