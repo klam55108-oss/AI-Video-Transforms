@@ -7,7 +7,7 @@
 > AI agent that transforms videos into searchable transcripts and knowledge graphs.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-647%20passing-brightgreen.svg)](#development)
+[![Tests](https://img.shields.io/badge/tests-688%20passing-brightgreen.svg)](#development)
 [![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#development)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -103,7 +103,7 @@ HTTP Request → input_queue → [SessionActor] → response_queue → Response
 | **Knowledge Graph** | NetworkX, Cytoscape.js |
 | **Media** | FFmpeg, pydub, yt-dlp |
 | **Frontend** | ES Modules, Tailwind CSS, Marked.js, DOMPurify |
-| **Quality** | mypy (strict), ruff, pytest (647 tests) |
+| **Quality** | mypy (strict), ruff, pytest (688 tests) |
 
 ---
 
@@ -120,7 +120,7 @@ app/
 ├── static/js/       # 32 ES modules (chat, kg, jobs, upload, workspace)
 └── templates/       # Jinja2 HTML
 
-tests/               # 647 tests across 31 modules
+tests/               # 688 tests across 31 modules
 data/                # Runtime storage
 ```
 
