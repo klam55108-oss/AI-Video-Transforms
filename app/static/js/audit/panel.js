@@ -68,13 +68,13 @@ export function toggleAuditPanel() {
     if (isAuditPanelExpanded) {
         content.classList.remove('hidden');
         content.classList.add('open');
-        caret.classList.add('expanded');
+        caret.classList.add('open');  // Use 'open' class to match CSS (.panel-caret.open)
         loadCurrentSessionAudit();
         startAuditPolling();
     } else {
         content.classList.remove('open');
         content.classList.add('hidden');
-        caret.classList.remove('expanded');
+        caret.classList.remove('open');
         stopAuditPolling();
     }
 }
