@@ -95,9 +95,12 @@ archive/
 # Canonical icons are in app/static/icons/
 cognivagent-branding/
 
+# Documentation drafts and notes (not part of official docs)
 Build_Beautiful_AI_Websites.md
 zed_complete_guide_ubuntu.md
 DESIGN_SYSTEM.md
+we_are_song_notes_20251227.html
+we_are_song_notes_neural_20251227.html
 
 # Runtime logs
 logs/

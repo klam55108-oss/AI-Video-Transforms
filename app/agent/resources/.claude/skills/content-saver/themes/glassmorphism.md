@@ -228,7 +228,7 @@ li::marker {
   box-shadow: 0 12px 40px var(--glass-shadow);
 }
 
-/* === BADGES === */
+/* === BADGES (Non-interactive labels) === */
 .badge {
   display: inline-block;
   padding: 0.35rem 0.9rem;
@@ -239,6 +239,8 @@ li::marker {
   border: 1px solid var(--glass-border);
   color: var(--text-light);
   backdrop-filter: blur(10px);
+  cursor: default;
+  user-select: none;
 }
 
 .badge-accent {

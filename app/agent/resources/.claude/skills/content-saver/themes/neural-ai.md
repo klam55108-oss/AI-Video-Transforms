@@ -230,7 +230,7 @@ ol li::marker {
 .callout-warning { border-color: var(--accent-amber); }
 .callout-error { border-color: #ef4444; }
 
-/* === BADGES === */
+/* === BADGES (Non-interactive labels) === */
 .badge {
   display: inline-block;
   padding: 0.25rem 0.75rem;
@@ -239,6 +239,8 @@ ol li::marker {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  cursor: default;
+  user-select: none;
 }
 
 .badge-primary { background: var(--glow-cyan); color: var(--accent-cyan); border: 1px solid var(--accent-cyan); }

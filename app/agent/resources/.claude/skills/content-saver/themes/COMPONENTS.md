@@ -74,15 +74,33 @@ Universal information callouts that adapt to each theme's color system.
 
 ## Badges / Tags / Labels
 
-Inline labels for categorization and status.
+Inline labels for categorization and status. **These are non-interactive display elements.**
+
+### Important: Badges vs Buttons
+
+| Element | Interactive? | Purpose | Cursor |
+|---------|--------------|---------|--------|
+| `.badge` / `.tag` / `.label` | ❌ No | Static categorization, metadata display | `default` |
+| `.btn` / `<button>` / `<a>` | ✅ Yes | Actions, navigation, user interaction | `pointer` |
+
+**Rule of Thumb:**
+- Use **badges/tags** for static labels that categorize or describe content (e.g., "Transcript", "Complete", "Featured")
+- Use **buttons/links** for interactive elements that trigger actions (e.g., "Download", "View Details", "Export")
+
+If you need a clickable pill-shaped element, use `<a class="btn">` or `<button class="btn">` instead of a badge.
 
 ### Structure
 ```html
+<!-- Non-interactive label -->
 <span class="badge badge-{color}">{Label Text}</span>
 <!-- or -->
 <span class="tag tag-{color}">{Label Text}</span>
 <!-- or -->
 <span class="label label-{color}">{Label Text}</span>
+
+<!-- Interactive button (for actions) -->
+<button class="btn">{Action Text}</button>
+<a href="#" class="btn">{Link Text}</a>
 ```
 
 ### Color Options
@@ -347,19 +365,25 @@ Always use semantic HTML elements where possible:
 - `<abbr>` for abbreviations
 - `<mark>` for highlights
 
-### 2. Accessibility
+### 2. Interactive vs Non-Interactive Elements
+Ensure visual affordance matches behavior:
+- **Non-interactive** (badges, tags, labels): Use `cursor: default` and `user-select: none`
+- **Interactive** (buttons, links): Use `cursor: pointer` and hover effects
+- Never make a badge look like a button unless it IS a button
+
+### 3. Accessibility
 - Include `alt` text for images
 - Use sufficient color contrast
 - Don't rely solely on color to convey meaning
 - Ensure interactive elements are keyboard accessible
 
-### 3. Print Compatibility
+### 4. Print Compatibility
 All themes include print styles. Components degrade gracefully:
 - Colors convert to grayscale appropriately
 - Backgrounds simplify for ink saving
 - Interactive elements display statically
 
-### 4. Responsive Design
+### 5. Responsive Design
 Components are designed to work on all screen sizes:
 - Flexible widths using percentages or max-width
 - Appropriate padding adjustments for mobile

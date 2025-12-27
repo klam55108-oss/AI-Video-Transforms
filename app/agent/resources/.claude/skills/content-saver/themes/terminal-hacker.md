@@ -429,7 +429,7 @@ ol li::before {
   font-size: 0.85rem;
 }
 
-/* === BADGES/TAGS === */
+/* === BADGES/TAGS (Non-interactive labels) === */
 .tag {
   display: inline-block;
   padding: 0.15rem 0.5rem;
@@ -437,6 +437,8 @@ ol li::before {
   font-family: 'Fira Code', monospace;
   border: 1px solid var(--border);
   margin-right: 0.5rem;
+  cursor: default;
+  user-select: none;
 }
 
 .tag::before {
