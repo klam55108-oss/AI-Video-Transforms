@@ -1,7 +1,7 @@
 # CognivAgent
 
 <p align="center">
-  <img src="cognivagent-branding/cognivagent-icon-128.svg" alt="CognivAgent" width="128">
+  <img src="cognivagent-icon.svg" alt="CognivAgent" width="128">
 </p>
 
 > AI agent that transforms videos into searchable transcripts and knowledge graphs.
