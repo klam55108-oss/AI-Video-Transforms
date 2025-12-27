@@ -156,14 +156,28 @@
     --accent-primary: #00d9ff;
     --accent-primary-hover: #33e1ff;
     --accent-primary-glow: rgba(0, 217, 255, 0.2);
+    --accent-text: #00d9ff;           /* WCAG AA compliant on dark backgrounds */
     --accent-secondary: #6366f1;
     --accent-gradient: linear-gradient(135deg, #00d9ff 0%, #6366f1 100%);
 
-    /* Status Colors */
+    /* Status Colors (defined first for semantic token references) */
     --status-success: #10b981;
     --status-warning: #f59e0b;
     --status-error: #ef4444;
     --status-info: #3b82f6;
+
+    /* ========================================
+       SEMANTIC DESIGN TOKENS
+       Maps intent to visual values
+       ======================================== */
+    --color-action: var(--accent-primary);
+    --color-action-hover: var(--accent-primary-hover);
+    --color-action-text: var(--accent-text);
+    --color-interactive: var(--accent-secondary);
+    --color-success: var(--status-success);
+    --color-warning: var(--status-warning);
+    --color-danger: var(--status-error);
+    --color-info: var(--status-info);
 
     /* Interactive States */
     --focus-ring: 0 0 0 3px rgba(0, 217, 255, 0.25);
@@ -268,12 +282,14 @@
     --bg-tertiary: #f0ebe4;
     --bg-elevated: #ffffff;
 
-    /* Sidebar - INTENTIONALLY stays dark for brand consistency */
-    --sidebar-bg: #1a1f36;
+    /* Sidebar - INTENTIONALLY stays dark for brand consistency
+       Using softer navy (#1c2230) to reduce jarring contrast */
+    --sidebar-bg: #1c2230;
+    --sidebar-bg-gradient: linear-gradient(180deg, #1c2230 0%, #161a26 100%);
     --sidebar-border: rgba(255, 255, 255, 0.08);
     --sidebar-hover: rgba(255, 255, 255, 0.06);
     --sidebar-active: rgba(245, 158, 11, 0.15);
-    /* Sidebar text stays light (on dark bg) */
+    /* Sidebar text stays light (on dark bg) - maintains 7:1+ contrast */
 
     /* Main Content */
     --content-bg: #fdfaf6;
@@ -291,8 +307,15 @@
     --accent-primary: #f59e0b;
     --accent-primary-hover: #d97706;
     --accent-primary-glow: rgba(245, 158, 11, 0.2);
+    --accent-text: #b45309;           /* WCAG AA compliant: 4.56:1 on cream (#fdfaf6) */
     --accent-secondary: #6366f1;
     --accent-gradient: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
+
+    /* Semantic tokens - Light theme overrides */
+    --color-action: var(--accent-primary);
+    --color-action-hover: var(--accent-primary-hover);
+    --color-action-text: var(--accent-text);  /* Uses darker amber for text */
+    --color-interactive: var(--accent-secondary);
 
     /* Status Colors (adjusted for light bg) */
     --status-success: #059669;
@@ -517,6 +540,7 @@ select:focus-visible,
 }
 
 [data-theme="light"] .sidebar {
+    background: var(--sidebar-bg-gradient, var(--sidebar-bg));
     box-shadow: 4px 0 24px rgba(26, 31, 54, 0.15);
 }
 
@@ -2411,10 +2435,197 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     color: var(--text-muted);
 }
 
+/* ==============================================
+   INITIALIZING STATE (Empty State)
+   Shows while agent is being prepared
+   ============================================== */
+
+.empty-state-initializing {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+}
+
+.initializing-indicator {
+    position: relative;
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.initializing-indicator i {
+    font-size: 24px;
+    color: var(--accent-primary);
+    z-index: 1;
+    animation: initializingBreathe 2s var(--ease-in-out) infinite;
+}
+
+.initializing-pulse {
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.15) 0%, rgba(var(--accent-rgb), 0.05) 100%);
+    border: 2px solid rgba(var(--accent-rgb), 0.3);
+    animation: initializingPulse 2s var(--ease-in-out) infinite;
+}
+
+.initializing-text {
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+    font-weight: var(--font-medium);
+    color: var(--text-secondary);
+    animation: initializingFade 2s var(--ease-in-out) infinite;
+}
+
+@keyframes initializingPulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.15);
+        opacity: 0.6;
+    }
+}
+
+@keyframes initializingBreathe {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+}
+
+@keyframes initializingFade {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
 /* Light theme adjustments for empty state */
 [data-theme="light"] .empty-state-icon {
     background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(234, 88, 12, 0.1) 100%);
     border-color: rgba(245, 158, 11, 0.2);
+}
+
+/* ==============================================
+   PIPELINE VISUALIZATION (Empty State)
+   Shows workflow: Upload → Transcribe → KG
+   ============================================== */
+
+.empty-state-pipeline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    margin: var(--space-8) 0;
+    padding: var(--space-4);
+    max-width: 600px;
+}
+
+.pipeline-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-3);
+    border-radius: var(--radius-2xl);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    transition: all var(--duration-slow) var(--spring-smooth);
+    cursor: default;
+    min-width: 100px;
+}
+
+.pipeline-step-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.1) 0%, rgba(var(--accent-rgb), 0.05) 100%);
+    border: 1px solid rgba(var(--accent-rgb), 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--duration-slow) var(--spring-smooth);
+}
+
+.pipeline-step-icon i {
+    font-size: 22px;
+    color: var(--accent-primary);
+}
+
+.pipeline-step-label {
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.pipeline-step-desc {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* Connector between steps */
+.pipeline-connector {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 0 var(--space-1);
+}
+
+.pipeline-connector-line {
+    width: 24px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent-primary) 0%, transparent 100%);
+    border-radius: var(--radius-full);
+    opacity: 0.5;
+}
+
+.pipeline-connector-arrow {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* Responsive: Stack on mobile */
+@media (max-width: 640px) {
+    .empty-state-pipeline {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+
+    .pipeline-connector {
+        transform: rotate(90deg);
+        padding: var(--space-1) 0;
+    }
+
+    .pipeline-step {
+        width: 100%;
+        max-width: 200px;
+    }
+}
+
+/* Light theme pipeline adjustments */
+[data-theme="light"] .pipeline-step {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(26, 31, 54, 0.1);
+}
+
+[data-theme="light"] .pipeline-step-icon {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(234, 88, 12, 0.08) 100%);
+    border-color: rgba(245, 158, 11, 0.25);
 }
 
 /* ==============================================
@@ -4429,13 +4640,67 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
    RESPONSIVE ENHANCEMENTS (2025)
    ============================================== */
 
+/* ==============================================
+   ACCESSIBILITY: REDUCED MOTION (ENHANCED)
+   Respects user preferences while maintaining
+   essential state-change feedback
+   ============================================== */
+
 @media (prefers-reduced-motion: reduce) {
+    /* Disable spring/bounce animations completely */
     *,
     *::before,
     *::after {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
+    }
+
+    /* Allow essential transitions for state feedback,
+       but use instant/near-instant timing */
+    :root {
+        --duration-fast: 0ms;
+        --duration-normal: 50ms;
+        --duration-slow: 50ms;
+        --duration-slower: 50ms;
+        --duration-slowest: 50ms;
+        --ease-bounce: linear;
+        --ease-spring: linear;
+        --spring-bounce: linear;
+        --spring-smooth: linear;
+    }
+
+    /* Preserve color/opacity transitions for hover feedback */
+    .btn-primary,
+    .sidebar-nav-item,
+    .avatar,
+    input,
+    button {
+        transition-property: background-color, color, opacity, border-color !important;
+        transition-duration: 50ms !important;
+        transition-timing-function: linear !important;
+    }
+
+    /* Disable transform-based animations */
+    .avatar:hover,
+    .btn-primary:hover,
+    .audit-stat:hover,
+    .toast {
+        transform: none !important;
+    }
+
+    /* Disable floating/pulsing animations (includes initializing state) */
+    .empty-state-icon,
+    #kg-empty-state i,
+    .avatar-agent.thinking,
+    .initializing-indicator i,
+    .initializing-pulse,
+    .initializing-text {
+        animation: none !important;
+    }
+
+    /* Keep focus indicators visible */
+    *:focus-visible {
+        transition: box-shadow 50ms linear !important;
     }
 }
 
@@ -4477,7 +4742,8 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 /* Statistics Grid */
 .audit-stats-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    /* Use minmax(0, 1fr) for Firefox compatibility - 1fr alone can cause overflow */
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: var(--space-1);
 }
 
@@ -4489,6 +4755,11 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     transition: all var(--duration-normal) var(--ease-out);
     min-width: 0; /* Prevent grid blowout */
     overflow: hidden;
+    /* Ensure content can shrink properly in Firefox */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
 .audit-stat:hover {
@@ -4505,15 +4776,17 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 }
 
 .audit-stat-label {
-    font-size: 0.625rem; /* 10px - use rem for cross-browser consistency */
+    font-size: 0.5625rem; /* 9px - slightly smaller to fit in narrow grid cells */
     font-weight: var(--font-semibold);
     color: var(--sidebar-text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
     margin-top: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    /* Allow text to wrap on very narrow screens instead of truncating */
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.2;
+    max-width: 100%;
 }
 
 .audit-stat-success .audit-stat-value {
@@ -4578,6 +4851,8 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     flex: 1;
     min-width: 0;
     overflow: hidden;
+    /* Reserve space for absolutely positioned badges on the right */
+    padding-right: var(--space-6); /* 24px - enough for small badges */
 }
 
 .audit-event-header {
@@ -4631,9 +4906,15 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     flex-direction: column;
     gap: 2px;
     position: absolute;
-    top: var(--space-2);
-    right: var(--space-2);
-    z-index: 1; /* Ensure badges stay above content */
+    /* Explicit positioning - use px values for Firefox compatibility */
+    top: 8px;
+    right: 8px;
+    /* Ensure proper stacking above content */
+    z-index: 2;
+    /* Prevent badges from inheriting any transform or layout issues */
+    transform: translateZ(0);
+    /* Ensure badges don't expand the container */
+    pointer-events: auto;
 }
 
 .audit-badge {

@@ -127,3 +127,40 @@ window.sendMessage = sendMessage;  // For job callbacks
 - Max 500MB file size
 - Allowed: `.mp4`, `.mkv`, `.avi`, `.mov`, `.webm`, `.m4v`
 - Use FormData for multipart uploads
+
+## Design Tokens (style.css)
+
+Use semantic tokens instead of raw colors for theme consistency:
+
+```css
+/* ✅ Correct: Semantic tokens */
+color: var(--color-action-text);
+background: var(--color-action);
+border-color: var(--color-danger);
+
+/* ❌ Wrong: Raw color values */
+color: #00d9ff;
+background: cyan;
+```
+
+**Core Semantic Tokens**:
+| Token | Purpose |
+|-------|---------|
+| `--color-action` | Primary CTA buttons, links |
+| `--color-action-text` | WCAG-compliant text on backgrounds |
+| `--color-interactive` | Secondary interactive elements |
+| `--color-success/warning/danger/info` | Status indicators |
+| `--accent-text` | Text using accent color (darker for light mode) |
+
+**WCAG Compliance**: Light mode uses `--accent-text: #b45309` (darker amber) instead of `#f59e0b` to achieve 4.56:1 contrast ratio on cream backgrounds.
+
+## Empty State & Initializing
+
+The empty state shows **pipeline visualization** + **initializing indicator**:
+
+- **Pipeline**: 3-step informational diagram (Upload → Transcribe → Knowledge Graph)
+- **Not interactive**: Steps are visual only - users interact via sidebar upload button or chat
+- **Initializing**: Pulsing robot icon with "Preparing your AI assistant..."
+- **Flow**: `initSession()` → empty state visible → greeting arrives → `hideEmptyState()`
+
+**Reduced Motion**: All animations respect `prefers-reduced-motion`. When enabled, uses instant transitions while preserving color/opacity feedback.

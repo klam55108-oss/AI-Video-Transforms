@@ -118,6 +118,34 @@ export function hideEmptyState();
 export function scrollToBottom();
 ```
 
+**Empty State Design**: The empty state shows a pipeline visualization and initializing indicator:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                                                          │
+│        📹 Upload Video  →  🎙 Transcribe  →  🧠 Knowledge│
+│                                                Graph     │
+│                                                          │
+│                   🤖 (pulsing robot)                     │
+│              Preparing your AI assistant...              │
+│              This usually takes a few seconds            │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Pipeline Steps**: Three-step informational diagram showing Upload → Transcribe → Knowledge Graph. This visualization communicates the app's value proposition while users wait for the agent to initialize. Steps are not interactive - users interact via the sidebar upload button or chat.
+
+**Initializing State**: Animated robot icon with pulsing ring and "Preparing your AI assistant..." message. Shown while `initSession()` fetches the agent greeting. Disappears when greeting arrives via `hideEmptyState()`.
+
+**Reduced Motion Support**: All animations (pulse, breathe, fade) respect `prefers-reduced-motion` media query. When enabled, uses instant transitions instead of animated effects while preserving color/opacity feedback.
+
+```javascript
+// CSS animations applied:
+// - .initializing-pulse: Scale 1→1.15 with opacity fade
+// - .initializing-indicator i: Subtle breathing effect (scale 0.95→1.05)
+// - .initializing-text: Opacity pulse (0.7→1)
+```
+
 **Security**: All agent messages sanitized via DOMPurify before rendering.
 
 **Activity Display**: `updateLoadingActivity()` updates the loading indicator with real-time agent activity (e.g., "🔧 Transcribing video"). Smoothly transitions from loading dots to activity text.

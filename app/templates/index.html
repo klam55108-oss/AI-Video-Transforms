@@ -464,7 +464,7 @@
             <!-- Panel 1: Chat (always visible) -->
             <div id="chat-panel" class="workspace-panel flex flex-col min-w-0 flex-1">
                 <div id="chat-messages" class="chat-container flex-1 overflow-y-auto px-6 py-8 scroll-smooth">
-                    <!-- Empty State -->
+                    <!-- Empty State with Pipeline Visualization -->
                     <div id="empty-state" class="empty-state">
                         <div class="empty-state-icon">
                             <img src="/static/icons/cognivagent-icon-128.svg" alt="CognivAgent" width="64" height="64" class="mx-auto">
@@ -473,16 +473,48 @@
                         <p class="empty-state-description">
                             AI agent that transforms videos into searchable transcripts and knowledge graphs.
                         </p>
-                        <div class="empty-state-actions">
-                            <button type="button"
-                                    onclick="document.getElementById('user-input').focus()"
-                                    class="btn-primary">
-                                <i class="ph-bold ph-play-circle"></i>
-                                <span>Start Transcription</span>
-                            </button>
-                            <p class="empty-state-hint">
-                                Paste a YouTube URL or upload a video file to begin
-                            </p>
+
+                        <!-- Pipeline Visualization (informational only, not interactive) -->
+                        <div class="empty-state-pipeline">
+                            <div class="pipeline-step">
+                                <div class="pipeline-step-icon">
+                                    <i class="ph-bold ph-video-camera"></i>
+                                </div>
+                                <span class="pipeline-step-label">Upload Video</span>
+                                <span class="pipeline-step-desc">or paste YouTube URL</span>
+                            </div>
+                            <div class="pipeline-connector">
+                                <div class="pipeline-connector-line"></div>
+                                <i class="ph-bold ph-caret-right pipeline-connector-arrow"></i>
+                            </div>
+                            <div class="pipeline-step">
+                                <div class="pipeline-step-icon">
+                                    <i class="ph-bold ph-waveform"></i>
+                                </div>
+                                <span class="pipeline-step-label">Transcribe</span>
+                                <span class="pipeline-step-desc">AI-powered accuracy</span>
+                            </div>
+                            <div class="pipeline-connector">
+                                <div class="pipeline-connector-line"></div>
+                                <i class="ph-bold ph-caret-right pipeline-connector-arrow"></i>
+                            </div>
+                            <div class="pipeline-step">
+                                <div class="pipeline-step-icon">
+                                    <i class="ph-bold ph-graph"></i>
+                                </div>
+                                <span class="pipeline-step-label">Knowledge Graph</span>
+                                <span class="pipeline-step-desc">Extract insights</span>
+                            </div>
+                        </div>
+
+                        <!-- Initializing State (replaces useless "Start Transcription" button) -->
+                        <div class="empty-state-initializing" aria-live="polite">
+                            <div class="initializing-indicator" aria-hidden="true">
+                                <div class="initializing-pulse"></div>
+                                <i class="ph-bold ph-robot"></i>
+                            </div>
+                            <p class="initializing-text" role="status">Preparing your AI assistant...</p>
+                            <p class="empty-state-hint">This usually takes a few seconds</p>
                         </div>
                     </div>
 
