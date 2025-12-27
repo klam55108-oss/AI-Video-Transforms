@@ -239,7 +239,7 @@ img {
   border-radius: 6px;
 }
 
-/* === LABELS/BADGES === */
+/* === LABELS/BADGES (Non-interactive labels) === */
 .label {
   display: inline-block;
   padding: 0 7px;
@@ -248,6 +248,8 @@ img {
   line-height: 18px;
   border-radius: 2rem;
   border: 1px solid transparent;
+  cursor: default;
+  user-select: none;
 }
 
 .label-blue { background: var(--color-accent-subtle); color: var(--color-accent-fg); }

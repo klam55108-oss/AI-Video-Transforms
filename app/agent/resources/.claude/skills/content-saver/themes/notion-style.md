@@ -285,13 +285,15 @@ li {
   color: var(--text-muted);
 }
 
-/* === TAGS/BADGES === */
+/* === TAGS/BADGES (Non-interactive labels) === */
 .tag {
   display: inline-block;
   padding: 0.15rem 0.5rem;
   border-radius: 4px;
   font-size: 0.85rem;
   font-weight: 500;
+  cursor: default;
+  user-select: none;
 }
 
 .tag-blue { background: var(--callout-blue); color: var(--accent-blue); }
