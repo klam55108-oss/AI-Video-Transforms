@@ -160,6 +160,12 @@
     --accent-secondary: #6366f1;
     --accent-gradient: linear-gradient(135deg, #00d9ff 0%, #6366f1 100%);
 
+    /* Status Colors (defined first for semantic token references) */
+    --status-success: #10b981;
+    --status-warning: #f59e0b;
+    --status-error: #ef4444;
+    --status-info: #3b82f6;
+
     /* ========================================
        SEMANTIC DESIGN TOKENS
        Maps intent to visual values
@@ -172,12 +178,6 @@
     --color-warning: var(--status-warning);
     --color-danger: var(--status-error);
     --color-info: var(--status-info);
-
-    /* Status Colors */
-    --status-success: #10b981;
-    --status-warning: #f59e0b;
-    --status-error: #ef4444;
-    --status-info: #3b82f6;
 
     /* Interactive States */
     --focus-ring: 0 0 0 3px rgba(0, 217, 255, 0.25);
@@ -2621,11 +2621,6 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 [data-theme="light"] .pipeline-step {
     background: rgba(255, 255, 255, 0.8);
     border-color: rgba(26, 31, 54, 0.1);
-}
-
-[data-theme="light"] .pipeline-step-active:hover {
-    background: rgba(245, 158, 11, 0.08);
-    border-color: rgba(245, 158, 11, 0.25);
 }
 
 [data-theme="light"] .pipeline-step-icon {

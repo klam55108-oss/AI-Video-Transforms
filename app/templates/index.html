@@ -508,12 +508,12 @@
                         </div>
 
                         <!-- Initializing State (replaces useless "Start Transcription" button) -->
-                        <div class="empty-state-initializing">
-                            <div class="initializing-indicator">
+                        <div class="empty-state-initializing" aria-live="polite">
+                            <div class="initializing-indicator" aria-hidden="true">
                                 <div class="initializing-pulse"></div>
                                 <i class="ph-bold ph-robot"></i>
                             </div>
-                            <p class="initializing-text">Preparing your AI assistant...</p>
+                            <p class="initializing-text" role="status">Preparing your AI assistant...</p>
                             <p class="empty-state-hint">This usually takes a few seconds</p>
                         </div>
                     </div>
