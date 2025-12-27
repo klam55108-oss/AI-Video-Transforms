@@ -124,7 +124,7 @@ export function scrollToBottom();
 ┌──────────────────────────────────────────────────────────┐
 │                                                          │
 │        📹 Upload Video  →  🎙 Transcribe  →  🧠 Knowledge│
-│        (clickable)         (grayed)          Graph       │
+│                                                Graph     │
 │                                                          │
 │                   🤖 (pulsing robot)                     │
 │              Preparing your AI assistant...              │
@@ -133,7 +133,7 @@ export function scrollToBottom();
 └──────────────────────────────────────────────────────────┘
 ```
 
-**Pipeline Steps**: Three-step workflow diagram showing Upload → Transcribe → Knowledge Graph. First step is clickable (triggers file picker), others are disabled until relevant.
+**Pipeline Steps**: Three-step informational diagram showing Upload → Transcribe → Knowledge Graph. This visualization communicates the app's value proposition while users wait for the agent to initialize. Steps are not interactive - users interact via the sidebar upload button or chat.
 
 **Initializing State**: Animated robot icon with pulsing ring and "Preparing your AI assistant..." message. Shown while `initSession()` fetches the agent greeting. Disappears when greeting arrives via `hideEmptyState()`.
 

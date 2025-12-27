@@ -2512,15 +2512,6 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     }
 }
 
-/* Reduced motion: disable animations */
-@media (prefers-reduced-motion: reduce) {
-    .initializing-indicator i,
-    .initializing-pulse,
-    .initializing-text {
-        animation: none !important;
-    }
-}
-
 /* Light theme adjustments for empty state */
 [data-theme="light"] .empty-state-icon {
     background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(234, 88, 12, 0.1) 100%);
@@ -2554,22 +2545,6 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
     transition: all var(--duration-slow) var(--spring-smooth);
     cursor: default;
     min-width: 100px;
-}
-
-.pipeline-step-active {
-    cursor: pointer;
-}
-
-.pipeline-step-active:hover {
-    background: rgba(var(--accent-rgb), 0.08);
-    border-color: rgba(var(--accent-rgb), 0.3);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(var(--accent-rgb), 0.15);
-}
-
-.pipeline-step-active:hover .pipeline-step-icon {
-    transform: scale(1.08);
-    box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.3);
 }
 
 .pipeline-step-icon {
@@ -4718,10 +4693,13 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
         transform: none !important;
     }
 
-    /* Disable floating/pulsing animations */
+    /* Disable floating/pulsing animations (includes initializing state) */
     .empty-state-icon,
     #kg-empty-state i,
-    .avatar-agent.thinking {
+    .avatar-agent.thinking,
+    .initializing-indicator i,
+    .initializing-pulse,
+    .initializing-text {
         animation: none !important;
     }
 

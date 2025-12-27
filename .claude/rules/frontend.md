@@ -158,7 +158,8 @@ background: cyan;
 
 The empty state shows **pipeline visualization** + **initializing indicator**:
 
-- **Pipeline**: 3-step workflow (Upload → Transcribe → Knowledge Graph)
+- **Pipeline**: 3-step informational diagram (Upload → Transcribe → Knowledge Graph)
+- **Not interactive**: Steps are visual only - users interact via sidebar upload button or chat
 - **Initializing**: Pulsing robot icon with "Preparing your AI assistant..."
 - **Flow**: `initSession()` → empty state visible → greeting arrives → `hideEmptyState()`
 
