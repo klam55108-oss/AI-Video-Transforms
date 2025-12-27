@@ -1,8 +1,6 @@
-# COSTA - Video Transcription Agent
+# CognivAgent
 
-**C**laude-based **O**pen-source **S**pecialized **T**ranscription **A**gent
-
-AI-powered video transcription and knowledge graph extraction.
+AI assistant for video transcription and knowledge graph extraction.
 
 ## Quick Reference
 

@@ -1,7 +1,7 @@
 """
 Pydantic models for web app API endpoints.
 
-These models define the request/response schemas for the VideoAgent API,
+These models define the request/response schemas for the CognivAgent API,
 including chat, history, transcripts, and upload features.
 """
 

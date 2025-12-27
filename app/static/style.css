@@ -1,5 +1,5 @@
 /* ==============================================
-   VIDEOAGENT - REFINED DESIGN SYSTEM v2.0
+   COGNIVAGENT - REFINED DESIGN SYSTEM v2.0
    "Cinematic Production" Aesthetic
 
    Design Philosophy:
@@ -832,6 +832,23 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 [data-theme="light"] .theme-toggle .moon-icon {
     transform: translate(-50%, -50%) rotate(-180deg) scale(0);
     opacity: 0;
+}
+
+/* Theme-aware sidebar logo */
+[data-theme="dark"] .light-theme-icon {
+    display: none;
+}
+
+[data-theme="dark"] .dark-theme-icon {
+    display: block;
+}
+
+[data-theme="light"] .dark-theme-icon {
+    display: none;
+}
+
+[data-theme="light"] .light-theme-icon {
+    display: block;
 }
 
 /* ==============================================
@@ -2135,6 +2152,7 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
 
     .graph-controls-group {
         background: var(--glass-bg);
+        -webkit-backdrop-filter: blur(var(--glass-blur));
         backdrop-filter: blur(var(--glass-blur));
         border-radius: var(--radius-xl);
         padding: var(--space-2);

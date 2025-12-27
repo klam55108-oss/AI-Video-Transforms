@@ -26,7 +26,7 @@ export const TYPE_COLOR_PALETTE = [
 export const DEFAULT_TYPE_COLOR = '#64748b';  // Gray fallback
 
 // Storage keys
-export const THEME_STORAGE_KEY = 'videoagent-theme';
+export const THEME_STORAGE_KEY = 'cognivagent-theme';
 export const KG_PROJECT_STORAGE_KEY = 'kg_current_project';
 export const KG_VIEW_STORAGE_KEY = 'kg_current_view';
 

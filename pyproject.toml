@@ -1,7 +1,7 @@
 [project]
-name = "agent-video-to-data"
+name = "cognivagent"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI agent for video transcription and knowledge graph extraction"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

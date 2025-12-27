@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video to Data | Agent Dashboard</title>
+    <title>CognivAgent</title>
+    <link rel="icon" type="image/svg+xml" href="/static/icons/cognivagent-favicon.svg">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Tailwind Typography Plugin -->
@@ -21,7 +22,7 @@
     <!-- Inline theme initialization to prevent flash -->
     <script>
         (function() {
-            const theme = localStorage.getItem('videoagent-theme') || 'dark';
+            const theme = localStorage.getItem('cognivagent-theme') || 'dark';
             document.documentElement.setAttribute('data-theme', theme);
         })();
     </script>
@@ -45,10 +46,21 @@
         <!-- Sidebar Header with Brand -->
         <div class="h-16 flex items-center justify-between px-5 border-b border-[var(--sidebar-border)]">
             <div class="flex items-center gap-3 sidebar-brand">
-                <div class="brand-logo w-9 h-9 rounded-xl flex items-center justify-center brand-logo-gradient">
-                    <i class="ph-bold ph-video-camera text-white text-lg"></i>
-                </div>
-                <span class="sidebar-brand-text font-display text-base font-semibold text-[var(--sidebar-text-primary)] tracking-tight">VideoAgent</span>
+                <img
+                    src="/static/icons/cognivagent-icon-dark.svg"
+                    alt="CognivAgent"
+                    class="sidebar-logo dark-theme-icon"
+                    width="32"
+                    height="32"
+                >
+                <img
+                    src="/static/icons/cognivagent-icon-light.svg"
+                    alt="CognivAgent"
+                    class="sidebar-logo light-theme-icon"
+                    width="32"
+                    height="32"
+                >
+                <span class="sidebar-brand-text font-display text-base font-semibold text-[var(--sidebar-text-primary)] tracking-tight">CognivAgent</span>
             </div>
             <div class="flex items-center gap-1">
                 <!-- Sidebar collapse button (desktop) -->
@@ -455,12 +467,11 @@
                     <!-- Empty State -->
                     <div id="empty-state" class="empty-state">
                         <div class="empty-state-icon">
-                            <i class="ph-duotone ph-video-camera"></i>
+                            <img src="/static/icons/cognivagent-icon-128.svg" alt="CognivAgent" width="64" height="64" class="mx-auto">
                         </div>
-                        <h2 class="empty-state-title">Welcome to VideoAgent</h2>
+                        <h2 class="empty-state-title">Welcome to CognivAgent</h2>
                         <p class="empty-state-description">
-                            Transform videos into searchable transcripts and knowledge graphs
-                            using AI-powered analysis.
+                            AI agent that transforms videos into searchable transcripts and knowledge graphs.
                         </p>
                         <div class="empty-state-actions">
                             <button type="button"

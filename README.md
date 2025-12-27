@@ -1,6 +1,10 @@
-# Agent Video to Data
+# CognivAgent
 
-> Transform videos into searchable transcripts and knowledge graphs through an intelligent AI chat interface.
+<p align="center">
+  <img src="cognivagent-branding/cognivagent-icon-128.svg" alt="CognivAgent" width="128">
+</p>
+
+> AI agent that transforms videos into searchable transcripts and knowledge graphs.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-647%20passing-brightgreen.svg)](#development)

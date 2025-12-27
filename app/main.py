@@ -49,8 +49,8 @@ from app.ui.routes import router as ui_router  # noqa: E402
 
 # Create FastAPI application with service lifecycle management
 app = FastAPI(
-    title="Agent Video to Data",
-    description="AI-powered video transcription using Claude Agent SDK and OpenAI Whisper",
+    title="CognivAgent",
+    description="AI agent for video transcription and knowledge graph extraction",
     version="1.0.0",
     lifespan=services_lifespan,
 )
