@@ -1,14 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
   <defs>
-    <linearGradient id="bgGradAmber" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="cogniv-light-bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#f59e0b"/>
       <stop offset="100%" stop-color="#ea580c"/>
     </linearGradient>
-    <radialGradient id="eyeGradAmber" cx="40%" cy="40%">
+    <radialGradient id="cogniv-light-eyeGrad" cx="40%" cy="40%">
       <stop offset="0%" stop-color="#ffffff"/>
       <stop offset="100%" stop-color="#fde68a"/>
     </radialGradient>
-    <filter id="glow">
+    <filter id="cogniv-light-glow">
       <feGaussianBlur stdDeviation="0.5" result="blur"/>
       <feMerge>
         <feMergeNode in="blur"/>
@@ -16,23 +16,23 @@
       </feMerge>
     </filter>
   </defs>
-  
-  <rect x="2" y="2" width="28" height="28" rx="6" fill="url(#bgGradAmber)"/>
-  
+
+  <rect x="2" y="2" width="28" height="28" rx="6" fill="url(#cogniv-light-bgGrad)"/>
+
   <!-- Spokes -->
   <line x1="16" y1="16" x2="8" y2="8" stroke="#1a1f36" stroke-width="2.5" stroke-linecap="round"/>
   <line x1="16" y1="16" x2="24" y2="8" stroke="#1a1f36" stroke-width="2.5" stroke-linecap="round"/>
   <line x1="16" y1="16" x2="8" y2="24" stroke="#1a1f36" stroke-width="2.5" stroke-linecap="round"/>
   <line x1="16" y1="16" x2="24" y2="24" stroke="#1a1f36" stroke-width="2.5" stroke-linecap="round"/>
-  
+
   <!-- Outer nodes - varied sizes -->
   <circle cx="8" cy="8" r="3.5" fill="#1a1f36"/>
   <circle cx="24" cy="8" r="3" fill="#1a1f36"/>
   <circle cx="8" cy="24" r="3" fill="#1a1f36"/>
   <circle cx="24" cy="24" r="3.5" fill="#1a1f36"/>
-  
+
   <!-- Center eye -->
   <circle cx="16" cy="16" r="5.5" fill="#1a1f36"/>
-  <circle cx="16" cy="16" r="3.5" fill="url(#eyeGradAmber)" filter="url(#glow)"/>
+  <circle cx="16" cy="16" r="3.5" fill="url(#cogniv-light-eyeGrad)" filter="url(#cogniv-light-glow)"/>
   <circle cx="15" cy="15" r="1.5" fill="#1a1f36"/>
 </svg>

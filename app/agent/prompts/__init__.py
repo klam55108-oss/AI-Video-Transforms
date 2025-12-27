@@ -1,32 +1,19 @@
 """
-Prompts Package - Versioned prompt management for the video agent.
+Prompts Package - Versioned prompt management for CognivAgent.
 
-This package provides a centralized system for managing and versioning
-prompts used throughout the application.
+This package provides a centralized system for managing prompts.
 
 Usage:
-    # Get a prompt by name (returns latest version)
+    # Import the system prompt directly (recommended)
+    from app.agent.prompts import SYSTEM_PROMPT
+
+    # Get a prompt by name via registry
     from app.agent.prompts import get_prompt
     prompt = get_prompt("video_transcription_agent")
-
-    # Get specific version
-    prompt = get_prompt("video_transcription_agent", version="1.0.0")
 
     # Get just the content string
     from app.agent.prompts import get_prompt_content
     content = get_prompt_content("video_transcription_agent")
-
-    # Import specific prompts directly
-    from app.agent.prompts import VIDEO_TRANSCRIPTION_PROMPT, SYSTEM_PROMPT
-
-    # Register a new prompt
-    from app.agent.prompts import register_prompt
-    register_prompt(
-        name="my_prompt",
-        version="1.0.0",
-        content="Your prompt here",
-        description="Description of this version"
-    )
 """
 
 from __future__ import annotations
@@ -48,7 +35,6 @@ from .video_transcription import (
     SYSTEM_PROMPT,
     SYSTEM_PROMPT_STRUCTURED,
     TRANSCRIPTION_PROMPT_TEMPLATES,
-    VIDEO_TRANSCRIPTION_PROMPT,
 )
 
 __all__ = [
@@ -61,11 +47,10 @@ __all__ = [
     "get_prompt_content",
     "list_prompts",
     "list_prompt_versions",
-    # Specific prompts
-    "VIDEO_TRANSCRIPTION_PROMPT",
+    # System prompt (main export)
     "SYSTEM_PROMPT",
-    "SYSTEM_PROMPT_STRUCTURED",  # Version 2.0.0 with structured output support
-    # Transcription prompts
+    "SYSTEM_PROMPT_STRUCTURED",
+    # Transcription prompts (for gpt-4o-transcribe)
     "DEFAULT_TRANSCRIPTION_PROMPT",
     "TRANSCRIPTION_PROMPT_TEMPLATES",
 ]
