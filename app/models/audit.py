@@ -24,11 +24,20 @@ from pydantic import BaseModel, Field
 class AuditEventType(str, Enum):
     """Types of audit events captured by hooks."""
 
+    # Tool usage events
     PRE_TOOL_USE = "pre_tool_use"
     POST_TOOL_USE = "post_tool_use"
     TOOL_BLOCKED = "tool_blocked"
+
+    # Session lifecycle events
     SESSION_STOP = "session_stop"
     SUBAGENT_STOP = "subagent_stop"
+
+    # Entity Resolution events
+    RESOLUTION_SCAN_START = "resolution_scan_start"
+    RESOLUTION_SCAN_COMPLETE = "resolution_scan_complete"
+    ENTITY_MERGE = "entity_merge"
+    MERGE_REJECTED = "merge_rejected"
 
 
 class AuditEventBase(BaseModel):
@@ -87,8 +96,37 @@ class SessionAuditEvent(AuditEventBase):
     total_tools_used: int | None = None
 
 
+class ResolutionAuditEvent(AuditEventBase):
+    """Audit event for entity resolution operations.
+
+    Captures metrics and details for duplicate detection and merge
+    operations in the knowledge graph.
+
+    Attributes:
+        project_id: ID of the KG project
+        candidates_found: Number of duplicate candidates found (scan events)
+        auto_merged_count: Number of entities auto-merged (scan events)
+        queued_for_review_count: Number of candidates queued for review (scan events)
+        scan_duration_ms: Duration of the scan in milliseconds
+        survivor_id: ID of the surviving node (merge events)
+        merged_id: ID of the merged (removed) node (merge events)
+        confidence: Confidence score of the merge decision
+        merge_type: How the merge was triggered (auto, user, agent)
+    """
+
+    project_id: str
+    candidates_found: int | None = None
+    auto_merged_count: int | None = None
+    queued_for_review_count: int | None = None
+    scan_duration_ms: float | None = None
+    survivor_id: str | None = None
+    merged_id: str | None = None
+    confidence: float | None = None
+    merge_type: str | None = None
+
+
 # Union type for all audit events (useful for serialization)
-AuditEvent = ToolAuditEvent | SessionAuditEvent
+AuditEvent = ToolAuditEvent | SessionAuditEvent | ResolutionAuditEvent
 
 
 class AuditLogEntry(BaseModel):
@@ -147,6 +185,31 @@ class AuditLogEntry(BaseModel):
             summary=summary,
         )
 
+    @classmethod
+    def from_resolution_event(cls, event: ResolutionAuditEvent) -> AuditLogEntry:
+        """Create log entry from ResolutionAuditEvent."""
+        if event.event_type == AuditEventType.RESOLUTION_SCAN_START:
+            summary = f"Resolution scan started for project {event.project_id}"
+        elif event.event_type == AuditEventType.RESOLUTION_SCAN_COMPLETE:
+            duration = f" ({event.scan_duration_ms:.0f}ms)" if event.scan_duration_ms else ""
+            summary = f"Resolution scan complete: {event.candidates_found or 0} candidates{duration}"
+        elif event.event_type == AuditEventType.ENTITY_MERGE:
+            conf = f" ({event.confidence:.0%})" if event.confidence else ""
+            summary = f"Entity merge ({event.merge_type}): {event.merged_id} -> {event.survivor_id}{conf}"
+        elif event.event_type == AuditEventType.MERGE_REJECTED:
+            summary = f"Merge rejected: {event.merged_id} and {event.survivor_id}"
+        else:
+            summary = f"Resolution event: {event.event_type.value}"
+
+        return cls(
+            id=event.id,
+            event_type=event.event_type.value,
+            session_id=event.session_id,
+            timestamp=event.timestamp,
+            duration_ms=event.scan_duration_ms,
+            summary=summary,
+        )
+
 
 class AuditLogResponse(BaseModel):
     """API response containing audit log entries.
@@ -166,11 +229,20 @@ class AuditStats(BaseModel):
     Provides high-level metrics for monitoring and dashboards.
     """
 
+    # Tool usage metrics
     total_events: int = 0
     tools_invoked: int = 0
     tools_blocked: int = 0
     tools_succeeded: int = 0
     tools_failed: int = 0
+    avg_tool_duration_ms: float | None = None
+
+    # Session lifecycle metrics
     sessions_stopped: int = 0
     subagents_stopped: int = 0
-    avg_tool_duration_ms: float | None = None
+
+    # Entity Resolution metrics
+    resolution_scans: int = 0
+    entities_merged: int = 0
+    merges_rejected: int = 0
+    avg_scan_duration_ms: float | None = None

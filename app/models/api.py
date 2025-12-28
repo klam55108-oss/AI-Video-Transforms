@@ -76,6 +76,7 @@ class TranscriptMetadata(BaseModel):
     created_at: datetime
     file_size: int
     session_id: str | None = None
+    title: str | None = None  # Human-readable title for matching with KG sources
     format: str = "text"
     duration: float | None = None  # Total duration in seconds
 
@@ -188,6 +189,7 @@ class SegmentEvidence(BaseModel):
     text: str
     start: float | None = None
     end: float | None = None
+    transcript_id: str | None = None  # For opening transcript viewer
 
 
 class NodeEvidenceResponse(BaseModel):

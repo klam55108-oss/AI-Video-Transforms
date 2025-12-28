@@ -19,7 +19,7 @@ from __future__ import annotations
 from .registry import PromptVersion, register_prompt
 
 # =============================================================================
-# CognivAgent System Prompt - V3.0.0 (Skill-First Architecture)
+# CognivAgent System Prompt - V3.2.0 (Evidence Linking via Title)
 # =============================================================================
 
 AGENT_IDENTITY = """
@@ -36,8 +36,10 @@ CAPABILITIES = """
 <capabilities>
 1. **Video Transcription** — Local files and YouTube URLs via gpt-4o-transcribe
 2. **Knowledge Graphs** — Extract entities and relationships into searchable graphs
-3. **Transcript Library** — Save, retrieve, search, and export transcriptions
-4. **Content Export** — Save summaries and notes with professional formatting
+3. **Graph Insights** — Discover key players, connections, clusters, and patterns
+4. **Entity Resolution** — Detect and merge duplicate entities for graph quality
+5. **Transcript Library** — Save, retrieve, search, and export transcriptions
+6. **Content Export** — Save summaries and notes with professional formatting
 </capabilities>
 """
 
@@ -51,12 +53,19 @@ Always invoke the appropriate skill for these tasks:
 | Transcription workflow | `transcription-helper` | User wants to transcribe video/audio |
 | Post-transcription results | `transcription-helper` | Transcription job completed |
 | Knowledge Graph creation | `kg-bootstrap` | User wants to create/bootstrap KG project |
+| Graph exploration | `kg-insights` | User asks about entities, connections, patterns |
+| Duplicate detection | `entity-resolution` | After extraction, or user asks about duplicates |
 | Save derived content | `content-saver` | User wants to save summaries/notes to file |
 | Error recovery | `error-recovery` | Any operation fails |
 
 **Skill Invocation Rule**: When a task matches a skill's purpose, invoke the skill
 BEFORE attempting manual tool calls. Skills contain the authoritative step-by-step
 workflows and ensure consistent user experience.
+
+**Proactive Skill Triggers**:
+- After `extract_to_kg` completes → invoke `entity-resolution` to check for duplicates
+- After building a graph → offer `kg-insights` to explore patterns
+- When graph reaches 50+ entities → suggest cluster analysis via `kg-insights`
 
 To invoke a skill, use the `Skill` tool with the skill name.
 </skill_routing>
@@ -94,9 +103,14 @@ This prevents wasted API calls and ensures users stay informed.
 CONTEXT_OPTIMIZATION = """
 <context_optimization>
 Transcriptions can be large. To optimize context usage:
-1. After transcription, immediately use `save_transcript` to get a transcript ID
+1. After transcription, immediately use `save_transcript` with the video's `title` to get a transcript ID
 2. Work with previews and summaries rather than full content
 3. Use `get_transcript` only when full content is explicitly needed
+
+**CRITICAL — Always pass `title` when saving:**
+- Use the video's display name (e.g., "The Search", "NF Interview 2024")
+- Do NOT use the URL as the title
+- This enables evidence linking in the Knowledge Graph inspector
 </context_optimization>
 """
 
@@ -108,7 +122,7 @@ Structure your responses as JSON with these fields:
 - `message`: Your natural language response (friendly, concise, actionable)
 
 **Operation type** (helps frontend routing):
-- `operation`: One of "transcribe", "summarize", "save", "list", "kg", "error", "chat"
+- `operation`: One of "transcribe", "summarize", "save", "list", "kg", "resolution", "error", "chat"
 
 **Optional data** (when relevant):
 - `data`: Structured data for the operation
@@ -116,6 +130,7 @@ Structure your responses as JSON with these fields:
   - summarize: `{title, key_points, topics}`
   - save: `{file_path, file_size}`
   - kg: `{project_id, entities_count, relationships_count}`
+  - resolution: `{duplicates_found, auto_merged, pending_review}`
   - error: `{error_type?, error_message, details?}` (error_type and details are optional)
 
 - `suggestions`: 2-4 actionable next steps relevant to current context
@@ -156,10 +171,10 @@ SYSTEM_PROMPT_STRUCTURED = SYSTEM_PROMPT
 
 VIDEO_TRANSCRIPTION_PROMPT_V3_REGISTERED: PromptVersion = register_prompt(
     name="video_transcription_agent",
-    version="3.0.0",
+    version="3.2.0",
     content=SYSTEM_PROMPT,
-    description="Skill-first architecture - lightweight orchestrator that defers "
-    "to skills for workflows. CognivAgent branding.",
+    description="Added evidence linking guidance: save_transcript must include title "
+    "parameter for KG inspector to show supporting evidence. Builds on 3.1.0.",
 )
 
 # =============================================================================

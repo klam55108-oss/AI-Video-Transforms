@@ -113,7 +113,9 @@ class ServiceContainer:
         self._audit = AuditService(data_path=Path("data"))
         self._session = SessionService(audit_service=self._audit)
         self._transcription = TranscriptionService(self._storage)
-        self._kg = KnowledgeGraphService(data_path=Path("data"))
+        self._kg = KnowledgeGraphService(
+            data_path=Path("data"), audit_service=self._audit
+        )
         self._job_queue = JobQueueService()
 
         # Restore persisted jobs before starting background tasks

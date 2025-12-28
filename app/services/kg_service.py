@@ -19,12 +19,13 @@ import logging
 import os
 import shutil
 import tempfile
+import time
 import zipfile
 from collections import OrderedDict
 from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import (
     ClaudeAgentOptions,
@@ -34,6 +35,10 @@ from claude_agent_sdk import (
 )
 
 from app.core.config import get_settings
+from app.models.audit import AuditEventType
+
+if TYPE_CHECKING:
+    from app.services.audit_service import AuditService
 from app.kg.domain import (
     ConnectionType,
     Discovery,
@@ -45,10 +50,11 @@ from app.kg.domain import (
     ThingType,
 )
 from app.kg.knowledge_base import KnowledgeBase
-from app.kg.models import Source, SourceType
+from app.kg.models import Node, Source, SourceType
 from app.kg.persistence import export_graphml, load_knowledge_base, save_knowledge_base
 from app.kg.prompts.bootstrap_prompt import BOOTSTRAP_SYSTEM_PROMPT
 from app.kg.prompts.templates import generate_extraction_prompt
+from app.kg.resolution import MergeHistory, ResolutionCandidate, ResolutionConfig
 from app.kg.schemas import ExtractedDiscovery, ExtractionResult
 from app.kg.tools.bootstrap import (
     BOOTSTRAP_DATA_MARKER,
@@ -149,12 +155,17 @@ class KnowledgeGraphService:
         The bootstrap collector uses thread-local locking for concurrent access.
     """
 
-    def __init__(self, data_path: Path) -> None:
+    def __init__(
+        self,
+        data_path: Path,
+        audit_service: AuditService | None = None,
+    ) -> None:
         """
         Initialize Knowledge Graph Service.
 
         Args:
             data_path: Base directory for data storage (e.g., Path("data"))
+            audit_service: Optional audit service for logging resolution events
         """
         self.data_path = data_path
         self.projects_path = data_path / "kg_projects"
@@ -173,11 +184,17 @@ class KnowledgeGraphService:
             get_settings().claude_api_max_concurrent
         )
 
+        # Per-merge locks to prevent concurrent merges on the same node pair
+        self._pending_merges: dict[str, asyncio.Lock] = {}
+
         # Bootstrap MCP server (created once, reused)
         self._bootstrap_server = create_bootstrap_mcp_server()
 
         # Extraction MCP server (created once, reused)
         self._extraction_server = create_extraction_mcp_server()
+
+        # Optional audit service for resolution event logging
+        self._audit_service = audit_service
 
         logger.info(
             f"KnowledgeGraphService initialized with data_path={data_path}, "
@@ -731,7 +748,8 @@ Call all bootstrap tools in order to build a complete domain profile.
             transcript: Full transcript text to extract from
             title: Title of the source content
             source_id: Unique identifier for this source
-            transcript_id: Optional transcript ID for evidence linking (from save_transcript)
+            transcript_id: Optional transcript ID for evidence linking (from save_transcript).
+                           If not provided, auto-detection by title is attempted.
 
         Returns:
             Dict with extraction statistics:
@@ -839,16 +857,107 @@ Call all bootstrap tools in order to build a complete domain profile.
             raise ValueError("Extraction failed - no results returned from agent")
 
         # Add source to KB with transcript_id for evidence linking
+        # Auto-detect transcript_id if not provided by matching the title against saved transcripts
+        # DEBUG: Log incoming parameters
+        logger.info(
+            f"[EVIDENCE-DEBUG] extract_from_transcript evidence setup: "
+            f"transcript_id param={transcript_id!r}, title={title!r}, source_id={source_id}"
+        )
+
+        resolved_transcript_id = transcript_id
+        if not resolved_transcript_id and title:
+            logger.info(
+                f"[EVIDENCE-DEBUG] transcript_id not provided, attempting auto-detect by title..."
+            )
+            resolved_transcript_id = self._find_transcript_by_title(title)
+            if resolved_transcript_id:
+                logger.info(
+                    f"[EVIDENCE-DEBUG] Auto-detected transcript_id='{resolved_transcript_id}' "
+                    f"by title match for source '{title}'"
+                )
+            else:
+                logger.warning(
+                    f"[EVIDENCE-DEBUG] FAILED to auto-detect transcript_id for title '{title}'"
+                )
+
         source_metadata: dict[str, Any] = {}
-        if transcript_id:
-            source_metadata["transcript_id"] = transcript_id
+        if resolved_transcript_id:
+            source_metadata["transcript_id"] = resolved_transcript_id
+            logger.info(
+                f"[EVIDENCE-DEBUG] Setting source.metadata['transcript_id'] = {resolved_transcript_id}"
+            )
+        else:
+            logger.warning(
+                "[EVIDENCE-DEBUG] NO transcript_id resolved - evidence linking will NOT work!"
+            )
+
         source = Source(
             id=source_id, title=title, source_type=SourceType.VIDEO, metadata=source_metadata
+        )
+        logger.info(
+            f"[EVIDENCE-DEBUG] Created Source: id={source.id}, title={source.title}, "
+            f"metadata={source.metadata}"
         )
         kb.add_source(source)
 
         # Apply extraction results to KB
-        self._apply_extraction_to_kb(kb, extraction_result, source_id)
+        newly_added_nodes = self._apply_extraction_to_kb(kb, extraction_result, source_id)
+
+        # Proactive entity resolution for newly added nodes
+        auto_merge_count = 0
+        review_count = 0
+        config = project.resolution_config
+
+        for new_node in newly_added_nodes:
+            # Check if new node still exists (may have been merged already)
+            if kb.get_node(new_node.id) is None:
+                continue
+
+            candidates = kb.find_candidates_for_node(new_node, config)
+            for candidate in candidates:
+                # Skip if either node no longer exists
+                if kb.get_node(candidate.node_a_id) is None:
+                    continue
+                if kb.get_node(candidate.node_b_id) is None:
+                    continue
+
+                if candidate.confidence >= config.auto_merge_threshold:
+                    # Auto-merge high confidence matches
+                    try:
+                        # new_node.id is node_a_id, merge it into the existing node
+                        history = kb.merge_nodes(
+                            survivor_id=candidate.node_b_id,
+                            merged_id=candidate.node_a_id,
+                            merge_type="auto",
+                        )
+                        history.confidence = candidate.confidence
+                        project.merge_history.append(history)
+                        auto_merge_count += 1
+                        logger.debug(
+                            f"Auto-merged new node {new_node.label} into existing "
+                            f"node {candidate.node_b_id} (confidence: {candidate.confidence:.2f})"
+                        )
+                        # Node was merged, stop looking for more candidates
+                        break
+                    except ValueError:
+                        # Node disappeared during processing
+                        continue
+                elif candidate.confidence >= config.review_threshold:
+                    # Queue for user review (avoid duplicates)
+                    already_pending = any(
+                        pm.node_a_id == candidate.node_a_id
+                        and pm.node_b_id == candidate.node_b_id
+                        for pm in project.pending_merges
+                    )
+                    if not already_pending:
+                        project.pending_merges.append(candidate)
+                        review_count += 1
+
+        if auto_merge_count > 0 or review_count > 0:
+            logger.info(
+                f"Proactive resolution: {auto_merge_count} auto-merges, "
+                f"{review_count} candidates queued for review"
+            )
 
         # Save KB
         save_knowledge_base(kb, self.kb_path)
@@ -896,7 +1005,7 @@ Call all bootstrap tools in order to build a complete domain profile.
         kb: KnowledgeBase,
         result: ExtractionResult,
         source_id: str,
-    ) -> None:
+    ) -> list[Node]:
         """
         Apply extraction results to a knowledge base.
 
@@ -907,7 +1016,12 @@ Call all bootstrap tools in order to build a complete domain profile.
             kb: KnowledgeBase to update
             result: ExtractionResult containing entities and relationships
             source_id: ID of the source for provenance tracking
+
+        Returns:
+            List of newly created Node objects (for resolution check)
         """
+        newly_added_nodes: list[Node] = []
+
         # Add entities as nodes
         for entity in result.entities:
             node, created = kb.get_or_create_node(
@@ -922,6 +1036,9 @@ Call all bootstrap tools in order to build a complete domain profile.
             for alias in entity.aliases:
                 node.add_alias(alias)
 
+            if created:
+                newly_added_nodes.append(node)
+
         # Add relationships as edges
         for rel in result.relationships:
             kb.add_relationship(
@@ -932,6 +1049,8 @@ Call all bootstrap tools in order to build a complete domain profile.
                 confidence=rel.confidence,
                 evidence=rel.evidence,
             )
+
+        return newly_added_nodes
 
     async def _get_or_create_kb(self, project: KGProject) -> KnowledgeBase:
         """
@@ -964,6 +1083,65 @@ Call all bootstrap tools in order to build a complete domain profile.
             domain_profile=project.domain_profile,
         )
         return kb
+
+    def _find_transcript_by_title(self, search_title: str) -> str | None:
+        """
+        Find a saved transcript by matching its title.
+
+        Uses the title field stored in transcript metadata during save_transcript.
+        Supports exact match and fuzzy substring matching.
+
+        Args:
+            search_title: Title to search for (e.g., "The Search")
+
+        Returns:
+            Transcript ID if found, None otherwise
+        """
+        from app.services import get_services
+
+        # DEBUG: Log the search attempt
+        logger.info(
+            f"[EVIDENCE-DEBUG] _find_transcript_by_title called with: {search_title!r}"
+        )
+
+        if not search_title or not search_title.strip():
+            logger.info("[EVIDENCE-DEBUG] Search title is empty, returning None")
+            return None
+
+        try:
+            storage = get_services().storage
+            transcripts = storage.list_transcripts()
+
+            # DEBUG: Log all available transcripts and their titles
+            logger.info(
+                f"[EVIDENCE-DEBUG] Available transcripts ({len(transcripts)} total):"
+            )
+            for idx, t in enumerate(transcripts):
+                logger.info(
+                    f"[EVIDENCE-DEBUG]   [{idx}] id={t.id}, title={t.title!r}"
+                )
+
+            search_normalized = search_title.strip().lower()
+
+            # First pass: exact match on title field
+            for t in transcripts:
+                if t.title and t.title.strip().lower() == search_normalized:
+                    logger.info(f"[EVIDENCE-DEBUG] EXACT MATCH found: id={t.id}")
+                    return t.id
+
+            # Second pass: fuzzy match (one contains the other)
+            for t in transcripts:
+                if t.title:
+                    saved_normalized = t.title.strip().lower()
+                    if search_normalized in saved_normalized or saved_normalized in search_normalized:
+                        logger.info(f"[EVIDENCE-DEBUG] FUZZY MATCH found: id={t.id}")
+                        return t.id
+
+            logger.info("[EVIDENCE-DEBUG] NO MATCH found for title")
+            return None
+        except Exception as e:
+            logger.warning(f"[EVIDENCE-DEBUG] Failed to search transcripts by title: {e}")
+            return None
 
     def _generate_discovery_question(self, disc: ExtractedDiscovery) -> str:
         """
@@ -1412,3 +1590,496 @@ Call all bootstrap tools in order to build a complete domain profile.
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
             raise
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # ENTITY RESOLUTION
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    async def scan_for_duplicates(
+        self,
+        project_id: str,
+        config: ResolutionConfig | None = None,
+    ) -> list[ResolutionCandidate]:
+        """
+        On-demand batch scan for duplicate entities in a project.
+
+        Scans the project's knowledge base for potential duplicate entities
+        using the EntityMatcher algorithm. Returns candidates sorted by
+        confidence (highest first).
+
+        Args:
+            project_id: Target project ID
+            config: Optional ResolutionConfig to override project defaults
+
+        Returns:
+            List of ResolutionCandidate objects sorted by confidence (desc)
+
+        Raises:
+            ValueError: If project not found or has no knowledge base
+        """
+        # Check feature flag
+        settings = get_settings()
+        if not settings.entity_resolution_enabled:
+            logger.info(f"Resolution disabled for project {project_id}")
+            return []
+
+        start_time = time.perf_counter()
+
+        project = await self.get_project(project_id)
+        if not project:
+            raise ValueError(f"Project {project_id} not found")
+
+        if not project.kb_id:
+            raise ValueError(f"Project {project_id} has no knowledge base")
+
+        kb = load_knowledge_base(self.kb_path / project.kb_id)
+        if not kb:
+            raise ValueError(f"Knowledge base not found for project {project_id}")
+
+        # Use provided config or project's default
+        resolution_config = config or project.resolution_config
+        candidates = kb.find_resolution_candidates(resolution_config)
+
+        duration_ms = (time.perf_counter() - start_time) * 1000
+
+        logger.info(
+            f"Resolution scan complete: project={project_id} "
+            f"candidates={len(candidates)} duration_ms={duration_ms:.1f}"
+        )
+
+        # Emit audit event if service available
+        if self._audit_service:
+            await self._audit_service.log_resolution_event(
+                event_type=AuditEventType.RESOLUTION_SCAN_COMPLETE,
+                project_id=project_id,
+                candidates_found=len(candidates),
+                scan_duration_ms=duration_ms,
+            )
+
+        return candidates
+
+    async def _find_merge_by_request_id(
+        self, project_id: str, request_id: str
+    ) -> MergeHistory | None:
+        """
+        Find existing merge by idempotency key.
+
+        Searches the project's merge history for a merge with the
+        matching request_id.
+
+        Args:
+            project_id: Target project ID
+            request_id: The idempotency key to search for
+
+        Returns:
+            MergeHistory if found, None otherwise
+        """
+        project = await self.get_project(project_id)
+        if not project:
+            return None
+        for history in project.merge_history:
+            if history.request_id == request_id:
+                return history
+        return None
+
+    def _capture_edges_state(
+        self, project: KGProject, node_id: str
+    ) -> list[dict[str, Any]]:
+        """
+        Capture edges for a node before merge (for rollback).
+
+        Loads the knowledge base and retrieves all edges connected
+        to the specified node.
+
+        Args:
+            project: The KGProject containing the knowledge base
+            node_id: ID of the node to capture edges for
+
+        Returns:
+            List of edge dictionaries serialized via model_dump()
+        """
+        if not project.kb_id:
+            return []
+
+        kb = load_knowledge_base(self.kb_path / project.kb_id)
+        if not kb:
+            return []
+
+        edges = kb.get_edges_for_node(node_id)
+        return [edge.model_dump() for edge in edges]
+
+    async def merge_entities(
+        self,
+        project_id: str,
+        survivor_id: str,
+        merged_id: str,
+        merge_type: str = "user",
+        session_id: str | None = None,
+        request_id: str | None = None,
+        confidence: float = 1.0,
+    ) -> MergeHistory:
+        """
+        Execute merge with idempotency and safety controls.
+
+        Merges two entities in the knowledge base, with the survivor node
+        absorbing the merged node's aliases, edges, and properties. Includes
+        idempotency checks and pre-merge state capture for rollback support.
+
+        Args:
+            project_id: Target project ID
+            survivor_id: ID of node to keep
+            merged_id: ID of node to merge into survivor
+            merge_type: How merge was triggered (auto, user, agent)
+            session_id: Optional session ID for agent merges
+            request_id: Optional idempotency key for duplicate detection
+            confidence: Confidence score for this merge (0.0-1.0)
+
+        Returns:
+            MergeHistory record with audit information and safety data
+
+        Raises:
+            ValueError: If project not found, no KB, or invalid node IDs
+        """
+        # Check idempotency - return existing result if request_id matches
+        if request_id:
+            existing = await self._find_merge_by_request_id(project_id, request_id)
+            if existing:
+                logger.info(f"Idempotent merge: returning existing {existing.id}")
+                return existing
+
+        # Acquire per-node lock to prevent concurrent merges
+        lock_key = f"{project_id}:{survivor_id}:{merged_id}"
+        if lock_key not in self._pending_merges:
+            self._pending_merges[lock_key] = asyncio.Lock()
+
+        async with self._pending_merges[lock_key]:
+            project = await self.get_project(project_id)
+            if not project:
+                raise ValueError(f"Project {project_id} not found")
+
+            if not project.kb_id:
+                raise ValueError(f"Project {project_id} has no knowledge base")
+
+            kb = load_knowledge_base(self.kb_path / project.kb_id)
+            if not kb:
+                raise ValueError(f"Knowledge base not found for project {project_id}")
+
+            # Get nodes
+            survivor = kb.get_node(survivor_id)
+            merged = kb.get_node(merged_id)
+
+            if not survivor or not merged:
+                raise ValueError("One or both nodes not found")
+
+            # Capture pre-merge state for rollback
+            pre_merge_state = {
+                "survivor": survivor.model_dump(),
+                "merged": merged.model_dump(),
+                "edges": self._capture_edges_state(project, merged_id),
+            }
+            survivor_label_before = survivor.label
+            survivor_aliases_before = list(survivor.aliases)
+            edges_redirected = len(pre_merge_state["edges"])
+
+            # Execute the merge in the KB
+            history = kb.merge_nodes(
+                survivor_id=survivor_id,
+                merged_id=merged_id,
+                merge_type=merge_type,
+                merged_by=session_id,
+            )
+
+            # Attach safety data
+            history.request_id = request_id
+            history.pre_merge_state = pre_merge_state
+            history.survivor_label_before = survivor_label_before
+            history.survivor_aliases_before = survivor_aliases_before
+            history.edges_redirected = edges_redirected
+            history.confidence = confidence
+
+            # Append to project's merge history
+            project.merge_history.append(history)
+
+            # Remove any pending merges involving the merged node
+            project.pending_merges = [
+                pm
+                for pm in project.pending_merges
+                if pm.node_a_id != merged_id and pm.node_b_id != merged_id
+            ]
+
+            # Update project stats
+            stats = kb.stats()
+            project.thing_count = stats["node_count"]
+            project.connection_count = stats["edge_count"]
+            project.updated_at = _utc_now()
+
+            # Save KB and project
+            save_knowledge_base(kb, self.kb_path)
+            await self._save_project(project)
+
+            # Clean up lock
+            self._pending_merges.pop(lock_key, None)
+
+            logger.info(
+                f"Merged entities in project {project_id}: "
+                f"{merged_id} -> {survivor_id} (type: {merge_type})"
+            )
+
+            return history
+
+    async def check_merge_conflicts(
+        self,
+        project_id: str,
+        candidate_id: str,
+    ) -> dict[str, Any]:
+        """
+        Check if a merge candidate has conflicts.
+
+        Detects potential issues that might make a merge problematic:
+        1. Node was already merged (doesn't exist)
+        2. Candidate involves high-relationship nodes (>10 edges)
+
+        Args:
+            project_id: Target project ID
+            candidate_id: ID of the resolution candidate to check
+
+        Returns:
+            Dict with conflict status:
+            - conflict: True if merge cannot proceed
+            - warning: True if merge is risky but possible
+            - reason: Explanation of the conflict or warning
+        """
+        project = await self.get_project(project_id)
+        if not project:
+            return {"conflict": True, "reason": "Project not found"}
+
+        # Find candidate
+        candidate = None
+        for c in project.pending_merges:
+            if c.id == candidate_id:
+                candidate = c
+                break
+
+        if not candidate:
+            return {"conflict": True, "reason": "Candidate not found"}
+
+        if not project.kb_id:
+            return {"conflict": True, "reason": "No knowledge base"}
+
+        kb = load_knowledge_base(self.kb_path / project.kb_id)
+        if not kb:
+            return {"conflict": True, "reason": "Knowledge base not found"}
+
+        node_a = kb.get_node(candidate.node_a_id)
+        node_b = kb.get_node(candidate.node_b_id)
+
+        if not node_a or not node_b:
+            return {"conflict": True, "reason": "Node was already merged"}
+
+        # Check relationship count
+        edges_a = len(kb.get_edges_for_node(candidate.node_a_id))
+        edges_b = len(kb.get_edges_for_node(candidate.node_b_id))
+
+        if edges_a + edges_b > 10:
+            return {
+                "conflict": False,
+                "warning": True,
+                "reason": f"High-impact merge: {edges_a + edges_b} relationships affected",
+            }
+
+        return {"conflict": False, "warning": False}
+
+    async def review_merge_candidate(
+        self,
+        project_id: str,
+        candidate_id: str,
+        approved: bool,
+        session_id: str | None = None,
+    ) -> ResolutionCandidate | MergeHistory:
+        """
+        Approve or reject a pending merge candidate.
+
+        If approved, executes the merge and returns a MergeHistory record.
+        If rejected, updates the candidate status and returns it.
+
+        Args:
+            project_id: Target project ID
+            candidate_id: 8-character candidate identifier
+            approved: True to merge, False to reject
+            session_id: Optional session ID for agent approvals
+
+        Returns:
+            MergeHistory if approved, ResolutionCandidate if rejected
+
+        Raises:
+            ValueError: If project not found or candidate not in pending list
+        """
+        project = await self.get_project(project_id)
+        if not project:
+            raise ValueError(f"Project {project_id} not found")
+
+        # Find candidate in pending merges
+        candidate: ResolutionCandidate | None = None
+        candidate_idx: int = -1
+        for idx, pm in enumerate(project.pending_merges):
+            if pm.id == candidate_id:
+                candidate = pm
+                candidate_idx = idx
+                break
+
+        if candidate is None:
+            raise ValueError(f"Candidate {candidate_id} not found in pending merges")
+
+        # Remove from pending list
+        project.pending_merges.pop(candidate_idx)
+
+        if approved:
+            # Execute the merge
+            history = await self.merge_entities(
+                project_id=project_id,
+                survivor_id=candidate.node_a_id,
+                merged_id=candidate.node_b_id,
+                merge_type="user",
+                session_id=session_id,
+            )
+            # Update confidence from candidate
+            history.confidence = candidate.confidence
+
+            logger.info(
+                f"Approved merge candidate {candidate_id} in project {project_id}"
+            )
+            return history
+        else:
+            # Mark as rejected
+            candidate.status = "rejected"
+            project.updated_at = _utc_now()
+            await self._save_project(project)
+
+            logger.info(
+                f"Rejected merge candidate {candidate_id} in project {project_id}"
+            )
+            return candidate
+
+    async def get_pending_merges(
+        self,
+        project_id: str,
+    ) -> list[ResolutionCandidate]:
+        """
+        Get all pending merge candidates for a project.
+
+        Returns the list of resolution candidates that are awaiting
+        user review (not yet approved or rejected).
+
+        Args:
+            project_id: Target project ID
+
+        Returns:
+            List of pending ResolutionCandidate objects
+        """
+        project = await self.get_project(project_id)
+        if not project:
+            return []
+
+        return project.pending_merges
+
+    async def get_merge_history(
+        self,
+        project_id: str,
+    ) -> list[MergeHistory]:
+        """
+        Get merge audit trail for a project.
+
+        Returns the complete history of all merges that have been
+        executed on this project, ordered by merge time.
+
+        Args:
+            project_id: Target project ID
+
+        Returns:
+            List of MergeHistory records
+        """
+        project = await self.get_project(project_id)
+        if not project:
+            return []
+
+        return project.merge_history
+
+    async def compare_entities_semantic(
+        self,
+        project_id: str,
+        node_a_id: str,
+        node_b_id: str,
+    ) -> dict[str, Any]:
+        """
+        Compare two entities using basic similarity metrics.
+
+        Provides a comparison summary including label similarity,
+        alias overlap, type matching, and shared neighbors.
+
+        Note: Full semantic comparison via Claude is a future enhancement.
+        This stub returns basic comparison data.
+
+        Args:
+            project_id: Target project ID
+            node_a_id: ID of first node to compare
+            node_b_id: ID of second node to compare
+
+        Returns:
+            Dict with comparison data including similarity scores
+
+        Raises:
+            ValueError: If project not found, no KB, or invalid node IDs
+        """
+        project = await self.get_project(project_id)
+        if not project:
+            raise ValueError(f"Project {project_id} not found")
+
+        if not project.kb_id:
+            raise ValueError(f"Project {project_id} has no knowledge base")
+
+        kb = load_knowledge_base(self.kb_path / project.kb_id)
+        if not kb:
+            raise ValueError(f"Knowledge base not found for project {project_id}")
+
+        node_a = kb.get_node(node_a_id)
+        node_b = kb.get_node(node_b_id)
+
+        if not node_a:
+            raise ValueError(f"Node {node_a_id} not found")
+        if not node_b:
+            raise ValueError(f"Node {node_b_id} not found")
+
+        # Use EntityMatcher to compute similarity
+        from app.kg.resolution import EntityMatcher
+
+        matcher = EntityMatcher(project.resolution_config)
+        confidence, signals = matcher.compute_similarity(node_a, node_b, kb)
+
+        # Get shared neighbors
+        neighbors_a = {n.id for n in kb.get_neighbors(node_a_id)}
+        neighbors_b = {n.id for n in kb.get_neighbors(node_b_id)}
+        shared_neighbors = neighbors_a & neighbors_b
+        shared_neighbor_labels: list[str] = []
+        for nid in shared_neighbors:
+            neighbor_node = kb.get_node(nid)
+            if neighbor_node:
+                shared_neighbor_labels.append(neighbor_node.label)
+
+        return {
+            "node_a": {
+                "id": node_a.id,
+                "label": node_a.label,
+                "entity_type": node_a.entity_type,
+                "aliases": list(node_a.aliases),
+            },
+            "node_b": {
+                "id": node_b.id,
+                "label": node_b.label,
+                "entity_type": node_b.entity_type,
+                "aliases": list(node_b.aliases),
+            },
+            "confidence": confidence,
+            "signals": signals,
+            "shared_neighbors": shared_neighbor_labels,
+            "same_type": node_a.entity_type == node_b.entity_type,
+        }

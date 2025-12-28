@@ -6,7 +6,7 @@ AI agent for video transcription and knowledge graph extraction.
 
 ```bash
 uv run python -m app.main              # Dev server → http://127.0.0.1:8000
-uv run pytest                          # 647 tests
+uv run pytest                          # 910 tests
 uv run mypy .                          # Type check (strict)
 uv run ruff check . && ruff format .   # Lint + format
 ```
@@ -33,7 +33,7 @@ GEMINI_API_KEY=...              # Gemini 3 Flash skill (querying-gemini)
 | Core | `app/core/` | SessionActor, config, cost tracking, hooks |
 | Agent | `app/agent/` | MCP tools, system prompts |
 | KG | `app/kg/` | Domain models, graph storage, extraction |
-| Frontend | `app/static/js/` | 32 ES modules (chat, kg, jobs, upload, workspace) |
+| Frontend | `app/static/js/` | 37 ES modules (chat, kg, jobs, upload, workspace) |
 
 ## Critical Patterns
 

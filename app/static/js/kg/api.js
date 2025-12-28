@@ -220,4 +220,128 @@ const kgClient = {
     }
 };
 
-export { handleKGApiError, kgClient };
+// ============================================
+// Entity Resolution API Functions
+// ============================================
+
+/**
+ * Scan a project for potential duplicate entities.
+ * @param {string} projectId - The project ID
+ * @returns {Promise<{candidates: ResolutionCandidate[]}>}
+ */
+async function scanForDuplicates(projectId) {
+    try {
+        const response = await fetch(`/kg/projects/${projectId}/duplicates`);
+        if (!response.ok) {
+            await handleKGApiError(response, 'Failed to scan for duplicates');
+        }
+        return response.json();
+    } catch (e) {
+        if (e.name === 'TypeError') {
+            throw new Error('Network error. Could not scan for duplicates.');
+        }
+        throw e;
+    }
+}
+
+/**
+ * Merge two entities, keeping the survivor and absorbing the merged entity.
+ * @param {string} projectId - The project ID
+ * @param {string} survivorId - The entity to keep
+ * @param {string} mergedId - The entity to merge into survivor
+ * @returns {Promise<MergeHistory>}
+ */
+async function mergeEntities(projectId, survivorId, mergedId) {
+    try {
+        const response = await fetch(`/kg/projects/${projectId}/merge`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ survivor_id: survivorId, merged_id: mergedId })
+        });
+        if (!response.ok) {
+            await handleKGApiError(response, 'Failed to merge entities');
+        }
+        return response.json();
+    } catch (e) {
+        if (e.name === 'TypeError') {
+            throw new Error('Network error. Could not merge entities.');
+        }
+        throw e;
+    }
+}
+
+/**
+ * Get all pending merge candidates for a project.
+ * @param {string} projectId - The project ID
+ * @returns {Promise<{candidates: ResolutionCandidate[]}>}
+ */
+async function getPendingMerges(projectId) {
+    try {
+        const response = await fetch(`/kg/projects/${projectId}/merge-candidates`);
+        if (!response.ok) {
+            await handleKGApiError(response, 'Failed to get pending merges');
+        }
+        return response.json();
+    } catch (e) {
+        if (e.name === 'TypeError') {
+            throw new Error('Network error. Could not get pending merges.');
+        }
+        throw e;
+    }
+}
+
+/**
+ * Review a merge candidate (approve or reject).
+ * @param {string} projectId - The project ID
+ * @param {string} candidateId - The candidate ID
+ * @param {boolean} approved - Whether to approve the merge
+ * @returns {Promise<{success: boolean}>}
+ */
+async function reviewMergeCandidate(projectId, candidateId, approved) {
+    try {
+        const response = await fetch(`/kg/projects/${projectId}/merge-candidates/${candidateId}/review`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ approved })
+        });
+        if (!response.ok) {
+            await handleKGApiError(response, 'Failed to review merge candidate');
+        }
+        return response.json();
+    } catch (e) {
+        if (e.name === 'TypeError') {
+            throw new Error('Network error. Could not review merge candidate.');
+        }
+        throw e;
+    }
+}
+
+/**
+ * Get merge history for a project.
+ * @param {string} projectId - The project ID
+ * @returns {Promise<{history: MergeHistory[]}>}
+ */
+async function getMergeHistory(projectId) {
+    try {
+        const response = await fetch(`/kg/projects/${projectId}/merge-history`);
+        if (!response.ok) {
+            await handleKGApiError(response, 'Failed to get merge history');
+        }
+        return response.json();
+    } catch (e) {
+        if (e.name === 'TypeError') {
+            throw new Error('Network error. Could not get merge history.');
+        }
+        throw e;
+    }
+}
+
+export {
+    handleKGApiError,
+    kgClient,
+    scanForDuplicates,
+    mergeEntities,
+    getPendingMerges,
+    reviewMergeCandidate,
+    getMergeHistory
+};

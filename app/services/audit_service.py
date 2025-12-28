@@ -32,6 +32,7 @@ from app.models.audit import (
     AuditLogEntry,
     AuditLogResponse,
     AuditStats,
+    ResolutionAuditEvent,
     SessionAuditEvent,
     ToolAuditEvent,
 )
@@ -87,6 +88,9 @@ class AuditService:
 
         # Track count of events with duration for accurate average calculation
         self._events_with_duration_count: int = 0
+
+        # Track count of resolution scans with duration for average calculation
+        self._scans_with_duration_count: int = 0
 
         # Ensure directories exist
         self._sessions_path.mkdir(parents=True, exist_ok=True)
@@ -279,6 +283,28 @@ class AuditService:
             elif event.event_type == AuditEventType.SUBAGENT_STOP:
                 self._stats.subagents_stopped += 1
 
+        elif isinstance(event, ResolutionAuditEvent):
+            if event.event_type == AuditEventType.RESOLUTION_SCAN_COMPLETE:
+                self._stats.resolution_scans += 1
+
+                # Update average scan duration
+                if event.scan_duration_ms is not None:
+                    self._scans_with_duration_count += 1
+                    n = self._scans_with_duration_count
+
+                    if self._stats.avg_scan_duration_ms is None:
+                        self._stats.avg_scan_duration_ms = event.scan_duration_ms
+                    else:
+                        self._stats.avg_scan_duration_ms = (
+                            (self._stats.avg_scan_duration_ms * (n - 1))
+                            + event.scan_duration_ms
+                        ) / n
+
+            elif event.event_type == AuditEventType.ENTITY_MERGE:
+                self._stats.entities_merged += 1
+            elif event.event_type == AuditEventType.MERGE_REJECTED:
+                self._stats.merges_rejected += 1
+
     async def get_session_audit_log(
         self,
         session_id: str,
@@ -336,6 +362,14 @@ class AuditService:
         ):
             tool_event = ToolAuditEvent.model_validate(event_dict)
             return AuditLogEntry.from_tool_event(tool_event)
+        elif event_type in (
+            AuditEventType.RESOLUTION_SCAN_START.value,
+            AuditEventType.RESOLUTION_SCAN_COMPLETE.value,
+            AuditEventType.ENTITY_MERGE.value,
+            AuditEventType.MERGE_REJECTED.value,
+        ):
+            resolution_event = ResolutionAuditEvent.model_validate(event_dict)
+            return AuditLogEntry.from_resolution_event(resolution_event)
         else:
             session_event = SessionAuditEvent.model_validate(event_dict)
             return AuditLogEntry.from_session_event(session_event)
@@ -419,3 +453,50 @@ class AuditService:
             logger.info(f"Cleaned up {cleaned} old audit logs")
 
         return cleaned
+
+    async def log_resolution_event(
+        self,
+        event_type: AuditEventType,
+        project_id: str,
+        session_id: str | None = None,
+        candidates_found: int | None = None,
+        auto_merged_count: int | None = None,
+        queued_for_review_count: int | None = None,
+        scan_duration_ms: float | None = None,
+        survivor_id: str | None = None,
+        merged_id: str | None = None,
+        confidence: float | None = None,
+        merge_type: str | None = None,
+    ) -> None:
+        """Log a resolution-related audit event.
+
+        Convenience method for logging entity resolution events such as
+        duplicate scans, entity merges, and merge rejections.
+
+        Args:
+            event_type: The type of resolution event
+            project_id: ID of the KG project
+            session_id: Optional session ID (defaults to "system")
+            candidates_found: Number of duplicate candidates found (scan events)
+            auto_merged_count: Number of entities auto-merged (scan events)
+            queued_for_review_count: Candidates queued for review (scan events)
+            scan_duration_ms: Duration of the scan in milliseconds
+            survivor_id: ID of the surviving node (merge events)
+            merged_id: ID of the merged (removed) node (merge events)
+            confidence: Confidence score of the merge decision
+            merge_type: How the merge was triggered (auto, user, agent)
+        """
+        event = ResolutionAuditEvent(
+            event_type=event_type,
+            session_id=session_id or "system",
+            project_id=project_id,
+            candidates_found=candidates_found,
+            auto_merged_count=auto_merged_count,
+            queued_for_review_count=queued_for_review_count,
+            scan_duration_ms=scan_duration_ms,
+            survivor_id=survivor_id,
+            merged_id=merged_id,
+            confidence=confidence,
+            merge_type=merge_type,
+        )
+        await self.log_event(event)

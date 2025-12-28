@@ -18,6 +18,12 @@ from app.kg.domain import (
 )
 from app.kg.knowledge_base import KnowledgeBase
 from app.kg.models import Edge, Node, RelationshipDetail, Source, SourceType
+from app.kg.resolution import (
+    EntityMatcher,
+    MergeHistory,
+    ResolutionCandidate,
+    ResolutionConfig,
+)
 from app.kg.schemas import (
     ExtractedDiscovery,
     ExtractedEntity,
@@ -44,6 +50,11 @@ __all__ = [
     "ProjectState",
     "Discovery",
     "DiscoveryStatus",
+    # Resolution
+    "ResolutionCandidate",
+    "MergeHistory",
+    "ResolutionConfig",
+    "EntityMatcher",
     # Extraction Schemas
     "ExtractedEntity",
     "ExtractedRelationship",

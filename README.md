@@ -7,7 +7,7 @@
 > AI agent that transforms videos into searchable transcripts and knowledge graphs.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-727%20passing-brightgreen.svg)](#development)
+[![Tests](https://img.shields.io/badge/tests-910%20passing-brightgreen.svg)](#development)
 [![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#development)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -47,6 +47,7 @@ docker-compose up -d
 | **Video Transcription** | Local videos and YouTube URLs via gpt-4o-transcribe with domain vocabulary prompts |
 | **Background Jobs** | Async job queue with persistence, restart recovery, cancel/retry, step progress UI |
 | **Knowledge Graphs** | Auto-bootstrap domain schemas, extract entities/relationships with source citations |
+| **Entity Resolution** | Detect and merge duplicate entities using multi-signal similarity matching (Jaro-Winkler, alias overlap) |
 | **Graph Insights** | Natural language queries: find key players, trace connections, discover clusters |
 | **Graph Visualization** | Interactive Cytoscape.js with search, type filtering, node inspector, evidence panel |
 | **Transcript Library** | Save, search, export (TXT/JSON/SRT/VTT), and full-text viewer |
@@ -104,7 +105,7 @@ HTTP Request → input_queue → [SessionActor] → response_queue → Response
 | **Knowledge Graph** | NetworkX, Cytoscape.js |
 | **Media** | FFmpeg, pydub, yt-dlp |
 | **Frontend** | ES Modules, Tailwind CSS, Marked.js, DOMPurify |
-| **Quality** | mypy (strict), ruff, pytest (688 tests) |
+| **Quality** | mypy (strict), ruff, pytest (910 tests) |
 
 ---
 
@@ -118,10 +119,10 @@ app/
 ├── agent/           # MCP tools + system prompts
 ├── kg/              # Domain models, graph storage, extraction
 ├── models/          # Pydantic schemas
-├── static/js/       # 32 ES modules (chat, kg, jobs, upload, workspace)
+├── static/js/       # 37 ES modules (chat, kg, jobs, upload, workspace)
 └── templates/       # Jinja2 HTML
 
-tests/               # 688 tests across 31 modules
+tests/               # 910 tests across 39 modules
 data/                # Runtime storage
 ```
 

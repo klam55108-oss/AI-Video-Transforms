@@ -13,6 +13,8 @@ paths: app/kg/**/*.py, app/services/kg_service.py
 | `schemas.py` | Claude extraction output schemas (ExtractedEntity, ExtractionResult) |
 | `knowledge_base.py` | NetworkX graph wrapper with query methods |
 | `persistence.py` | JSON/GraphML serialization |
+| `resolution.py` | Entity resolution (duplicate detection, merge candidates, similarity matching) |
+| `normalization.py` | Text normalization (Unicode, n-gram generation for blocking) |
 | `tools/bootstrap.py` | Domain inference from first video |
 | `tools/extraction.py` | Entity/relationship extraction |
 | `prompts/` | Bootstrap and extraction prompt templates |
@@ -136,6 +138,38 @@ using the following domain profile:
 ..."""
 ```
 
+## Entity Resolution (resolution.py)
+
+Detect and merge duplicate entities using multi-signal similarity matching:
+
+```python
+# Core classes
+EntityMatcher          # Similarity scoring with configurable thresholds
+ResolutionCandidate    # Merge candidate with confidence score
+MergeHistory           # Audit record of merge operation
+
+# Key functions
+find_merge_candidates(kb, threshold=0.7)  # Scan for duplicates
+merge_entities(kb, source_id, target_id)  # Execute merge with audit
+```
+
+**Similarity Signals**:
+- Jaro-Winkler distance for label matching
+- Normalized Levenshtein for alias comparison
+- Jaccard overlap for shared aliases
+- Same-type bonus (entities must share type)
+
+**N-gram Blocking** (`normalization.py`):
+- Generates character n-grams for candidate filtering
+- Reduces O(n²) comparisons to O(n) via shared trigrams
+- Unicode normalization (NFKC) for consistent matching
+
+**API Endpoints**:
+- `GET /kg/projects/{id}/duplicates` — List potential duplicates
+- `GET /kg/projects/{id}/merge-candidates` — Get merge candidates with scores
+- `POST /kg/projects/{id}/merge` — Execute merge (audited)
+- `GET /kg/projects/{id}/merge-history` — View merge audit trail
+
 ## Testing
 
 - Domain models: `test_kg_domain.py`
@@ -143,4 +177,6 @@ using the following domain profile:
 - Service: `test_kg_service.py`, `test_kg_service_extraction.py`
 - Tools: `test_kg_tools.py`, `test_kg_extraction_tool.py`
 - API: `test_kg_api.py`, `test_kg_api_extraction.py`
+- Resolution: `test_kg_resolution.py`, `test_kg_resolution_api.py`, `test_kg_normalization.py`
+- Merge safety: `test_merge_safety.py`, `test_resolution_audit.py`
 - E2E: `test_kg_e2e_flow.py`

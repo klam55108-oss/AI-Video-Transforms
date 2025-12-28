@@ -18,6 +18,15 @@ Available tools:
     - create_kg_project: Create a new KG project
     - bootstrap_kg_project: Bootstrap project from first transcript
     - get_kg_stats: Get graph statistics by type
+    - ask_about_graph: Query the graph for insights
+
+    Entity Resolution:
+    - find_duplicate_entities: Scan for potential duplicate entities
+    - merge_entities_tool: Merge two entities into one
+    - review_pending_merges: Get pending merge candidates for review
+    - approve_merge: Approve a pending merge candidate
+    - reject_merge: Reject a pending merge candidate
+    - compare_entities_semantic: Compare two entities for semantic similarity
 
 Example usage:
     from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
@@ -36,6 +45,13 @@ Example usage:
             "mcp__video-tools__create_kg_project",
             "mcp__video-tools__bootstrap_kg_project",
             "mcp__video-tools__get_kg_stats",
+            "mcp__video-tools__ask_about_graph",
+            "mcp__video-tools__find_duplicate_entities",
+            "mcp__video-tools__merge_entities_tool",
+            "mcp__video-tools__review_pending_merges",
+            "mcp__video-tools__approve_merge",
+            "mcp__video-tools__reject_merge",
+            "mcp__video-tools__compare_entities_semantic",
         ],
     )
 

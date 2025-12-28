@@ -172,6 +172,7 @@ class StorageService:
                 created_at=datetime.fromisoformat(t["created_at"]),
                 file_size=t["file_size"],
                 session_id=t.get("session_id"),
+                title=t.get("title"),  # Human-readable title for KG matching
                 format=t.get("format", "text"),
                 duration=t.get("duration"),
             )

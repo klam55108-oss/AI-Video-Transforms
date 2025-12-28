@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     audit_cache_max_sessions: int = 50  # LRU cache size for session audit logs
     audit_poll_interval_ms: int = 3000  # Frontend audit panel poll interval
 
+    # Entity Resolution configuration
+    entity_resolution_enabled: bool = True  # Enable resolution system
+    entity_resolution_auto_merge_enabled: bool = False  # Start conservative
+    entity_resolution_auto_merge_threshold: float = 0.9  # Auto-merge above this
+    entity_resolution_review_threshold: float = 0.7  # Surface for review above this
+
 
 @lru_cache
 def get_settings() -> Settings:

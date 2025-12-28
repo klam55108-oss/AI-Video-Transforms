@@ -19,6 +19,7 @@ referencing them by ID rather than keeping full content in memory.
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,6 +28,8 @@ from typing import Any
 from claude_agent_sdk import tool
 
 from app.core.storage import storage
+
+logger = logging.getLogger(__name__)
 
 
 def _sanitize_filename(name: str) -> str:
@@ -118,6 +121,11 @@ def _write_transcript_sync(path: Path, content: str) -> tuple[int, int]:
                 "enum": ["youtube", "upload", "local"],
                 "description": "Type of the video source.",
             },
+            "title": {
+                "type": "string",
+                "description": "Human-readable title of the video/audio content (e.g., 'The Search' for a YouTube video). "
+                "Used for matching when extracting to knowledge graphs.",
+            },
             "session_id": {
                 "type": "string",
                 "description": "Optional session ID to link the transcript to.",
@@ -153,8 +161,16 @@ async def save_transcript(args: dict[str, Any]) -> dict[str, Any]:
     content = args.get("content")
     original_source = args.get("original_source")
     source_type = args.get("source_type")
+    title = args.get("title")  # Human-readable title for matching
     session_id = args.get("session_id")
     custom_filename = args.get("custom_filename")
+
+    # DEBUG: Log title parameter for evidence linking debugging
+    logger.info(
+        f"[EVIDENCE-DEBUG] save_transcript called: "
+        f"title={title!r}, source_type={source_type}, "
+        f"original_source={original_source[:50] if original_source else 'None'}..."
+    )
 
     # Validate required parameters
     if not content:
@@ -216,9 +232,17 @@ async def save_transcript(args: dict[str, Any]) -> dict[str, Any]:
             original_source=original_source,
             source_type=source_type,
             session_id=session_id,
+            title=title,
         )
 
         transcript_id = entry["id"]
+
+        # DEBUG: Log the saved transcript metadata
+        logger.info(
+            f"[EVIDENCE-DEBUG] Transcript saved: "
+            f"id={transcript_id}, title={entry.get('title')!r}, "
+            f"file={filename}"
+        )
         char_count = len(content)
         preview = content[:200] + "..." if len(content) > 200 else content
 
