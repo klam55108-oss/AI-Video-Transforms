@@ -12,13 +12,57 @@ Tool Return Format (per Claude Agent SDK):
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 from uuid import uuid4
 
 from claude_agent_sdk import tool
 
 if TYPE_CHECKING:
+    from app.kg.knowledge_base import KnowledgeBase
     from app.services.kg_service import KnowledgeGraphService
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TypedDict Return Types for MCP Tool Handlers
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class MCPTextContent(TypedDict):
+    """A single text content item in MCP response."""
+
+    type: str  # Always "text"
+    text: str
+
+
+class MCPToolSuccess(TypedDict):
+    """Successful MCP tool response with content array."""
+
+    content: list[MCPTextContent]
+
+
+class MCPToolError(TypedDict):
+    """Error MCP tool response with success=False flag."""
+
+    success: bool  # Always False
+    error: str
+
+
+# Union type for handler return values
+MCPToolResponse = MCPToolSuccess | MCPToolError
+
+# Maximum entity name length for input validation (security)
+MAX_ENTITY_NAME_LENGTH = 500
+
+
+def _validate_entity_name(name: str, param_name: str) -> dict[str, Any] | None:
+    """Validate entity name length. Returns error dict if invalid, None if valid."""
+    if name and len(name) > MAX_ENTITY_NAME_LENGTH:
+        return {
+            "success": False,
+            "error": f"{param_name} exceeds maximum length ({MAX_ENTITY_NAME_LENGTH} chars)",
+        }
+    return None
+
 
 # Module-level cache for fallback singleton.
 # This exists because KG tools can be invoked in two contexts:
@@ -94,6 +138,10 @@ def _get_kg_service() -> "KnowledgeGraphService":
                 "type": "string",
                 "description": "Optional unique identifier for the source. Auto-generated if not provided.",
             },
+            "transcript_id": {
+                "type": "string",
+                "description": "ID of the saved transcript (from save_transcript). Required for evidence linking.",
+            },
         },
         "required": ["project_id", "transcript", "title"],
     },
@@ -120,6 +168,7 @@ async def extract_to_kg(args: dict[str, Any]) -> dict[str, Any]:
         transcript = args.get("transcript", "")
         title = args.get("title", "")
         source_id = args.get("source_id") or uuid4().hex[:8]
+        transcript_id = args.get("transcript_id")
 
         if not project_id:
             return {"success": False, "error": "project_id is required"}
@@ -149,6 +198,7 @@ async def extract_to_kg(args: dict[str, Any]) -> dict[str, Any]:
             transcript=transcript,
             title=title,
             source_id=source_id,
+            transcript_id=transcript_id,
         )
 
         # Format success response
@@ -518,6 +568,489 @@ async def get_kg_stats(args: dict[str, Any]) -> dict[str, Any]:
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TOOL 6: ask_about_graph
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+@tool(
+    "ask_about_graph",
+    "Query the Knowledge Graph for insights. Supports multiple question types: "
+    "key_entities (find important entities), connection (how two entities connect), "
+    "common_ground (shared connections), groups (discover clusters), "
+    "isolated (find disconnected groups), mentions (where entity appears), "
+    "evidence (quotes for relationships), suggestions (what to explore next).",
+    {
+        "type": "object",
+        "properties": {
+            "project_id": {
+                "type": "string",
+                "description": "ID of the Knowledge Graph project to query",
+            },
+            "question_type": {
+                "type": "string",
+                "enum": [
+                    "key_entities",
+                    "connection",
+                    "common_ground",
+                    "groups",
+                    "isolated",
+                    "mentions",
+                    "evidence",
+                    "suggestions",
+                ],
+                "description": "Type of insight query to perform",
+            },
+            "entity_1": {
+                "type": "string",
+                "description": "First entity name (for connection, common_ground, evidence, mentions)",
+            },
+            "entity_2": {
+                "type": "string",
+                "description": "Second entity name (for connection, common_ground, evidence)",
+            },
+            "method": {
+                "type": "string",
+                "enum": ["connections", "influence", "bridging"],
+                "description": "Ranking method for key_entities (default: connections)",
+            },
+            "entity_type": {
+                "type": "string",
+                "description": "Filter by entity type (for key_entities)",
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum results to return (default: 10)",
+            },
+        },
+        "required": ["project_id", "question_type"],
+    },
+)
+async def ask_about_graph(args: dict[str, Any]) -> dict[str, Any]:
+    """
+    Unified query interface for graph insights.
+
+    Routes to the appropriate KnowledgeBase insight method based on
+    question_type and formats the response for the agent.
+
+    Args:
+        args: Tool arguments containing:
+            - project_id: Target KG project ID
+            - question_type: Type of query to perform
+            - entity_1, entity_2: Entity names for relationship queries
+            - method: Ranking method for key_entities
+            - entity_type: Filter for key_entities
+            - limit: Max results
+
+    Returns:
+        MCP tool response with insights or error
+    """
+    try:
+        project_id = args.get("project_id", "")
+        question_type = args.get("question_type", "")
+
+        if not project_id:
+            return {"success": False, "error": "project_id is required"}
+        if not question_type:
+            return {"success": False, "error": "question_type is required"}
+
+        kg_service = _get_kg_service()
+
+        # Validate project exists
+        project = await kg_service.get_project(project_id)
+        if not project:
+            return {"success": False, "error": f"Project '{project_id}' not found"}
+
+        # Get the knowledge base
+        kb = await kg_service.get_knowledge_base(project_id)
+        if not kb:
+            return {
+                "success": False,
+                "error": f"Project '{project_id}' has no knowledge base. "
+                "Bootstrap and extract content first.",
+            }
+
+        # Route to appropriate query (handlers are synchronous)
+        if question_type == "key_entities":
+            return _handle_key_entities(kb, args, project.name)
+
+        elif question_type == "connection":
+            return _handle_connection(kb, args)
+
+        elif question_type == "common_ground":
+            return _handle_common_ground(kb, args)
+
+        elif question_type == "groups":
+            return _handle_groups(kb, project.name)
+
+        elif question_type == "isolated":
+            return _handle_isolated(kb, project.name)
+
+        elif question_type == "mentions":
+            return _handle_mentions(kb, args)
+
+        elif question_type == "evidence":
+            return _handle_evidence(kb, args)
+
+        elif question_type == "suggestions":
+            return _handle_suggestions(kb, project.name)
+
+        else:
+            return {
+                "success": False,
+                "error": f"Unknown question_type: {question_type}. "
+                "Valid types: key_entities, connection, common_ground, groups, "
+                "isolated, mentions, evidence, suggestions",
+            }
+
+    except Exception as e:
+        return {"success": False, "error": f"Graph query failed: {e!s}"}
+
+
+def _handle_key_entities(
+    kb: "KnowledgeBase",
+    args: dict[str, Any],
+    project_name: str,
+) -> dict[str, Any]:
+    """Handle key_entities query type."""
+    method = args.get("method", "connections")
+    entity_type = args.get("entity_type")
+    limit = args.get("limit", 10)
+
+    results = kb.get_key_entities(limit=limit, method=method, entity_type=entity_type)
+
+    if not results:
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"## Key Entities in {project_name}\n\nNo entities found in the graph.",
+                }
+            ]
+        }
+
+    method_labels = {
+        "connections": "Most Connected",
+        "influence": "Most Influential",
+        "bridging": "Key Bridges",
+    }
+    method_label = method_labels.get(method, "Key")
+
+    lines = [
+        f"## {method_label} Entities in {project_name}\n",
+        "| Rank | Entity | Type | Score | Why |",
+        "|------|--------|------|-------|-----|",
+    ]
+
+    for i, entity in enumerate(results, 1):
+        score_display = (
+            f"{entity['score']:.2%}" if method != "connections" else str(int(entity["score"]))
+        )
+        lines.append(
+            f"| {i} | {entity['label']} | {entity['entity_type']} | "
+            f"{score_display} | {entity['why']} |"
+        )
+
+    if entity_type:
+        lines.append(f"\n*Filtered to {entity_type} entities*")
+
+    return {"content": [{"type": "text", "text": "\n".join(lines)}]}
+
+
+def _handle_connection(
+    kb: "KnowledgeBase",
+    args: dict[str, Any],
+) -> dict[str, Any]:
+    """Handle connection query type."""
+    entity_1 = args.get("entity_1", "")
+    entity_2 = args.get("entity_2", "")
+
+    if not entity_1 or not entity_2:
+        return {
+            "success": False,
+            "error": "Both entity_1 and entity_2 are required for connection queries",
+        }
+
+    # Validate entity name lengths
+    if error := _validate_entity_name(entity_1, "entity_1"):
+        return error
+    if error := _validate_entity_name(entity_2, "entity_2"):
+        return error
+
+    result = kb.find_connection(entity_1, entity_2)
+
+    if not result["connected"]:
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"## Connection: {entity_1} to {entity_2}\n\n"
+                    f"**Not connected:** {result['explanation']}",
+                }
+            ]
+        }
+
+    # Build path description
+    path_lines = []
+    for i, step in enumerate(result["path"]):
+        if step["relationship"]:
+            arrow = "->" if step["direction"] == "outgoing" else "<-"
+            path_lines.append(f"  {step['entity']} {arrow} ({step['relationship']})")
+        else:
+            path_lines.append(f"  {step['entity']}")
+
+    path_text = "\n".join(path_lines)
+
+    text = (
+        f"## Connection: {entity_1} to {entity_2}\n\n"
+        f"**Connected:** Yes ({result['explanation']})\n\n"
+        f"### Path\n```\n{path_text}\n```"
+    )
+
+    return {"content": [{"type": "text", "text": text}]}
+
+
+def _handle_common_ground(
+    kb: "KnowledgeBase",
+    args: dict[str, Any],
+) -> dict[str, Any]:
+    """Handle common_ground query type."""
+    entity_1 = args.get("entity_1", "")
+    entity_2 = args.get("entity_2", "")
+
+    if not entity_1 or not entity_2:
+        return {
+            "success": False,
+            "error": "Both entity_1 and entity_2 are required for common_ground queries",
+        }
+
+    # Validate entity name lengths
+    if error := _validate_entity_name(entity_1, "entity_1"):
+        return error
+    if error := _validate_entity_name(entity_2, "entity_2"):
+        return error
+
+    results = kb.find_common_ground(entity_1, entity_2)
+
+    if not results:
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"## Common Ground: {entity_1} & {entity_2}\n\n"
+                    f"No shared connections found between {entity_1} and {entity_2}.",
+                }
+            ]
+        }
+
+    lines = [
+        f"## Common Ground: {entity_1} & {entity_2}\n",
+        f"Found {len(results)} shared connection(s):\n",
+    ]
+
+    for common in results:
+        lines.append(f"### {common['entity']} ({common['entity_type']})")
+        lines.append(f"- {entity_1}: {common['connection_to_first']}")
+        lines.append(f"- {entity_2}: {common['connection_to_second']}")
+        lines.append("")
+
+    return {"content": [{"type": "text", "text": "\n".join(lines)}]}
+
+
+def _handle_groups(kb: "KnowledgeBase", project_name: str) -> dict[str, Any]:
+    """Handle groups query type."""
+    results = kb.discover_groups()
+
+    if not results:
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"## Groups in {project_name}\n\n"
+                    f"No distinct groups detected. The graph may be too small or "
+                    f"highly connected.",
+                }
+            ]
+        }
+
+    lines = [
+        f"## Groups in {project_name}\n",
+        f"Detected {len(results)} cluster(s):\n",
+    ]
+
+    for i, group in enumerate(results, 1):
+        sample_text = ", ".join(group["sample"])
+        if group["size"] > 5:
+            sample_text += f", ... (+{group['size'] - 5} more)"
+
+        lines.append(f"### {i}. {group['name']}")
+        lines.append(f"**Size:** {group['size']} entities")
+        lines.append(f"**Members:** {sample_text}")
+        lines.append("")
+
+    return {"content": [{"type": "text", "text": "\n".join(lines)}]}
+
+
+def _handle_isolated(kb: "KnowledgeBase", project_name: str) -> dict[str, Any]:
+    """Handle isolated query type."""
+    results = kb.find_isolated_topics()
+
+    if not results:
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"## Isolated Topics in {project_name}\n\n"
+                    f"No isolated groups found. All entities are connected to the main graph.",
+                }
+            ]
+        }
+
+    lines = [
+        f"## Isolated Topics in {project_name}\n",
+        f"Found {len(results)} disconnected group(s):\n",
+    ]
+
+    for i, group in enumerate(results, 1):
+        sample_text = ", ".join(group["sample"])
+        if group["size"] > 5:
+            sample_text += f", ... (+{group['size'] - 5} more)"
+
+        lines.append(f"### Group {i}")
+        lines.append(f"**Size:** {group['size']} entities")
+        lines.append(f"**Entities:** {sample_text}")
+        lines.append(f"*{group['explanation']}*")
+        lines.append("")
+
+    return {"content": [{"type": "text", "text": "\n".join(lines)}]}
+
+
+def _handle_mentions(
+    kb: "KnowledgeBase",
+    args: dict[str, Any],
+) -> dict[str, Any]:
+    """Handle mentions query type."""
+    entity = args.get("entity_1", "")
+
+    if not entity:
+        return {
+            "success": False,
+            "error": "entity_1 is required for mentions queries",
+        }
+
+    # Validate entity name length
+    if error := _validate_entity_name(entity, "entity_1"):
+        return error
+
+    results = kb.get_mentions(entity)
+
+    if not results:
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"## Mentions of {entity}\n\n"
+                    f"No source mentions found for '{entity}'. "
+                    f"The entity may not exist or have no tracked sources.",
+                }
+            ]
+        }
+
+    lines = [
+        f"## Mentions of {entity}\n",
+        f"Found in {len(results)} source(s):\n",
+        "| Source | Type |",
+        "|--------|------|",
+    ]
+
+    for mention in results:
+        lines.append(f"| {mention['source_title']} | {mention['source_type']} |")
+
+    return {"content": [{"type": "text", "text": "\n".join(lines)}]}
+
+
+def _handle_evidence(
+    kb: "KnowledgeBase",
+    args: dict[str, Any],
+) -> dict[str, Any]:
+    """Handle evidence query type."""
+    entity_1 = args.get("entity_1", "")
+    entity_2 = args.get("entity_2", "")
+
+    if not entity_1 or not entity_2:
+        return {
+            "success": False,
+            "error": "Both entity_1 and entity_2 are required for evidence queries",
+        }
+
+    # Validate entity name lengths
+    if error := _validate_entity_name(entity_1, "entity_1"):
+        return error
+    if error := _validate_entity_name(entity_2, "entity_2"):
+        return error
+
+    results = kb.get_evidence(entity_1, entity_2)
+
+    if not results:
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"## Evidence: {entity_1} & {entity_2}\n\n"
+                    f"No evidence found for relationships between these entities.",
+                }
+            ]
+        }
+
+    lines = [
+        f"## Evidence: {entity_1} & {entity_2}\n",
+        f"Found {len(results)} piece(s) of evidence:\n",
+    ]
+
+    for evidence in results:
+        lines.append(f"### {evidence['relationship_type']}")
+        lines.append(f"**Source:** {evidence['source_title']}")
+        lines.append(f"**Confidence:** {evidence['confidence']:.0%}")
+        if evidence["quote"]:
+            lines.append(f'**Quote:** "{evidence["quote"]}"')
+        else:
+            lines.append("*No quote available*")
+        lines.append("")
+
+    return {"content": [{"type": "text", "text": "\n".join(lines)}]}
+
+
+def _handle_suggestions(kb: "KnowledgeBase", project_name: str) -> dict[str, Any]:
+    """Handle suggestions query type."""
+    results = kb.get_smart_suggestions()
+
+    if not results:
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"## Suggestions for {project_name}\n\n"
+                    f"No suggestions available. Try adding more content to the graph.",
+                }
+            ]
+        }
+
+    lines = [
+        f"## Exploration Suggestions for {project_name}\n",
+    ]
+
+    priority_icons = {"high": "[!]", "medium": "[*]", "low": "[-]"}
+
+    for suggestion in results:
+        icon = priority_icons.get(suggestion["priority"], "[-]")
+        lines.append(f"### {icon} {suggestion['question']}")
+        lines.append(f"*{suggestion['why']}*")
+        lines.append(f"**Action:** `{suggestion['action']}`")
+        lines.append("")
+
+    return {"content": [{"type": "text", "text": "\n".join(lines)}]}
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # EXPORTS
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -527,4 +1060,5 @@ KG_TOOLS = [
     create_kg_project,
     bootstrap_kg_project,
     get_kg_stats,
+    ask_about_graph,
 ]

@@ -314,6 +314,7 @@ async def test_extract_to_kg_success(
         transcript="John Doe worked for the CIA in the 1960s.",
         title="Episode 2: The Early Years",
         source_id="ep2_12345",
+        transcript_id=None,
     )
 
 

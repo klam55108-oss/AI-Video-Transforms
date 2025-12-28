@@ -6,6 +6,7 @@
 import { PURIFY_CONFIG } from '../core/config.js';
 import { copyToClipboard, escapeHtml } from '../core/utils.js';
 import { showToast } from '../ui/toast.js';
+import { enhanceInsightMessage, isInsightMessage } from '../kg/suggestions.js';
 
 // ============================================
 // Element References (Lazy Lookup)
@@ -172,6 +173,11 @@ export function addMessage(text, sender, usage = null) {
                 }
             };
         });
+
+        // Enhance KG insight messages with interactive suggestion cards
+        if (isInsightMessage(text)) {
+            enhanceInsightMessage(bubble);
+        }
     }
 
     // Footer container
