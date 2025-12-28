@@ -329,6 +329,9 @@ export function renderSuggestionCards(container, suggestions) {
         const safeTitle = escapeHtml(suggestion.title);
         const safeDesc = escapeHtml(suggestion.description);
 
+        // Add title attribute for hover tooltip showing full query text
+        card.setAttribute('title', suggestion.query);
+
         card.innerHTML = `
             <span class="icon" aria-hidden="true">${safeIcon}</span>
             <span class="title">${safeTitle}</span>

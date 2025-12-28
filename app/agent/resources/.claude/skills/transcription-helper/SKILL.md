@@ -39,13 +39,15 @@ ONLY proceed after explicit confirmation ("yes", "proceed", "confirm", "go ahead
    - `language`: ISO 639-1 code if known (e.g., 'en', 'es', 'zh')
    - `temperature`: 0.0 for consistent results
    - `prompt`: Domain vocabulary if provided
-2. Validate results (check for text content, note any splitting)
-3. **IMMEDIATELY** use `save_transcript` with:
-   - `content`: The transcription text
-   - `original_source`: The file path or YouTube URL
-   - `source_type`: "youtube", "upload", or "local"
-   - **`title`**: The video's display name (e.g., "The Search" NOT the URL)
-   - This persists the transcript, gets an ID, and **enables evidence linking in KG**
+2. The tool creates a **background job** and returns immediately with a job ID
+3. Tell user to monitor progress in the Jobs panel
+4. **DO NOT call `save_transcript`** — the job automatically saves the transcript when complete
+   - **YouTube videos**: Title is auto-extracted from yt-dlp for evidence linking in KG
+   - **Local files**: No title is extracted (title will be `None`)
+   - The transcript is registered with a unique ID automatically
+
+**IMPORTANT**: When the job completes, the system triggers Phase 4 directly.
+The transcript is already saved — proceed to show results, do NOT call `save_transcript` again.
 
 ### Phase 4: Results & Follow-up
 After successful transcription:

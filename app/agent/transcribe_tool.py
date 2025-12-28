@@ -53,7 +53,7 @@ def _is_youtube_url(url: str) -> bool:
     return re.match(youtube_regex, url) is not None
 
 
-def _download_youtube_audio(url: str, output_dir: str) -> str:
+def _download_youtube_audio(url: str, output_dir: str) -> tuple[str, str | None]:
     """
     Download audio from YouTube video as MP3.
 
@@ -62,7 +62,7 @@ def _download_youtube_audio(url: str, output_dir: str) -> str:
         output_dir: Directory to save the downloaded audio
 
     Returns:
-        Path to the downloaded MP3 audio file
+        Tuple of (audio_path, video_title) where title may be None if extraction fails
 
     Raises:
         ImportError: If yt-dlp is not installed
@@ -97,12 +97,13 @@ def _download_youtube_audio(url: str, output_dir: str) -> str:
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            logger.info(f"yt-dlp: Video title: {info.get('title', 'Unknown')}")
+            video_title = info.get("title")
+            logger.info(f"yt-dlp: Video title: {video_title or 'Unknown'}")
             logger.info(f"yt-dlp: Duration: {info.get('duration', 'Unknown')} seconds")
             audio_filename = ydl.prepare_filename(info)
             audio_path = os.path.splitext(audio_filename)[0] + ".mp3"
             logger.info(f"yt-dlp: Audio saved to: {audio_path}")
-            return audio_path
+            return audio_path, video_title
     except Exception as e:
         logger.error(f"yt-dlp: Download failed: {e}", exc_info=True)
         raise
@@ -525,6 +526,8 @@ def _perform_transcription(
     is_youtube = _is_youtube_url(video_source)
     logger.info(f"Source type: {'YouTube' if is_youtube else 'local file'}")
 
+    video_title: str | None = None  # Capture title for metadata
+
     with tempfile.TemporaryDirectory() as temp_dir:
         try:
             # Extract audio
@@ -536,7 +539,7 @@ def _perform_transcription(
                         "error": "YouTube support requires yt-dlp. Install with: pip install yt-dlp",
                     }
                 logger.info(f"Downloading YouTube audio from: {video_source}")
-                audio_path = _download_youtube_audio(video_source, temp_dir)
+                audio_path, video_title = _download_youtube_audio(video_source, temp_dir)
                 logger.info(f"YouTube audio downloaded: {audio_path}")
             else:
                 if not os.path.exists(video_source):
@@ -613,6 +616,7 @@ def _perform_transcription(
                 "output_file": output_file,
                 "duration": duration,
                 "chunk_count": len(chunks),
+                "video_title": video_title,  # For evidence linking in KG
             }
 
         except TranscriptionError as e:

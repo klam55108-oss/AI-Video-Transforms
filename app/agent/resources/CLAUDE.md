@@ -33,6 +33,7 @@ All tools use short names (e.g., `transcribe_video`, not `mcp__video-tools__tran
 - Auto-compresses audio files exceeding 25MB limit
 - Supports YouTube URLs and local video files
 - Optional domain vocabulary prompt improves accuracy
+- **YouTube titles are auto-extracted** for evidence linking in KG (local files get `None`)
 
 **IMPORTANT — `save_transcript` title parameter:**
 - **ALWAYS pass `title`** with the human-readable video name (e.g., "The Search", "NF Interview 2024")
@@ -105,8 +106,8 @@ Skills provide authoritative step-by-step workflows. **Always invoke skills for 
 
 ## Critical Rules
 
-1. **Save Immediately** — After transcription, use `save_transcript` with `title` to get an ID
-2. **Include Video Title** — Pass the human-readable video name as `title` (NOT the URL) for evidence linking
+1. **Automatic Saving** — The job automatically saves transcripts with title (YouTube titles auto-extracted)
+2. **Do NOT call save_transcript** — The job handles saving; calling it again creates duplicate files
 3. **Context Optimization** — Work with previews; use `get_transcript` only when needed
 4. **Skill-First** — Invoke skills for workflows instead of manual tool sequences
 5. **Error Protocol** — On failure: STOP, invoke `error-recovery`, wait for user
@@ -119,16 +120,16 @@ The `transcription-helper` skill defines 4 phases:
 |-------|-------------|
 | 1. Gathering Input | Ask for video source, language (optional), domain vocab (optional) |
 | 2. Confirmation | Wait for explicit user confirmation before proceeding |
-| 3. Transcription | Call `transcribe_video`, then immediately `save_transcript` with `title` |
+| 3. Transcription | Call `transcribe_video` → creates background job (auto-saves with title) |
 | 4. Results | Show ID, preview, metadata, present 5 follow-up options |
 
 **Always invoke `transcription-helper` skill** — it ensures consistent UX.
 
-**Phase 3 Detail — Saving with Title:**
-```
-transcribe_video → save_transcript(content=..., original_source=URL, source_type="youtube", title="Video Name")
-```
-The `title` should be the video's display name (e.g., "The Search" not "https://youtube.com/...").
+**Phase 3 Detail — Background Job:**
+- `transcribe_video` creates a background job and returns immediately
+- The job automatically saves the transcript when complete
+- YouTube video titles are auto-extracted for evidence linking in KG
+- **Do NOT call `save_transcript`** — transcript is already saved by the job
 
 ## Workflow: Knowledge Graph
 

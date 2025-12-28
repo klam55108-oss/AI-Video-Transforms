@@ -649,3 +649,162 @@ class TestTranscribeVideoTool:
 
         assert result["success"] is False
         assert "error" in result
+
+
+# =============================================================================
+# Video Title Extraction Tests
+# =============================================================================
+
+
+class TestVideoTitleExtraction:
+    """Tests for video_title extraction from YouTube URLs.
+
+    Title extraction only works for YouTube videos (via yt-dlp).
+    Local files do not have titles extracted and return None.
+    """
+
+    def test_youtube_download_returns_video_title(self, temp_storage_dir: Path) -> None:
+        """Verify _download_youtube_audio returns title from yt-dlp info."""
+        mock_info = {
+            "title": "Test Video Title",
+            "duration": 120,
+        }
+
+        mock_ydl = MagicMock()
+        mock_ydl.extract_info.return_value = mock_info
+        mock_ydl.prepare_filename.return_value = str(temp_storage_dir / "Test Video Title.mp3")
+
+        # Create the expected output file
+        output_file = temp_storage_dir / "Test Video Title.mp3"
+        output_file.write_bytes(b"fake audio")
+
+        with patch("app.agent.transcribe_tool.YOUTUBE_SUPPORT", True):
+            with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
+                with patch("app.agent.transcribe_tool.yt_dlp.YoutubeDL") as mock_ydl_class:
+                    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+
+                    from app.agent.transcribe_tool import _download_youtube_audio
+
+                    audio_path, video_title = _download_youtube_audio(
+                        "https://youtube.com/watch?v=test123",
+                        str(temp_storage_dir),
+                    )
+
+        assert video_title == "Test Video Title"
+        assert audio_path.endswith(".mp3")
+
+    def test_youtube_download_returns_none_when_title_missing(
+        self, temp_storage_dir: Path
+    ) -> None:
+        """Verify _download_youtube_audio returns None if yt-dlp has no title."""
+        mock_info = {
+            "duration": 120,
+            # No 'title' key
+        }
+
+        mock_ydl = MagicMock()
+        mock_ydl.extract_info.return_value = mock_info
+        mock_ydl.prepare_filename.return_value = str(temp_storage_dir / "video.mp3")
+
+        output_file = temp_storage_dir / "video.mp3"
+        output_file.write_bytes(b"fake audio")
+
+        with patch("app.agent.transcribe_tool.YOUTUBE_SUPPORT", True):
+            with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
+                with patch("app.agent.transcribe_tool.yt_dlp.YoutubeDL") as mock_ydl_class:
+                    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+
+                    from app.agent.transcribe_tool import _download_youtube_audio
+
+                    audio_path, video_title = _download_youtube_audio(
+                        "https://youtube.com/watch?v=test123",
+                        str(temp_storage_dir),
+                    )
+
+        assert video_title is None
+
+    def test_local_file_transcription_has_no_video_title(
+        self, temp_storage_dir: Path
+    ) -> None:
+        """Verify local file transcription returns None for video_title.
+
+        Title extraction only works for YouTube videos. Local files
+        do not have a title extracted automatically.
+        """
+        audio_path = temp_storage_dir / "video_audio.mp3"
+        audio_path.write_bytes(b"fake audio data")
+
+        mock_response = MagicMock()
+        mock_response.text = "Transcribed text from local file"
+
+        mock_client = MagicMock()
+        mock_client.audio.transcriptions.create.return_value = mock_response
+
+        mock_audio = MagicMock()
+        mock_audio.__len__.return_value = 600 * 1000  # 10 minutes
+        mock_audio.set_frame_rate.return_value = mock_audio
+        mock_audio.set_channels.return_value = mock_audio
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("app.agent.transcribe_tool.load_dotenv"):
+                with patch("os.path.exists", return_value=True):
+                    with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
+                        with patch(
+                            "app.agent.transcribe_tool._extract_audio_from_video",
+                            return_value=str(audio_path),
+                        ):
+                            with patch(
+                                "app.agent.transcribe_tool.OpenAI",
+                                return_value=mock_client,
+                            ):
+                                with patch(
+                                    "app.agent.transcribe_tool.AudioSegment.from_file",
+                                    return_value=mock_audio,
+                                ):
+                                    result = _perform_transcription("/path/to/video.mp4")
+
+        assert result["success"] is True
+        assert "video_title" in result
+        assert result["video_title"] is None  # Local files don't have titles
+
+    def test_youtube_transcription_includes_video_title(
+        self, temp_storage_dir: Path
+    ) -> None:
+        """Verify YouTube transcription result includes video_title."""
+        audio_path = temp_storage_dir / "Test Video.mp3"
+        audio_path.write_bytes(b"fake audio data")
+
+        mock_response = MagicMock()
+        mock_response.text = "Transcribed text from YouTube"
+
+        mock_client = MagicMock()
+        mock_client.audio.transcriptions.create.return_value = mock_response
+
+        mock_audio = MagicMock()
+        mock_audio.__len__.return_value = 600 * 1000  # 10 minutes
+        mock_audio.set_frame_rate.return_value = mock_audio
+        mock_audio.set_channels.return_value = mock_audio
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            with patch("app.agent.transcribe_tool.load_dotenv"):
+                with patch("app.agent.transcribe_tool.YOUTUBE_SUPPORT", True):
+                    with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
+                        with patch(
+                            "app.agent.transcribe_tool._download_youtube_audio",
+                            return_value=(str(audio_path), "My YouTube Video Title"),
+                        ):
+                            with patch(
+                                "app.agent.transcribe_tool.OpenAI",
+                                return_value=mock_client,
+                            ):
+                                with patch(
+                                    "app.agent.transcribe_tool.AudioSegment.from_file",
+                                    return_value=mock_audio,
+                                ):
+                                    result = _perform_transcription(
+                                        "https://youtube.com/watch?v=abc123"
+                                    )
+
+        assert result["success"] is True
+        assert result["video_title"] == "My YouTube Video Title"
+        assert result["source_type"] == "youtube"

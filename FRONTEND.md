@@ -291,6 +291,7 @@ export function refreshAuditStats();
 - Tool duration timing display
 - Session-filtered view with pagination
 - Aggregate statistics (tools invoked, blocked, success rate)
+- Badge hidden when panel is closed (consistent with Jobs panel)
 
 **Event Display**: Each audit entry shows:
 - Timestamp with relative time formatting
@@ -445,6 +446,7 @@ export function parseSuggestionBlocks(text);           // Extract suggestion pat
 - Parses agent markdown for insight suggestion patterns
 - Renders interactive suggestion cards with icons and descriptions
 - Click-to-send: clicking a card sends the suggestion to chat
+- Hover tooltip shows full query text (via `title` attribute)
 - Smooth animations on hover with theme-aware colors
 
 **Card Structure**:
