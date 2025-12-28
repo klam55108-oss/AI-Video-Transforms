@@ -4,7 +4,7 @@
 // Handles sidebar panel rendering and real-time audit event display
 
 import { state } from '../core/state.js';
-import { escapeHtml } from '../core/utils.js';
+import { escapeHtml, formatDuration } from '../core/utils.js';
 import { fetchAuditStats, fetchSessionAuditLog, fetchAuditSessions, triggerAuditCleanup } from './api.js';
 
 // ============================================
@@ -287,28 +287,6 @@ function formatTimestamp(timestamp) {
     if (diffSecs < 86400) return `${Math.floor(diffSecs / 3600)}h ago`;
 
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
-/**
- * Format duration in seconds for human readability.
- * @param {number} durationMs - Duration in milliseconds
- * @returns {string} Formatted duration (e.g., "0.5s", "1.2s", "15s")
- */
-function formatDuration(durationMs) {
-    if (!durationMs && durationMs !== 0) return '';
-
-    const seconds = durationMs / 1000;
-
-    // For very short durations (< 0.1s), show one decimal
-    if (seconds < 0.1) {
-        return `${seconds.toFixed(2)}s`;
-    }
-    // For durations under 10s, show one decimal
-    if (seconds < 10) {
-        return `${seconds.toFixed(1)}s`;
-    }
-    // For longer durations, show whole seconds
-    return `${Math.round(seconds)}s`;
 }
 
 function renderAuditStats(stats) {
