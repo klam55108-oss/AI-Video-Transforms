@@ -58,7 +58,8 @@ app/static/js/
     ├── graph.js         # Cytoscape.js integration
     ├── search.js        # Graph search functionality
     ├── inspector.js     # Node inspector panel
-    └── evidence.js      # Node evidence/citation viewer
+    ├── evidence.js      # Node evidence/citation viewer
+    └── suggestions.js   # Interactive insight suggestion cards
 ```
 
 ---
@@ -430,6 +431,36 @@ export function renderEvidenceSection(evidence);
 | Technology | Cyan (#06b6d4) |
 | Product, Object | Pink (#ec4899) |
 
+#### `kg/suggestions.js`
+Interactive suggestion cards for KG insights in agent messages.
+
+```javascript
+export function enhanceInsightMessage(messageEl);      // Parse and enhance insight sections
+export function createSuggestionCards(suggestions);    // Render clickable card grid
+export function parseSuggestionBlocks(text);           // Extract suggestion patterns from markdown
+```
+
+**Features**:
+- Parses agent markdown for insight suggestion patterns
+- Renders interactive suggestion cards with icons and descriptions
+- Click-to-send: clicking a card sends the suggestion to chat
+- Smooth animations on hover with theme-aware colors
+
+**Card Structure**:
+```html
+<div class="kg-suggestion-cards">
+    <button class="suggestion-card" onclick="sendMessage('Show me key players')">
+        <span class="icon">🌟</span>
+        <span class="title">Key Players</span>
+        <span class="desc">5 highly-connected entities</span>
+    </button>
+</div>
+```
+
+**Integration**: Called from `chat/messages.js` after markdown rendering to enhance agent responses with interactive elements.
+
+**Styling**: Cards use CSS Grid for responsive layout with hover effects defined in `style.css` (`.kg-suggestion-cards`, `.suggestion-card`).
+
 ---
 
 ## Dependency Graph
@@ -448,6 +479,7 @@ chat/messages.js
 ├── core/config.js (PURIFY_CONFIG)
 ├── core/utils.js (copyToClipboard)
 ├── ui/toast.js (showToast)
+├── kg/suggestions.js (enhanceInsightMessage)
 └── [CDN] window.marked, window.DOMPurify
 
 chat/send.js

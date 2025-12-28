@@ -88,6 +88,11 @@ class ExtractRequest(BaseModel):
     transcript: str = Field(..., min_length=1, description="Transcript content")
     title: str = Field(..., min_length=1, max_length=500, description="Source title")
     source_id: str = Field(..., min_length=1, max_length=50, description="Source ID")
+    transcript_id: str | None = Field(
+        default=None,
+        max_length=50,
+        description="Transcript ID (from save_transcript) for evidence linking",
+    )
 
 
 class ExportRequest(BaseModel):

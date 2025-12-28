@@ -114,9 +114,22 @@ Return valid JSON matching this schema:
 
 1. Use CONSISTENT labels — check Known Entities first
 2. Include confidence scores (0.0-1.0) for relationships
-3. Flag discoveries for new thing/connection types not in the lists above
-4. Be thorough but avoid over-extraction
-5. Capture cross-references to other content if apparent
+3. **CRITICAL: Include evidence quotes** — For each relationship, provide a supporting quote from the transcript (50-150 chars)
+4. Flag discoveries for new thing/connection types not in the lists above
+5. Be thorough but avoid over-extraction
+6. Capture cross-references to other content if apparent
+
+## Evidence Examples
+
+Good evidence for relationships:
+- "worked_for": `"Sidney Gottlieb, who directed the CIA's MK-Ultra program..."`
+- "mentioned_in": `"Fear is explored deeply in the song 'The Search'..."`
+- "connected_to": `"These themes of isolation connect directly to his childhood experiences..."`
+
+Evidence should be:
+- Direct quotes or close paraphrases from the transcript
+- 50-150 characters (enough context, not too long)
+- Specific enough to verify the relationship claim
 
 ---
 

@@ -490,3 +490,579 @@ class KnowledgeBase:
             "entity_types": entity_types,
             "relationship_types": relationship_types,
         }
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # INSIGHTS QUERIES
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    def _find_node_by_label(self, label: str) -> Node | None:
+        """
+        Find a node by label (case-insensitive).
+
+        Helper method for insights queries that need to resolve
+        user-provided entity names to node IDs.
+
+        Args:
+            label: The label to search for (case-insensitive)
+
+        Returns:
+            The Node if found, None otherwise
+        """
+        return self.get_node_by_label(label)
+
+    def get_key_entities(
+        self,
+        limit: int = 10,
+        method: str = "connections",
+        entity_type: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Find the most important entities in the graph.
+
+        Supports three ranking methods:
+        - "connections": Degree centrality (most relationships)
+        - "influence": PageRank (connected to important entities)
+        - "bridging": Betweenness centrality (connects groups)
+
+        Args:
+            limit: Maximum number of entities to return (default 10)
+            method: Ranking method - "connections", "influence", or "bridging"
+            entity_type: Optional filter by entity type
+
+        Returns:
+            List of dicts with {node_id, label, entity_type, score, why}
+        """
+        if len(self._nodes) == 0:
+            return []
+
+        # Get the undirected view for centrality calculations
+        undirected = self._graph.to_undirected()
+
+        # Calculate centrality based on method
+        if method == "influence":
+            try:
+                centrality = nx.pagerank(self._graph)
+            except nx.NetworkXError:
+                # PageRank can fail on empty graphs
+                centrality = {node_id: 0.0 for node_id in self._nodes}
+            why_template = "Influences {score:.0%} of the network through connections"
+        elif method == "bridging":
+            try:
+                centrality = nx.betweenness_centrality(undirected)
+            except nx.NetworkXError:
+                centrality = {node_id: 0.0 for node_id in self._nodes}
+            why_template = "Bridges {pct:.0%} of shortest paths between entities"
+        else:  # Default: connections (degree centrality)
+            centrality = dict(undirected.degree())
+            why_template = "Connected to {count} other entities"
+
+        # Build results with optional entity_type filter
+        results: list[dict[str, Any]] = []
+        for node_id, score in centrality.items():
+            node = self._nodes.get(node_id)
+            if not node:
+                continue
+
+            # Apply entity_type filter if specified
+            if entity_type and node.entity_type != entity_type:
+                continue
+
+            # Generate human-readable "why" explanation
+            if method == "connections":
+                why = why_template.format(count=int(score))
+            elif method == "bridging":
+                why = why_template.format(pct=score)
+            else:
+                why = why_template.format(score=score)
+
+            results.append({
+                "node_id": node_id,
+                "label": node.label,
+                "entity_type": node.entity_type,
+                "score": float(score),
+                "why": why,
+            })
+
+        # Sort by score descending and limit
+        results.sort(key=lambda x: x["score"], reverse=True)
+        return results[:limit]
+
+    def find_connection(
+        self,
+        entity_1: str,
+        entity_2: str,
+    ) -> dict[str, Any]:
+        """
+        Show how two entities connect via shortest path.
+
+        Uses NetworkX shortest_path on undirected graph to find
+        the most direct connection between two entities.
+
+        Args:
+            entity_1: Label of the first entity
+            entity_2: Label of the second entity
+
+        Returns:
+            Dict with {connected, steps, path, explanation}
+            Path items contain {entity, relationship, direction}
+        """
+        # Resolve labels to nodes
+        node1 = self._find_node_by_label(entity_1)
+        node2 = self._find_node_by_label(entity_2)
+
+        if not node1:
+            return {
+                "connected": False,
+                "steps": 0,
+                "path": [],
+                "explanation": f"Entity '{entity_1}' not found in graph",
+            }
+
+        if not node2:
+            return {
+                "connected": False,
+                "steps": 0,
+                "path": [],
+                "explanation": f"Entity '{entity_2}' not found in graph",
+            }
+
+        if node1.id == node2.id:
+            return {
+                "connected": True,
+                "steps": 0,
+                "path": [{"entity": node1.label, "relationship": None, "direction": None}],
+                "explanation": "Same entity",
+            }
+
+        # Find shortest path on undirected graph
+        undirected = self._graph.to_undirected()
+        try:
+            path_ids = nx.shortest_path(undirected, node1.id, node2.id)
+        except nx.NetworkXNoPath:
+            return {
+                "connected": False,
+                "steps": 0,
+                "path": [],
+                "explanation": f"No connection found between '{entity_1}' and '{entity_2}'",
+            }
+
+        # Build detailed path with relationships
+        path_details: list[dict[str, Any]] = []
+        for i, node_id in enumerate(path_ids):
+            node = self._nodes.get(node_id)
+            if not node:
+                continue
+
+            path_item: dict[str, Any] = {
+                "entity": node.label,
+                "relationship": None,
+                "direction": None,
+            }
+
+            # Add relationship info for edges (not the last node)
+            if i < len(path_ids) - 1:
+                next_id = path_ids[i + 1]
+                # Check forward edge
+                edge = self.get_edge_between(node_id, next_id)
+                if edge:
+                    rel_types = edge.get_relationship_types()
+                    path_item["relationship"] = rel_types[0] if rel_types else "connected"
+                    path_item["direction"] = "outgoing"
+                else:
+                    # Check reverse edge
+                    edge = self.get_edge_between(next_id, node_id)
+                    if edge:
+                        rel_types = edge.get_relationship_types()
+                        path_item["relationship"] = rel_types[0] if rel_types else "connected"
+                        path_item["direction"] = "incoming"
+
+            path_details.append(path_item)
+
+        steps = len(path_ids) - 1
+        explanation = f"Connected through {steps} step{'s' if steps != 1 else ''}"
+
+        return {
+            "connected": True,
+            "steps": steps,
+            "path": path_details,
+            "explanation": explanation,
+        }
+
+    def find_common_ground(
+        self,
+        entity_1: str,
+        entity_2: str,
+    ) -> list[dict[str, Any]]:
+        """
+        Find shared neighbors between two entities.
+
+        Identifies entities that both entity_1 and entity_2
+        are directly connected to.
+
+        Args:
+            entity_1: Label of the first entity
+            entity_2: Label of the second entity
+
+        Returns:
+            List of shared connections with explanation
+        """
+        node1 = self._find_node_by_label(entity_1)
+        node2 = self._find_node_by_label(entity_2)
+
+        if not node1 or not node2:
+            return []
+
+        # Get neighbors of both nodes
+        neighbors1 = set(n.id for n in self.get_neighbors(node1.id))
+        neighbors2 = set(n.id for n in self.get_neighbors(node2.id))
+
+        # Find intersection
+        common_ids = neighbors1 & neighbors2
+
+        results: list[dict[str, Any]] = []
+        for common_id in common_ids:
+            common_node = self._nodes.get(common_id)
+            if not common_node:
+                continue
+
+            # Describe the relationships
+            rel1 = self._describe_relationship(node1.id, common_id)
+            rel2 = self._describe_relationship(node2.id, common_id)
+
+            results.append({
+                "entity": common_node.label,
+                "entity_type": common_node.entity_type,
+                "connection_to_first": rel1,
+                "connection_to_second": rel2,
+                "explanation": f"Both {entity_1} and {entity_2} are connected to {common_node.label}",
+            })
+
+        return results
+
+    def _describe_relationship(self, from_id: str, to_id: str) -> str:
+        """
+        Get a text description of the relationship between two nodes.
+
+        Args:
+            from_id: Source node ID
+            to_id: Target node ID
+
+        Returns:
+            Description string like "worked_for (outgoing)" or "unknown"
+        """
+        # Check forward edge
+        edge = self.get_edge_between(from_id, to_id)
+        if edge:
+            types = edge.get_relationship_types()
+            return f"{types[0]} (outgoing)" if types else "connected (outgoing)"
+
+        # Check reverse edge
+        edge = self.get_edge_between(to_id, from_id)
+        if edge:
+            types = edge.get_relationship_types()
+            return f"{types[0]} (incoming)" if types else "connected (incoming)"
+
+        return "connected"
+
+    def discover_groups(self) -> list[dict[str, Any]]:
+        """
+        Discover clusters of related entities using community detection.
+
+        Uses Louvain community detection algorithm on the undirected
+        graph to find groups of closely connected entities.
+
+        Returns:
+            List of groups with {name, entities, size, sample}
+            Name is derived from the most connected entity in each group
+        """
+        if len(self._nodes) == 0:
+            return []
+
+        undirected = self._graph.to_undirected()
+
+        # Handle disconnected graphs by only analyzing largest component
+        if not nx.is_connected(undirected):
+            # Get all connected components
+            components = list(nx.connected_components(undirected))
+            if not components:
+                return []
+            # Use largest component for community detection
+            largest = max(components, key=len)
+            undirected = undirected.subgraph(largest).copy()
+
+        if len(undirected.nodes()) < 2:
+            # Single node or empty - return as one group
+            if len(undirected.nodes()) == 1:
+                node_id = list(undirected.nodes())[0]
+                node = self._nodes.get(node_id)
+                if node:
+                    return [{
+                        "name": f"{node.label} group",
+                        "entities": [node.label],
+                        "size": 1,
+                        "sample": [node.label],
+                    }]
+            return []
+
+        try:
+            communities = nx.community.louvain_communities(undirected, seed=42)
+        except Exception:
+            # Fallback if Louvain fails
+            return []
+
+        results: list[dict[str, Any]] = []
+        for community in communities:
+            # Get node labels for this community
+            entities = []
+            best_node = None
+            best_degree = -1
+
+            for node_id in community:
+                node = self._nodes.get(node_id)
+                if node:
+                    entities.append(node.label)
+                    degree = undirected.degree(node_id)
+                    if degree > best_degree:
+                        best_degree = degree
+                        best_node = node
+
+            if not entities:
+                continue
+
+            # Name group after most connected entity
+            group_name = f"{best_node.label} group" if best_node else "Unknown group"
+
+            results.append({
+                "name": group_name,
+                "entities": entities,
+                "size": len(entities),
+                "sample": entities[:5],  # First 5 as sample
+            })
+
+        # Sort by size descending
+        results.sort(key=lambda x: x["size"], reverse=True)
+        return results
+
+    def find_isolated_topics(self) -> list[dict[str, Any]]:
+        """
+        Find isolated groups with no connection to the main graph.
+
+        Uses connected_components on undirected view to identify
+        disconnected subgraphs that might represent separate topics.
+
+        Returns:
+            List of isolated groups (all components except the largest)
+        """
+        if len(self._nodes) == 0:
+            return []
+
+        undirected = self._graph.to_undirected()
+        components = list(nx.connected_components(undirected))
+
+        if len(components) <= 1:
+            return []  # No isolated groups
+
+        # Sort by size, largest first
+        components.sort(key=len, reverse=True)
+
+        # Skip the main (largest) component, return the rest as "isolated"
+        results: list[dict[str, Any]] = []
+        for component in components[1:]:  # Skip first (main) component
+            entities = []
+            for node_id in component:
+                node = self._nodes.get(node_id)
+                if node:
+                    entities.append(node.label)
+
+            if entities:
+                results.append({
+                    "entities": entities,
+                    "size": len(entities),
+                    "sample": entities[:5],
+                    "explanation": f"Group of {len(entities)} entities disconnected from main graph",
+                })
+
+        return results
+
+    def get_mentions(self, entity: str) -> list[dict[str, Any]]:
+        """
+        Find where an entity appears in sources.
+
+        Looks at the node's source_ids and cross-references with
+        stored Source objects to provide provenance information.
+
+        Args:
+            entity: Label of the entity to look up
+
+        Returns:
+            List of {source_title, source_type, mention_count}
+        """
+        node = self._find_node_by_label(entity)
+        if not node:
+            return []
+
+        results: list[dict[str, Any]] = []
+        for source_id in node.source_ids:
+            source = self._sources.get(source_id)
+            if source:
+                results.append({
+                    "source_id": source.id,
+                    "source_title": source.title,
+                    "source_type": source.source_type.value,
+                    "mention_count": 1,  # Each source_id represents one mention
+                })
+            else:
+                # Source not found but ID is tracked
+                results.append({
+                    "source_id": source_id,
+                    "source_title": f"Source {source_id}",
+                    "source_type": "unknown",
+                    "mention_count": 1,
+                })
+
+        return results
+
+    def get_evidence(
+        self,
+        entity_1: str,
+        entity_2: str,
+    ) -> list[dict[str, Any]]:
+        """
+        Get actual quotes/evidence for relationships between entities.
+
+        Retrieves the evidence field from RelationshipDetails on
+        edges connecting the two entities.
+
+        Args:
+            entity_1: Label of the first entity
+            entity_2: Label of the second entity
+
+        Returns:
+            List of {relationship_type, quote, source_title, confidence}
+        """
+        node1 = self._find_node_by_label(entity_1)
+        node2 = self._find_node_by_label(entity_2)
+
+        if not node1 or not node2:
+            return []
+
+        results: list[dict[str, Any]] = []
+
+        # Check edge in both directions
+        for source_id, target_id in [(node1.id, node2.id), (node2.id, node1.id)]:
+            edge = self.get_edge_between(source_id, target_id)
+            if not edge:
+                continue
+
+            for rel in edge.relationships:
+                source = self._sources.get(rel.source_id)
+                source_title = source.title if source else f"Source {rel.source_id}"
+
+                results.append({
+                    "relationship_type": rel.relationship_type,
+                    "quote": rel.evidence,
+                    "source_title": source_title,
+                    "source_id": rel.source_id,
+                    "confidence": rel.confidence,
+                })
+
+        return results
+
+    def get_smart_suggestions(self) -> list[dict[str, Any]]:
+        """
+        Analyze the graph and suggest what to explore next.
+
+        This is the "Power Query" that generates intelligent
+        exploration suggestions based on graph structure.
+
+        Checks:
+        - Graph size and density
+        - Most connected entities
+        - Isolated groups
+        - Entity type distribution
+        - Underexplored relationships
+
+        Returns:
+            List of {question, why, action, priority} suggestions
+        """
+        suggestions: list[dict[str, Any]] = []
+        stats = self.stats()
+
+        node_count = stats["node_count"]
+        edge_count = stats["edge_count"]
+        entity_types = stats["entity_types"]
+
+        # Check if graph is empty
+        if node_count == 0:
+            suggestions.append({
+                "question": "What content should we analyze first?",
+                "why": "Your knowledge graph is empty",
+                "action": "bootstrap",
+                "priority": "high",
+            })
+            return suggestions
+
+        # Find key entities to suggest exploration
+        key_entities = self.get_key_entities(limit=3, method="connections")
+        if key_entities:
+            top_entity = key_entities[0]
+            suggestions.append({
+                "question": f"Who or what is connected to {top_entity['label']}?",
+                "why": f"{top_entity['label']} is the most connected entity ({top_entity['why']})",
+                "action": "explore_entity",
+                "action_params": {"entity": top_entity["label"]},
+                "priority": "high",
+            })
+
+        # Check for isolated topics
+        isolated = self.find_isolated_topics()
+        if isolated:
+            first_isolated = isolated[0]
+            sample = first_isolated["sample"][0] if first_isolated["sample"] else "unknown"
+            suggestions.append({
+                "question": f"How does {sample} connect to the main graph?",
+                "why": f"Found {len(isolated)} isolated group(s) disconnected from the main network",
+                "action": "find_connection",
+                "action_params": {"isolated_group": first_isolated["entities"]},
+                "priority": "medium",
+            })
+
+        # Check entity type distribution for imbalances
+        if entity_types:
+            type_counts = list(entity_types.items())
+            type_counts.sort(key=lambda x: x[1], reverse=True)
+            most_common = type_counts[0]
+            if len(type_counts) > 1:
+                least_common = type_counts[-1]
+                if most_common[1] > 3 * least_common[1]:
+                    suggestions.append({
+                        "question": f"Are there more {least_common[0]} entities to discover?",
+                        "why": f"Only {least_common[1]} {least_common[0]} vs {most_common[1]} {most_common[0]}",
+                        "action": "explore_type",
+                        "action_params": {"entity_type": least_common[0]},
+                        "priority": "low",
+                    })
+
+        # Suggest exploring relationships if graph is sparse
+        if node_count > 5 and edge_count < node_count:
+            suggestions.append({
+                "question": "What relationships are we missing?",
+                "why": f"Only {edge_count} connections between {node_count} entities (sparse graph)",
+                "action": "discover_relationships",
+                "priority": "medium",
+            })
+
+        # Suggest community analysis for larger graphs
+        if node_count >= 10:
+            suggestions.append({
+                "question": "What groups or clusters exist in this data?",
+                "why": f"Graph has {node_count} entities - community detection may reveal structure",
+                "action": "discover_groups",
+                "priority": "low",
+            })
+
+        # Sort by priority
+        priority_order = {"high": 0, "medium": 1, "low": 2}
+        suggestions.sort(key=lambda x: priority_order.get(x["priority"], 3))
+
+        return suggestions

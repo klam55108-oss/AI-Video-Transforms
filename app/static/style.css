@@ -5023,3 +5023,178 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
         box-shadow: 0 0 0 0 rgba(0, 217, 255, 0);
     }
 }
+
+/* ==============================================
+   KG INSIGHT SUGGESTION CARDS
+   Interactive cards for exploring knowledge graph insights
+   ============================================== */
+
+.kg-suggestion-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-3);
+    margin: var(--space-4) 0;
+}
+
+.suggestion-card {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-4);
+    border-radius: var(--radius-2xl);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-default);
+    cursor: pointer;
+    transition: border-color var(--duration-normal) var(--ease-out),
+                transform var(--duration-normal) var(--ease-out),
+                box-shadow var(--duration-normal) var(--ease-out);
+    text-align: left;
+}
+
+.suggestion-card:hover {
+    border-color: var(--accent-primary);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.suggestion-card:focus {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.suggestion-card:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.suggestion-card:active {
+    transform: translateY(0);
+}
+
+.suggestion-card .icon {
+    font-size: var(--text-2xl);
+    margin-bottom: var(--space-2);
+    line-height: var(--leading-none);
+}
+
+.suggestion-card .title {
+    font-family: var(--font-display);
+    font-weight: var(--font-semibold);
+    color: var(--text-primary);
+    font-size: var(--text-md);
+    margin-bottom: var(--space-1);
+    line-height: var(--leading-snug);
+}
+
+.suggestion-card .desc {
+    font-size: var(--text-base);
+    color: var(--text-secondary);
+    line-height: var(--leading-normal);
+}
+
+/* ==============================================
+   KG INSIGHT CALLOUT BOXES
+   "Why This Matters" sections in agent messages
+   ============================================== */
+
+.insight-why {
+    background: rgba(59, 130, 246, 0.08);
+    border-left: 3px solid var(--status-info);
+    padding: var(--space-3) var(--space-4);
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+    margin: var(--space-4) 0;
+    font-size: var(--text-md);
+    line-height: var(--leading-relaxed);
+}
+
+.insight-why strong {
+    color: var(--text-primary);
+    font-weight: var(--font-semibold);
+}
+
+/* Light theme insight callout */
+[data-theme="light"] .insight-why {
+    background: rgba(37, 99, 235, 0.06);
+}
+
+/* Light theme suggestion cards */
+[data-theme="light"] .suggestion-card {
+    background: var(--bg-elevated);
+    border-color: var(--border-default);
+}
+
+[data-theme="light"] .suggestion-card:hover {
+    border-color: var(--accent-primary);
+    box-shadow: var(--shadow-md);
+}
+
+/* Light theme stats bar */
+[data-theme="light"] .kg-stats-bar {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+}
+
+/* ==============================================
+   KG STATS SUMMARY BAR
+   Quick stats displayed at top of KG insights
+   ============================================== */
+
+.kg-stats-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-6);
+    padding: var(--space-3) var(--space-4);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-4);
+    font-size: var(--text-sm);
+}
+
+.kg-stats-bar span {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--text-tertiary);
+}
+
+.kg-stats-bar span strong {
+    color: var(--text-primary);
+    font-weight: var(--font-semibold);
+}
+
+/* ==============================================
+   KG INSIGHT CARDS - REDUCED MOTION SUPPORT
+   ============================================== */
+
+@media (prefers-reduced-motion: reduce) {
+    .suggestion-card {
+        transition: none;
+    }
+
+    .suggestion-card:hover {
+        transform: none;
+    }
+
+    .suggestion-card:active {
+        transform: none;
+    }
+}
+
+/* ==============================================
+   KG INSIGHT CARDS - MOBILE RESPONSIVENESS
+   ============================================== */
+
+@media (max-width: 640px) {
+    .kg-suggestion-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .kg-stats-bar {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+
+    .kg-stats-bar span {
+        justify-content: space-between;
+        width: 100%;
+    }
+}

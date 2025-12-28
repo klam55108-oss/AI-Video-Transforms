@@ -717,6 +717,7 @@ Call all bootstrap tools in order to build a complete domain profile.
         transcript: str,
         title: str,
         source_id: str,
+        transcript_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Extract entities and relationships from a transcript.
@@ -730,6 +731,7 @@ Call all bootstrap tools in order to build a complete domain profile.
             transcript: Full transcript text to extract from
             title: Title of the source content
             source_id: Unique identifier for this source
+            transcript_id: Optional transcript ID for evidence linking (from save_transcript)
 
         Returns:
             Dict with extraction statistics:
@@ -836,8 +838,13 @@ Call all bootstrap tools in order to build a complete domain profile.
             )
             raise ValueError("Extraction failed - no results returned from agent")
 
-        # Add source to KB
-        source = Source(id=source_id, title=title, source_type=SourceType.VIDEO)
+        # Add source to KB with transcript_id for evidence linking
+        source_metadata: dict[str, Any] = {}
+        if transcript_id:
+            source_metadata["transcript_id"] = transcript_id
+        source = Source(
+            id=source_id, title=title, source_type=SourceType.VIDEO, metadata=source_metadata
+        )
         kb.add_source(source)
 
         # Apply extraction results to KB
@@ -1332,6 +1339,25 @@ Call all bootstrap tools in order to build a complete domain profile.
             return None
 
         return kb.stats()
+
+    async def get_knowledge_base(self, project_id: str) -> KnowledgeBase | None:
+        """
+        Get the knowledge base for a project.
+
+        Loads the KnowledgeBase from disk if it exists. Used for
+        insight queries and graph analysis operations.
+
+        Args:
+            project_id: ID of the project
+
+        Returns:
+            KnowledgeBase if found, None otherwise
+        """
+        project = await self.get_project(project_id)
+        if not project or not project.kb_id:
+            return None
+
+        return load_knowledge_base(self.kb_path / project.kb_id)
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # CACHE MANAGEMENT

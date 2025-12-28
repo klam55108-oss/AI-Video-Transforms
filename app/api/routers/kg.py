@@ -340,6 +340,7 @@ async def extract_from_transcript(
         request.transcript,
         request.title,
         request.source_id,
+        request.transcript_id,
     )
 
     return {"status": "extracting", "project_id": project_id}
@@ -649,8 +650,11 @@ async def get_node_evidence(
         if not source:
             continue
 
+        # Use transcript_id from metadata if available, otherwise fall back to source_id
+        transcript_id = source.metadata.get("transcript_id") or source_id
+
         # Get plain text content
-        metadata = storage.get_transcript_metadata(source_id)
+        metadata = storage.get_transcript_metadata(transcript_id)
         if not metadata:
             continue
 

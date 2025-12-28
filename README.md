@@ -7,7 +7,7 @@
 > AI agent that transforms videos into searchable transcripts and knowledge graphs.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-688%20passing-brightgreen.svg)](#development)
+[![Tests](https://img.shields.io/badge/tests-727%20passing-brightgreen.svg)](#development)
 [![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#development)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -47,6 +47,7 @@ docker-compose up -d
 | **Video Transcription** | Local videos and YouTube URLs via gpt-4o-transcribe with domain vocabulary prompts |
 | **Background Jobs** | Async job queue with persistence, restart recovery, cancel/retry, step progress UI |
 | **Knowledge Graphs** | Auto-bootstrap domain schemas, extract entities/relationships with source citations |
+| **Graph Insights** | Natural language queries: find key players, trace connections, discover clusters |
 | **Graph Visualization** | Interactive Cytoscape.js with search, type filtering, node inspector, evidence panel |
 | **Transcript Library** | Save, search, export (TXT/JSON/SRT/VTT), and full-text viewer |
 | **Audit Trail** | Real-time tool usage logging, security blocking, session lifecycle tracking via SDK hooks |

@@ -54,6 +54,7 @@ class MockKnowledgeGraphService:
         transcript: str,
         title: str,
         source_id: str,
+        transcript_id: str | None = None,
     ) -> dict[str, Any]:
         """Mock extraction - tracks that it was called."""
         self.extract_called = True

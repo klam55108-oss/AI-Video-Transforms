@@ -12,6 +12,7 @@ import * as graph from './graph.js';
 import * as search from './search.js';
 import * as panel from './panel.js';
 import * as evidence from './evidence.js';
+import * as suggestions from './suggestions.js';
 
 // Resolve circular dependencies between graph and inspector
 graph.setInspectorModule(inspector);
@@ -55,6 +56,7 @@ export {
     updateDropdownFocus,
     clearDropdownFocus
 } from './panel.js';
+export { renderSuggestionCards, enhanceInsightMessage, isInsightMessage } from './suggestions.js';
 
 // Expose key functions to window for onclick handlers (temporary - will refactor to event delegation)
 window.kg_confirmKGDiscovery = actions.confirmKGDiscovery;
@@ -69,3 +71,6 @@ window.kg_deleteKGProject = panel.deleteKGProject;
 window.kg_loadKGProjects = panel.loadKGProjects;
 window.kg_selectKGProject = panel.selectKGProject;
 window.kg_toggleAdvanced = panel.toggleKGAdvanced;
+
+// Suggestion cards (for manual rendering if needed)
+window.renderSuggestionCards = suggestions.renderSuggestionCards;

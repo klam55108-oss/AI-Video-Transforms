@@ -61,12 +61,34 @@ Your Knowledge Graph is ready! Would you like me to:
 ### Step 5: Continue Building
 For subsequent transcripts on a bootstrapped project:
 - Use `extract_to_kg` directly (no re-bootstrap needed)
+- **IMPORTANT**: Always pass `transcript_id` to enable evidence linking
 - Show what was added vs. what already existed
 - Offer to continue with more transcripts
+
+## Tool Parameters
+
+### `extract_to_kg` (CRITICAL)
+When calling `extract_to_kg`, always include:
+- `project_id`: Target KG project ID
+- `transcript`: Full transcript text
+- `title`: Video/source title
+- `transcript_id`: **Required for evidence** — Use the ID returned by `save_transcript`
+
+```
+extract_to_kg(
+    project_id="abc123",
+    transcript="...",
+    title="Interview with CEO",
+    transcript_id="5da6b612"  ← from save_transcript result
+)
+```
+
+Without `transcript_id`, the graph inspector won't be able to show supporting evidence for entities.
 
 ## Critical Rules
 
 - A project MUST be bootstrapped before extraction
 - Bootstrap happens ONCE per project (first transcript only)
+- **Always pass `transcript_id`** when using `extract_to_kg`
 - Always show progress in chat — user shouldn't need to check sidebar
 - The sidebar syncs automatically, but chat is the primary interface
