@@ -33,6 +33,44 @@ export function formatFileSize(bytes) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/**
+ * Format duration in seconds for human readability.
+ * Converts milliseconds to a readable seconds format with adaptive precision.
+ *
+ * @param {number} durationMs - Duration in milliseconds
+ * @returns {string} Formatted duration (e.g., "0s", "<0.01s", "0.05s", "1.2s", "15s")
+ *
+ * @example
+ * formatDuration(0)      // → '0s'
+ * formatDuration(5)      // → '<0.01s'
+ * formatDuration(50)     // → '0.05s'
+ * formatDuration(1234)   // → '1.2s'
+ * formatDuration(15000)  // → '15s'
+ */
+export function formatDuration(durationMs) {
+    if (durationMs === null || durationMs === undefined) return '';
+
+    // Zero is a valid duration (instant/cached operations)
+    if (durationMs === 0) return '0s';
+
+    const seconds = durationMs / 1000;
+
+    // For sub-10ms durations, show "<0.01s" rather than misleading "0.00s"
+    if (seconds < 0.01) {
+        return '<0.01s';
+    }
+    // For durations 10-99ms, show two decimals (e.g., "0.05s")
+    if (seconds < 0.1) {
+        return `${seconds.toFixed(2)}s`;
+    }
+    // For durations 100ms-10s, show one decimal (e.g., "1.2s")
+    if (seconds < 10) {
+        return `${seconds.toFixed(1)}s`;
+    }
+    // For longer durations, show whole seconds (e.g., "15s")
+    return `${Math.round(seconds)}s`;
+}
+
 export function copyToClipboard(text) {
     if (navigator.clipboard && window.isSecureContext) {
         return navigator.clipboard.writeText(text);

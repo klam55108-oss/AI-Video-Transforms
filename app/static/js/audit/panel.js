@@ -4,7 +4,7 @@
 // Handles sidebar panel rendering and real-time audit event display
 
 import { state } from '../core/state.js';
-import { escapeHtml } from '../core/utils.js';
+import { escapeHtml, formatDuration } from '../core/utils.js';
 import { fetchAuditStats, fetchSessionAuditLog, fetchAuditSessions, triggerAuditCleanup } from './api.js';
 
 // ============================================
@@ -187,7 +187,7 @@ function renderAuditEventItem(entry) {
     const timestamp = formatTimestamp(entry.timestamp);
     const toolName = entry.tool_name ? escapeHtml(entry.tool_name) : '';
     const summary = entry.summary ? escapeHtml(entry.summary) : '';
-    const duration = entry.duration_ms ? `${Math.round(entry.duration_ms)}ms` : '';
+    const duration = formatDuration(entry.duration_ms);
 
     const blockedClass = entry.blocked ? 'audit-event-blocked' : '';
     const successClass = entry.success === false ? 'audit-event-failed' : '';
@@ -294,7 +294,7 @@ function renderAuditStats(stats) {
     if (!container) return;
 
     const avgDuration = stats.avg_tool_duration_ms
-        ? `${Math.round(stats.avg_tool_duration_ms)}ms`
+        ? formatDuration(stats.avg_tool_duration_ms)
         : '-';
 
     container.innerHTML = `
