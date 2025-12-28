@@ -156,6 +156,7 @@ class StorageService:
             created_at=datetime.fromisoformat(entry["created_at"]),
             file_size=entry["file_size"],
             session_id=entry.get("session_id"),
+            title=entry.get("title"),  # Include title in return for consistency
         )
 
     def list_transcripts(self) -> list[TranscriptMetadata]:
