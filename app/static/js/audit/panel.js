@@ -187,7 +187,7 @@ function renderAuditEventItem(entry) {
     const timestamp = formatTimestamp(entry.timestamp);
     const toolName = entry.tool_name ? escapeHtml(entry.tool_name) : '';
     const summary = entry.summary ? escapeHtml(entry.summary) : '';
-    const duration = entry.duration_ms ? `${Math.round(entry.duration_ms)}ms` : '';
+    const duration = formatDuration(entry.duration_ms);
 
     const blockedClass = entry.blocked ? 'audit-event-blocked' : '';
     const successClass = entry.success === false ? 'audit-event-failed' : '';
@@ -289,12 +289,34 @@ function formatTimestamp(timestamp) {
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+/**
+ * Format duration in seconds for human readability.
+ * @param {number} durationMs - Duration in milliseconds
+ * @returns {string} Formatted duration (e.g., "0.5s", "1.2s", "15s")
+ */
+function formatDuration(durationMs) {
+    if (!durationMs && durationMs !== 0) return '';
+
+    const seconds = durationMs / 1000;
+
+    // For very short durations (< 0.1s), show one decimal
+    if (seconds < 0.1) {
+        return `${seconds.toFixed(2)}s`;
+    }
+    // For durations under 10s, show one decimal
+    if (seconds < 10) {
+        return `${seconds.toFixed(1)}s`;
+    }
+    // For longer durations, show whole seconds
+    return `${Math.round(seconds)}s`;
+}
+
 function renderAuditStats(stats) {
     const container = getAuditStatsContainer();
     if (!container) return;
 
     const avgDuration = stats.avg_tool_duration_ms
-        ? `${Math.round(stats.avg_tool_duration_ms)}ms`
+        ? formatDuration(stats.avg_tool_duration_ms)
         : '-';
 
     container.innerHTML = `
