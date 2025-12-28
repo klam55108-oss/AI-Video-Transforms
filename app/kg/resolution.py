@@ -134,6 +134,7 @@ class ResolutionConfig(BaseModel):
         type_weight: Weight for entity type matching
         graph_weight: Weight for shared neighbors
         semantic_weight: Weight for semantic similarity (future, default 0)
+        max_candidates: Maximum candidates to return (memory safety for large graphs)
     """
 
     auto_merge_threshold: float = Field(default=0.9, ge=0.0, le=1.0)
@@ -143,6 +144,7 @@ class ResolutionConfig(BaseModel):
     type_weight: float = Field(default=0.2, ge=0.0, le=1.0)
     graph_weight: float = Field(default=0.15, ge=0.0, le=1.0)
     semantic_weight: float = Field(default=0.0, ge=0.0, le=1.0)
+    max_candidates: int = Field(default=1000, ge=1, description="Max candidates to return")
 
 
 # ============================================================================
@@ -236,6 +238,7 @@ def alias_overlap_score(aliases_a: list[str], aliases_b: list[str]) -> float:
     Jaccard = |A intersection B| / |A union B|
 
     Both sets are normalized using domain-agnostic normalization.
+    Empty strings are filtered out before and after normalization.
 
     Args:
         aliases_a: First list of aliases.
@@ -249,18 +252,23 @@ def alias_overlap_score(aliases_a: list[str], aliases_b: list[str]) -> float:
         0.333...
         >>> alias_overlap_score([], [])
         0.0
+        >>> alias_overlap_score(["", ""], ["", ""])
+        0.0
     """
-    if not aliases_a and not aliases_b:
-        return 0.0
+    # Normalize and filter empty strings in one pass
+    # This handles: empty lists, lists with only empty strings, and mixed cases
+    set_a = {
+        normalized
+        for a in aliases_a
+        if a and (normalized := normalize_entity_name(a))
+    }
+    set_b = {
+        normalized
+        for b in aliases_b
+        if b and (normalized := normalize_entity_name(b))
+    }
 
-    # Normalize using our domain-agnostic normalization
-    set_a = {normalize_entity_name(a) for a in aliases_a if a}
-    set_b = {normalize_entity_name(b) for b in aliases_b if b}
-
-    # Remove empty strings that may result from normalization
-    set_a.discard("")
-    set_b.discard("")
-
+    # Both sets empty after normalization means no valid aliases to compare
     if not set_a and not set_b:
         return 0.0
 
@@ -467,6 +475,7 @@ class EntityMatcher:
         min_confidence: float = 0.5,
         use_ngram_blocking: bool = True,
         min_shared_ngrams: int = 2,
+        max_candidates: int | None = None,
     ) -> list[ResolutionCandidate]:
         """
         Find potential duplicate pairs among a set of nodes.
@@ -481,11 +490,14 @@ class EntityMatcher:
             use_ngram_blocking: If True, use n-gram blocking (default).
                 If False, use first-character blocking (legacy).
             min_shared_ngrams: Minimum shared n-grams for blocking (default: 2).
+            max_candidates: Maximum candidates to return. Defaults to config value.
 
         Returns:
-            List of ResolutionCandidate objects sorted by confidence (desc).
+            List of ResolutionCandidate objects sorted by confidence (desc),
+            limited to max_candidates.
         """
         candidates: list[ResolutionCandidate] = []
+        limit = max_candidates if max_candidates is not None else self.config.max_candidates
 
         if use_ngram_blocking:
             # Use n-gram blocking for better accuracy
@@ -527,6 +539,6 @@ class EntityMatcher:
                             )
                             candidates.append(candidate)
 
-        # Sort by confidence descending
+        # Sort by confidence descending and limit results
         candidates.sort(key=lambda c: c.confidence, reverse=True)
-        return candidates
+        return candidates[:limit]

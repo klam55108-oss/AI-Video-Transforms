@@ -54,11 +54,11 @@ function formatSignals(signals) {
     }
 
     const signalLabels = {
-        fuzzy_label: 'Label Similarity',
-        alias_overlap: 'Alias Overlap',
-        type_match: 'Type Match',
-        shared_connections: 'Shared Connections',
-        description_similarity: 'Description Similarity'
+        string_sim: 'Label Similarity',
+        alias_sim: 'Alias Overlap',
+        type_sim: 'Type Match',
+        graph_sim: 'Shared Connections',
+        semantic_sim: 'Semantic Similarity'
     };
 
     return Object.entries(signals)

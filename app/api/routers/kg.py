@@ -644,14 +644,13 @@ async def merge_entities(
     merge_type = "agent" if session_id else "user"
 
     try:
-        # Note: request.request_id is available for future idempotency support
-        # but not yet passed to service layer (Phase 2C implementation)
         history = await kg_service.merge_entities(
             project_id=project_id,
             survivor_id=request.survivor_id,
             merged_id=request.merged_id,
             merge_type=merge_type,
             session_id=session_id,
+            request_id=request.request_id,
         )
         return history
     except ValueError as e:

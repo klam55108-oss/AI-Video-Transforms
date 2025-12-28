@@ -77,6 +77,8 @@ class MockKGService:
         merged_id: str,
         merge_type: str = "user",
         session_id: str | None = None,
+        request_id: str | None = None,
+        confidence: float = 1.0,
     ) -> MergeHistory:
         """Mock merge execution."""
         project = self.projects.get(project_id)

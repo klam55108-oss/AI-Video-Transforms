@@ -282,6 +282,8 @@ class MockKGService:
         merged_id: str,
         merge_type: str = "user",
         session_id: str | None = None,
+        request_id: str | None = None,
+        confidence: float = 1.0,
     ) -> MergeHistory:
         """Track merge call and return mock history."""
         self.last_merge_call = {
@@ -290,6 +292,7 @@ class MockKGService:
             "merged_id": merged_id,
             "merge_type": merge_type,
             "session_id": session_id,
+            "request_id": request_id,
         }
         return MergeHistory(
             survivor_id=survivor_id,
