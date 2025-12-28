@@ -33,6 +33,7 @@ All tools use short names (e.g., `transcribe_video`, not `mcp__video-tools__tran
 - Auto-compresses audio files exceeding 25MB limit
 - Supports YouTube URLs and local video files
 - Optional domain vocabulary prompt improves accuracy
+- **YouTube titles are auto-extracted** for evidence linking in KG (local files get `None`)
 
 **IMPORTANT — `save_transcript` title parameter:**
 - **ALWAYS pass `title`** with the human-readable video name (e.g., "The Search", "NF Interview 2024")

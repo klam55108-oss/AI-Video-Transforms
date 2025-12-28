@@ -157,7 +157,8 @@ function renderAuditEvents(entries, totalCount) {
     // Update badge (only show when panel is expanded)
     if (badge) {
         if (totalCount > 0 && isAuditPanelExpanded) {
-            badge.textContent = totalCount.toString();
+            // Cap at 9999+ to prevent UI overflow
+            badge.textContent = totalCount > 9999 ? '9999+' : totalCount.toString();
             badge.classList.remove('hidden');
         } else {
             badge.classList.add('hidden');

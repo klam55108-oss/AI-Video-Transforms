@@ -42,7 +42,8 @@ ONLY proceed after explicit confirmation ("yes", "proceed", "confirm", "go ahead
 2. The tool creates a **background job** and returns immediately with a job ID
 3. Tell user to monitor progress in the Jobs panel
 4. **DO NOT call `save_transcript`** — the job automatically saves the transcript when complete
-   - YouTube video titles are auto-extracted for evidence linking in KG
+   - **YouTube videos**: Title is auto-extracted from yt-dlp for evidence linking in KG
+   - **Local files**: No title is extracted (title will be `None`)
    - The transcript is registered with a unique ID automatically
 
 **IMPORTANT**: When the job completes, the system triggers Phase 4 directly.
