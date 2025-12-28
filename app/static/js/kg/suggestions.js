@@ -11,6 +11,19 @@ import { showToast } from '../ui/toast.js';
 // ============================================
 
 /**
+ * Debounce delay for suggestion card clicks (ms)
+ * Prevents accidental double-clicks from sending duplicate messages
+ * @type {number}
+ */
+const CARD_CLICK_DEBOUNCE_MS = 500;
+
+/**
+ * Tracks if a card click is currently being processed (debounce guard)
+ * @type {boolean}
+ */
+let isProcessingCardClick = false;
+
+/**
  * Patterns that indicate a message contains KG insight content
  * @type {RegExp[]}
  */
@@ -294,9 +307,10 @@ export function renderSuggestionCards(container, suggestions) {
         return;
     }
 
-    // Create grid container
+    // Create grid container with data attribute fallback for CSS selector reliability
     const grid = document.createElement('div');
     grid.className = 'kg-suggestion-cards';
+    grid.setAttribute('data-component', 'kg-suggestion-cards');
     grid.setAttribute('role', 'group');
     grid.setAttribute('aria-label', 'Suggested explorations');
 
@@ -305,6 +319,8 @@ export function renderSuggestionCards(container, suggestions) {
         const card = document.createElement('button');
         card.type = 'button';
         card.className = 'suggestion-card';
+        card.setAttribute('data-component', 'suggestion-card');
+        card.setAttribute('data-query', suggestion.query);
         card.setAttribute('tabindex', '0');
         card.setAttribute('aria-label', `Ask: ${suggestion.query}`);
 
@@ -319,8 +335,15 @@ export function renderSuggestionCards(container, suggestions) {
             ${safeDesc ? `<span class="desc">${safeDesc}</span>` : ''}
         `;
 
-        // Click handler sends the query with graceful degradation
+        // Click handler sends the query with graceful degradation and debouncing
         card.addEventListener('click', () => {
+            // Debounce guard: prevent rapid double-clicks
+            if (isProcessingCardClick) {
+                return;
+            }
+            isProcessingCardClick = true;
+            setTimeout(() => { isProcessingCardClick = false; }, CARD_CLICK_DEBOUNCE_MS);
+
             if (typeof window.sendMessage === 'function') {
                 window.sendMessage(suggestion.query);
             } else {
@@ -367,8 +390,8 @@ export function enhanceInsightMessage(messageEl) {
 
     // Find or create a container for the suggestion cards
     // We'll append after any existing content
-    // First, check if we already enhanced this message
-    if (messageEl.querySelector('.kg-suggestion-cards')) {
+    // First, check if we already enhanced this message (use data attribute as fallback)
+    if (messageEl.querySelector('.kg-suggestion-cards, [data-component="kg-suggestion-cards"]')) {
         return;
     }
 

@@ -12,7 +12,7 @@ Tool Return Format (per Claude Agent SDK):
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 from uuid import uuid4
 
 from claude_agent_sdk import tool
@@ -20,6 +20,35 @@ from claude_agent_sdk import tool
 if TYPE_CHECKING:
     from app.kg.knowledge_base import KnowledgeBase
     from app.services.kg_service import KnowledgeGraphService
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TypedDict Return Types for MCP Tool Handlers
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class MCPTextContent(TypedDict):
+    """A single text content item in MCP response."""
+
+    type: str  # Always "text"
+    text: str
+
+
+class MCPToolSuccess(TypedDict):
+    """Successful MCP tool response with content array."""
+
+    content: list[MCPTextContent]
+
+
+class MCPToolError(TypedDict):
+    """Error MCP tool response with success=False flag."""
+
+    success: bool  # Always False
+    error: str
+
+
+# Union type for handler return values
+MCPToolResponse = MCPToolSuccess | MCPToolError
 
 # Maximum entity name length for input validation (security)
 MAX_ENTITY_NAME_LENGTH = 500

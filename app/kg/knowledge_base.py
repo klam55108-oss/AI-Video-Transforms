@@ -26,6 +26,9 @@ import networkx as nx  # type: ignore[import-untyped]
 from app.kg.domain import DomainProfile
 from app.kg.models import Edge, Node, RelationshipDetail, Source
 
+# Constants for insights queries
+GROUP_SAMPLE_SIZE = 5  # Number of entities to show in group samples
+
 
 def _generate_id() -> str:
     """Generate a 12-character hex ID from UUID4."""
@@ -95,8 +98,30 @@ class KnowledgeBase:
         # NetworkX graph for algorithms
         self._graph: nx.DiGraph = nx.DiGraph()
 
+        # Cached undirected view (invalidated on graph modification)
+        self._undirected_cache: nx.Graph | None = None
+
         self.created_at = _utc_now()
         self.updated_at = _utc_now()
+
+    def _get_undirected(self) -> nx.Graph:
+        """
+        Get an undirected view of the graph, with caching.
+
+        The undirected view is cached and invalidated when the graph
+        is modified (add_node, add_edge). This avoids repeated O(V+E)
+        conversion for multiple insight queries.
+
+        Returns:
+            Undirected copy of the internal directed graph.
+        """
+        if self._undirected_cache is None:
+            self._undirected_cache = self._graph.to_undirected()
+        return self._undirected_cache
+
+    def _invalidate_undirected_cache(self) -> None:
+        """Invalidate the cached undirected view. Called when graph is modified."""
+        self._undirected_cache = None
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # NODE OPERATIONS
@@ -124,6 +149,7 @@ class KnowledgeBase:
 
         # Add to NetworkX graph with node data (including segment_ids)
         self._graph.add_node(node.id, **node.model_dump())
+        self._invalidate_undirected_cache()
         self.updated_at = _utc_now()
 
         return node
@@ -252,6 +278,7 @@ class KnowledgeBase:
             edge_id=edge.id,
             relationships=[r.relationship_type for r in edge.relationships],
         )
+        self._invalidate_undirected_cache()
 
         self.updated_at = _utc_now()
         return edge
@@ -535,8 +562,8 @@ class KnowledgeBase:
         if len(self._nodes) == 0:
             return []
 
-        # Cache the undirected view for centrality calculations (used by multiple methods)
-        undirected = self._graph.to_undirected()
+        # Use cached undirected view for centrality calculations
+        undirected = self._get_undirected()
 
         # Calculate centrality based on method
         if method == "influence":
@@ -639,8 +666,8 @@ class KnowledgeBase:
                 "explanation": "Same entity",
             }
 
-        # Find shortest path on undirected graph
-        undirected = self._graph.to_undirected()
+        # Find shortest path on undirected graph (uses cached view)
+        undirected = self._get_undirected()
         try:
             path_ids = nx.shortest_path(undirected, node1.id, node2.id)
         except nx.NetworkXNoPath:
@@ -789,7 +816,7 @@ class KnowledgeBase:
         if len(self._nodes) == 0:
             return []
 
-        undirected = self._graph.to_undirected()
+        undirected = self._get_undirected()
 
         # Handle disconnected graphs by only analyzing largest component
         if not nx.is_connected(undirected):
@@ -817,8 +844,9 @@ class KnowledgeBase:
 
         try:
             communities = nx.community.louvain_communities(undirected, seed=42)
-        except Exception:
-            # Fallback if Louvain fails
+        except (nx.NetworkXError, ValueError, ZeroDivisionError):
+            # Louvain can fail on graphs with no edges (NetworkXError),
+            # negative weights (ValueError), or empty modularity (ZeroDivisionError)
             return []
 
         results: list[dict[str, Any]] = []
@@ -847,7 +875,7 @@ class KnowledgeBase:
                 "name": group_name,
                 "entities": entities,
                 "size": len(entities),
-                "sample": entities[:5],  # First 5 as sample
+                "sample": entities[:GROUP_SAMPLE_SIZE],
             })
 
         # Sort by size descending
@@ -867,7 +895,7 @@ class KnowledgeBase:
         if len(self._nodes) == 0:
             return []
 
-        undirected = self._graph.to_undirected()
+        undirected = self._get_undirected()
         components = list(nx.connected_components(undirected))
 
         if len(components) <= 1:
@@ -889,7 +917,7 @@ class KnowledgeBase:
                 results.append({
                     "entities": entities,
                     "size": len(entities),
-                    "sample": entities[:5],
+                    "sample": entities[:GROUP_SAMPLE_SIZE],
                     "explanation": f"Group of {len(entities)} entities disconnected from main graph",
                 })
 

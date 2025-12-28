@@ -608,3 +608,93 @@ def test_large_graph_performance() -> None:
 
     suggestions = kb.get_smart_suggestions()
     assert len(suggestions) >= 1
+
+
+def test_transcript_id_evidence_linking() -> None:
+    """
+    Integration test: transcript_id flows from source to evidence.
+
+    Verifies that when a Source is created with a transcript_id,
+    the evidence linking chain works correctly:
+    Source(transcript_id) -> Node(source_ids) -> get_mentions() -> source_id
+    Source(transcript_id) -> Edge(source_id) -> get_evidence() -> source_id
+
+    This enables the frontend evidence panel to link back to original transcripts.
+    """
+    kb = KnowledgeBase(name="Evidence Linking KB")
+
+    # Create source WITH transcript_id in metadata (the key linkage)
+    # Source stores transcript_id in metadata dict for evidence linking
+    transcript_id = "tr_abc12345"
+    source = Source(
+        id="src_with_transcript",
+        title="Test Transcript",
+        source_type=SourceType.VIDEO,
+        metadata={"transcript_id": transcript_id},  # This is the critical field
+    )
+    kb.add_source(source)
+
+    # Add nodes linked to this source
+    node_a = Node(id="node_a", label="Entity A", entity_type="Person")
+    node_b = Node(id="node_b", label="Entity B", entity_type="Organization")
+    node_a.add_source(source.id)
+    node_b.add_source(source.id)
+    kb.add_node(node_a)
+    kb.add_node(node_b)
+
+    # Add edge with relationship detail referencing the source
+    edge = Edge(id="edge_ab", source_node_id="node_a", target_node_id="node_b")
+    edge.add_relationship(
+        RelationshipDetail(
+            relationship_type="works_for",
+            source_id=source.id,
+            confidence=0.95,
+            evidence="Entity A works for Entity B per the transcript",
+        )
+    )
+    kb.add_edge(edge)
+
+    # Test 1: get_mentions returns source_id that can be traced to transcript
+    mentions = kb.get_mentions("Entity A")
+    assert len(mentions) == 1
+    assert mentions[0]["source_id"] == source.id
+
+    # Verify the source has transcript_id in metadata for frontend linking
+    retrieved_source = kb.get_source(mentions[0]["source_id"])
+    assert retrieved_source is not None
+    assert retrieved_source.metadata.get("transcript_id") == transcript_id
+
+    # Test 2: get_evidence returns source_id that can be traced to transcript
+    evidence = kb.get_evidence("Entity A", "Entity B")
+    assert len(evidence) == 1
+    assert evidence[0]["source_id"] == source.id
+
+    # Verify chain: evidence -> source_id -> source -> transcript_id (in metadata)
+    evidence_source = kb.get_source(evidence[0]["source_id"])
+    assert evidence_source is not None
+    assert evidence_source.metadata.get("transcript_id") == transcript_id
+
+    # Test 3: Multiple sources with different transcript_ids in metadata
+    transcript_id_2 = "tr_xyz98765"
+    source_2 = Source(
+        id="src_with_transcript_2",
+        title="Second Transcript",
+        source_type=SourceType.VIDEO,
+        metadata={"transcript_id": transcript_id_2},
+    )
+    kb.add_source(source_2)
+    node_a.add_source(source_2.id)
+
+    # Now entity A should appear in both sources
+    mentions_multiple = kb.get_mentions("Entity A")
+    assert len(mentions_multiple) == 2
+
+    # Each mention should trace back to different transcripts via metadata
+    transcript_ids_found = set()
+    for mention in mentions_multiple:
+        src = kb.get_source(mention["source_id"])
+        if src and src.metadata.get("transcript_id"):
+            transcript_ids_found.add(src.metadata["transcript_id"])
+
+    assert transcript_id in transcript_ids_found
+    assert transcript_id_2 in transcript_ids_found
