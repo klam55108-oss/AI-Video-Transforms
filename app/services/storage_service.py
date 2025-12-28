@@ -124,6 +124,7 @@ class StorageService:
         original_source: str,
         source_type: SourceType,
         session_id: str | None = None,
+        title: str | None = None,
     ) -> TranscriptMetadata:
         """
         Register a transcript file in metadata.
@@ -133,6 +134,8 @@ class StorageService:
             original_source: YouTube URL or uploaded filename
             source_type: Video source type
             session_id: Optional link to originating session
+            title: Optional human-readable title (e.g., video name for YouTube)
+                   Used for evidence linking in knowledge graphs
 
         Returns:
             TranscriptMetadata model for the registered transcript
@@ -142,6 +145,7 @@ class StorageService:
             original_source=original_source,
             source_type=source_type.value,
             session_id=session_id,
+            title=title,
         )
 
         return TranscriptMetadata(

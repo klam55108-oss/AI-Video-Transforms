@@ -60,6 +60,7 @@ function getAuditPollInterval() {
 export function toggleAuditPanel() {
     const content = getAuditContent();
     const caret = getAuditCaret();
+    const badge = getAuditCountBadge();
 
     if (!content || !caret) return;
 
@@ -76,6 +77,8 @@ export function toggleAuditPanel() {
         content.classList.add('hidden');
         caret.classList.remove('open');
         stopAuditPolling();
+        // Hide badge when panel is closed (consistent with Jobs panel behavior)
+        if (badge) badge.classList.add('hidden');
     }
 }
 
@@ -151,10 +154,10 @@ function renderAuditEvents(entries, totalCount) {
 
     if (!eventsList) return;
 
-    // Update badge
+    // Update badge (only show when panel is expanded)
     if (badge) {
-        if (totalCount > 0) {
-            badge.textContent = totalCount > 99 ? '99+' : totalCount;
+        if (totalCount > 0 && isAuditPanelExpanded) {
+            badge.textContent = totalCount.toString();
             badge.classList.remove('hidden');
         } else {
             badge.classList.add('hidden');

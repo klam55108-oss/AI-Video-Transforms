@@ -464,6 +464,8 @@ class JobQueueService:
         # Save transcript to library
         transcription_text = result["transcription"]
         source_type = SourceType.YOUTUBE if is_youtube else SourceType.LOCAL
+        # Capture video title for evidence linking in KG (auto-extracted from YouTube)
+        video_title = result.get("video_title")
 
         # Get services
         from app.services import get_services
@@ -477,13 +479,14 @@ class JobQueueService:
             temp_file_path.write_text(transcription_text, encoding="utf-8")
             output_file = str(temp_file_path)
 
-        # Save transcript via TranscriptionService
+        # Save transcript via TranscriptionService (includes title for KG evidence linking)
         transcription_service = get_services().transcription
         transcript_metadata = await transcription_service.save_transcript(
             file_path=output_file,
             original_source=video_source,
             source_type=source_type,
             session_id=session_id,
+            title=video_title,
         )
 
         # Note: Do NOT delete the transcript file - save_transcript() registers

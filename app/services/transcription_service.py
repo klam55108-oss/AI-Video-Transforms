@@ -40,6 +40,7 @@ class TranscriptionService:
         original_source: str,
         source_type: SourceType,
         session_id: str | None = None,
+        title: str | None = None,
     ) -> TranscriptMetadata:
         """
         Save and register a transcript.
@@ -49,6 +50,8 @@ class TranscriptionService:
             original_source: YouTube URL or uploaded filename
             source_type: Video source type
             session_id: Optional link to originating session
+            title: Optional human-readable title (e.g., video name for YouTube)
+                   Used for evidence linking in knowledge graphs
 
         Returns:
             TranscriptMetadata for the saved transcript
@@ -69,6 +72,7 @@ class TranscriptionService:
             original_source=original_source,
             source_type=source_type,
             session_id=session_id,
+            title=title,
         )
 
         logger.info(f"Transcript registered with ID: {metadata.id}")
