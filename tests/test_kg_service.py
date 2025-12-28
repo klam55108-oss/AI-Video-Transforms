@@ -930,3 +930,176 @@ class TestExtractMarkedContent:
         result = _extract_marked_content(content, "__TEST_MARKER__:")
         assert result is not None
         assert result["level1"]["level2"]["level3"]["nested_str"] == "deeply nested"
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# FIND TRANSCRIPT BY TITLE TESTS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestFindTranscriptByTitle:
+    """Tests for _find_transcript_by_title method.
+
+    The method uses the 'title' field in TranscriptMetadata to match,
+    which is populated by save_transcript when the agent provides a title.
+    """
+
+    @staticmethod
+    def _mock_transcript(id: str, title: str | None) -> MagicMock:
+        """Create a mock TranscriptMetadata with id and title."""
+        t = MagicMock()
+        t.id = id
+        t.title = title
+        return t
+
+    def test_exact_match_found(self, kg_service: KnowledgeGraphService) -> None:
+        """Test exact title match returns correct transcript_id."""
+        mock_transcript = self._mock_transcript("abc12345", "My Video Title")
+
+        mock_storage = MagicMock()
+        mock_storage.list_transcripts.return_value = [mock_transcript]
+
+        with patch("app.services.get_services") as mock_get_services:
+            mock_services = MagicMock()
+            mock_services.storage = mock_storage
+            mock_get_services.return_value = mock_services
+
+            result = kg_service._find_transcript_by_title("My Video Title")
+            assert result == "abc12345"
+
+    def test_fuzzy_match_title_contains_search(
+        self, kg_service: KnowledgeGraphService
+    ) -> None:
+        """Test fuzzy match when saved title contains search term."""
+        mock_transcript = self._mock_transcript("def67890", "Full Video: My Video Title (2024)")
+
+        mock_storage = MagicMock()
+        mock_storage.list_transcripts.return_value = [mock_transcript]
+
+        with patch("app.services.get_services") as mock_get_services:
+            mock_services = MagicMock()
+            mock_services.storage = mock_storage
+            mock_get_services.return_value = mock_services
+
+            result = kg_service._find_transcript_by_title("My Video Title")
+            assert result == "def67890"
+
+    def test_fuzzy_match_search_contains_title(
+        self, kg_service: KnowledgeGraphService
+    ) -> None:
+        """Test fuzzy match when search term contains saved title."""
+        mock_transcript = self._mock_transcript("ghi11111", "Short Title")
+
+        mock_storage = MagicMock()
+        mock_storage.list_transcripts.return_value = [mock_transcript]
+
+        with patch("app.services.get_services") as mock_get_services:
+            mock_services = MagicMock()
+            mock_services.storage = mock_storage
+            mock_get_services.return_value = mock_services
+
+            result = kg_service._find_transcript_by_title(
+                "This is a Short Title with extra text"
+            )
+            assert result == "ghi11111"
+
+    def test_no_match_returns_none(self, kg_service: KnowledgeGraphService) -> None:
+        """Test no match returns None."""
+        mock_transcript = self._mock_transcript("xyz99999", "Completely Different Title")
+
+        mock_storage = MagicMock()
+        mock_storage.list_transcripts.return_value = [mock_transcript]
+
+        with patch("app.services.get_services") as mock_get_services:
+            mock_services = MagicMock()
+            mock_services.storage = mock_storage
+            mock_get_services.return_value = mock_services
+
+            result = kg_service._find_transcript_by_title("Unrelated Video")
+            assert result is None
+
+    def test_empty_transcripts_returns_none(
+        self, kg_service: KnowledgeGraphService
+    ) -> None:
+        """Test empty transcript list returns None."""
+        mock_storage = MagicMock()
+        mock_storage.list_transcripts.return_value = []
+
+        with patch("app.services.get_services") as mock_get_services:
+            mock_services = MagicMock()
+            mock_services.storage = mock_storage
+            mock_get_services.return_value = mock_services
+
+            result = kg_service._find_transcript_by_title("Any Title")
+            assert result is None
+
+    def test_exception_returns_none(self, kg_service: KnowledgeGraphService) -> None:
+        """Test exception during search returns None gracefully."""
+        with patch("app.services.get_services") as mock_get_services:
+            mock_get_services.side_effect = RuntimeError("Service unavailable")
+
+            result = kg_service._find_transcript_by_title("Any Title")
+            assert result is None
+
+    def test_case_insensitive_match(
+        self, kg_service: KnowledgeGraphService
+    ) -> None:
+        """Test matching is case insensitive."""
+        mock_transcript = self._mock_transcript("case1234", "UPPERCASE VIDEO TITLE")
+
+        mock_storage = MagicMock()
+        mock_storage.list_transcripts.return_value = [mock_transcript]
+
+        with patch("app.services.get_services") as mock_get_services:
+            mock_services = MagicMock()
+            mock_services.storage = mock_storage
+            mock_get_services.return_value = mock_services
+
+            result = kg_service._find_transcript_by_title("uppercase video title")
+            assert result == "case1234"
+
+    def test_no_title_field_returns_none(
+        self, kg_service: KnowledgeGraphService
+    ) -> None:
+        """Test transcript without title field is skipped."""
+        # Transcript without title (legacy data - title is None)
+        mock_transcript = self._mock_transcript("legacy123", None)
+
+        mock_storage = MagicMock()
+        mock_storage.list_transcripts.return_value = [mock_transcript]
+
+        with patch("app.services.get_services") as mock_get_services:
+            mock_services = MagicMock()
+            mock_services.storage = mock_storage
+            mock_get_services.return_value = mock_services
+
+            result = kg_service._find_transcript_by_title("Some Video")
+            assert result is None
+
+    def test_empty_search_title_returns_none(
+        self, kg_service: KnowledgeGraphService
+    ) -> None:
+        """Test empty or whitespace search title returns None."""
+        assert kg_service._find_transcript_by_title("") is None
+        assert kg_service._find_transcript_by_title("   ") is None
+
+    def test_exact_match_preferred_over_fuzzy(
+        self, kg_service: KnowledgeGraphService
+    ) -> None:
+        """Test exact match is returned even when fuzzy matches exist."""
+        mock_transcripts = [
+            self._mock_transcript("fuzzy111", "The Search Extended Version"),
+            self._mock_transcript("exact222", "The Search"),
+            self._mock_transcript("fuzzy333", "NF - The Search (Official)"),
+        ]
+
+        mock_storage = MagicMock()
+        mock_storage.list_transcripts.return_value = mock_transcripts
+
+        with patch("app.services.get_services") as mock_get_services:
+            mock_services = MagicMock()
+            mock_services.storage = mock_storage
+            mock_get_services.return_value = mock_services
+
+            result = kg_service._find_transcript_by_title("The Search")
+            assert result == "exact222"

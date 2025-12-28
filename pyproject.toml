@@ -21,6 +21,7 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "pydub>=0.25.1",
     "python-dotenv>=1.2.1",
+    "rapidfuzz>=3.0.0",
     "python-multipart>=0.0.20",
     "pyyaml>=6.0",
     "rich>=13.0",

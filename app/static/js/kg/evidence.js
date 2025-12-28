@@ -56,6 +56,9 @@ export function renderEvidenceSection(evidence) {
         // Encode search text for URL parameter (used in data attribute)
         const searchText = encodeURIComponent(e.text.substring(0, 100));
 
+        // Use transcript_id for opening viewer, fall back to source_id
+        const transcriptId = e.transcript_id || e.source_id;
+
         // Use data attributes to avoid quote escaping issues in onclick
         // The onclick reads from dataset, avoiding string interpolation vulnerabilities
         return `
@@ -68,9 +71,9 @@ export function renderEvidenceSection(evidence) {
                         ${escapeHtml(e.source_title)}
                     </span>
                     <button
-                        data-source-id="${escapeHtml(e.source_id)}"
+                        data-transcript-id="${escapeHtml(transcriptId)}"
                         data-search-text="${escapeHtml(searchText)}"
-                        onclick="kg_jumpToEvidence(this.dataset.sourceId, this.dataset.searchText)"
+                        onclick="kg_jumpToEvidence(this.dataset.transcriptId, this.dataset.searchText)"
                         class="text-[10px] text-[var(--accent-primary)] hover:text-[var(--accent-primary-hover)] font-medium flex items-center gap-1 flex-shrink-0"
                         title="View in transcript"
                     >
@@ -97,14 +100,14 @@ export function renderEvidenceSection(evidence) {
 // Cross-Panel Navigation
 // ============================================
 
-export async function jumpToEvidence(sourceId, encodedSearchText) {
+export async function jumpToEvidence(transcriptId, encodedSearchText) {
     try {
         // Decode search text
         const searchText = decodeURIComponent(encodedSearchText);
 
         // Open transcript viewer with search query
         if (typeof window.openTranscriptViewer === 'function') {
-            await window.openTranscriptViewer(sourceId, searchText);
+            await window.openTranscriptViewer(transcriptId, searchText);
         } else {
             console.error('openTranscriptViewer not available');
             showToast('Transcript viewer not available', 'error');

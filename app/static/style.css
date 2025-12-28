@@ -5198,3 +5198,632 @@ body:not(.sidebar-collapsed) #sidebar-expand-btn {
         width: 100%;
     }
 }
+
+/* ==============================================
+   ENTITY RESOLUTION - MERGE MODAL & DUPLICATES
+   ============================================== */
+
+/* Confidence Badges */
+.confidence-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-semibold);
+    min-width: 2.5rem;
+    text-align: center;
+}
+
+.confidence-high {
+    background: var(--color-success);
+    color: white;
+}
+
+.confidence-medium {
+    background: var(--color-warning);
+    color: var(--bg-primary);
+}
+
+.confidence-low {
+    background: var(--color-danger);
+    color: white;
+}
+
+/* Merge Modal Overlay */
+.merge-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal);
+    padding: var(--space-4);
+    animation: fadeIn var(--duration-normal) var(--ease-out);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Merge Modal Container */
+.merge-modal {
+    background: var(--bg-secondary);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-2xl);
+    padding: var(--space-6);
+    max-width: 650px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-xl);
+    animation: slideUp var(--duration-slow) var(--ease-out);
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Modal Header */
+.merge-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.merge-modal-header h3 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-semibold);
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.merge-modal-header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.merge-modal-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--radius-lg);
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--duration-fast) var(--ease-out);
+}
+
+.merge-modal-close:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.merge-modal-description {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-5);
+    line-height: var(--leading-relaxed);
+}
+
+/* Merge Comparison Grid */
+.merge-comparison {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: var(--space-4);
+    margin-bottom: var(--space-5);
+    align-items: stretch;
+}
+
+.merge-vs {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+}
+
+/* Merge Node Card */
+.merge-node {
+    display: block;
+    padding: var(--space-4);
+    border: 2px solid var(--card-border);
+    border-radius: var(--radius-xl);
+    cursor: pointer;
+    transition: all var(--duration-normal) var(--ease-out);
+    background: var(--bg-tertiary);
+}
+
+.merge-node:hover {
+    border-color: var(--text-muted);
+}
+
+.merge-node:has(input:checked) {
+    border-color: var(--color-action);
+    background: rgba(0, 217, 255, 0.05);
+}
+
+.merge-node input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.merge-node-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.merge-node-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.merge-node-radio {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid var(--text-muted);
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+    transition: all var(--duration-fast) var(--ease-out);
+}
+
+.merge-node:has(input:checked) .merge-node-radio {
+    border-color: var(--color-action);
+    background: var(--color-action);
+    box-shadow: inset 0 0 0 3px var(--bg-tertiary);
+}
+
+.merge-node-label {
+    font-size: var(--text-md);
+    font-weight: var(--font-semibold);
+    color: var(--text-primary);
+    margin: 0;
+    word-break: break-word;
+}
+
+.merge-node-type {
+    display: inline-block;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    width: fit-content;
+}
+
+.merge-node-description {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    margin: var(--space-2) 0 0;
+    line-height: var(--leading-relaxed);
+}
+
+.merge-node-aliases {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin-top: var(--space-2);
+}
+
+.alias-tag {
+    font-size: var(--text-xs);
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+}
+
+.alias-more {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Merge Signals Details */
+.merge-signals-details {
+    margin-bottom: var(--space-5);
+    font-size: var(--text-sm);
+}
+
+.merge-signals-details summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: var(--space-2) 0;
+}
+
+.merge-signals-details summary:hover {
+    color: var(--text-primary);
+}
+
+.merge-signals-content {
+    padding: var(--space-3);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-lg);
+    margin-top: var(--space-2);
+}
+
+.signal-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-1) 0;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.signal-row:last-child {
+    border-bottom: none;
+}
+
+.signal-label {
+    color: var(--text-secondary);
+}
+
+.signal-value {
+    color: var(--text-primary);
+    font-weight: var(--font-medium);
+}
+
+/* Modal Actions */
+.merge-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--card-border);
+}
+
+.merge-modal-actions .btn-secondary {
+    background: transparent;
+    border: 1px solid var(--card-border);
+    color: var(--text-secondary);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-lg);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    cursor: pointer;
+    transition: all var(--duration-fast) var(--ease-out);
+}
+
+.merge-modal-actions .btn-secondary:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--text-muted);
+    color: var(--text-primary);
+}
+
+.merge-modal-actions .btn-primary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* Duplicates Section in Inspector */
+.duplicates-section {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--card-border);
+}
+
+.duplicates-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    cursor: pointer;
+    padding: var(--space-2) 0;
+    list-style: none;
+}
+
+.duplicates-header::-webkit-details-marker {
+    display: none;
+}
+
+.duplicates-header i {
+    font-size: var(--text-md);
+}
+
+.duplicates-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 var(--space-1);
+    background: var(--color-warning);
+    color: var(--bg-primary);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-bold);
+    border-radius: var(--radius-full);
+    margin-left: auto;
+}
+
+.duplicates-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding-top: var(--space-2);
+}
+
+.duplicate-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2) var(--space-3);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-lg);
+    gap: var(--space-2);
+}
+
+.duplicate-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 0;
+}
+
+.duplicate-label {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: var(--text-sm);
+    color: var(--color-action-text);
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+
+.duplicate-label:hover {
+    text-decoration: underline;
+}
+
+.duplicate-merge-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    background: var(--color-action);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--duration-fast) var(--ease-out);
+    flex-shrink: 0;
+}
+
+.duplicate-merge-btn:hover {
+    background: var(--color-action-hover);
+    transform: scale(1.05);
+}
+
+/* Pending Merges Section in KG Panel */
+.pending-merges-section {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3);
+    margin-top: var(--space-3);
+}
+
+.pending-merges-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    padding-bottom: var(--space-2);
+    margin-bottom: var(--space-2);
+    border-bottom: 1px solid var(--card-border);
+}
+
+.pending-merges-header i {
+    color: var(--color-warning);
+}
+
+.pending-merges-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 var(--space-1);
+    background: var(--color-warning);
+    color: var(--bg-primary);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-bold);
+    border-radius: var(--radius-full);
+    margin-left: auto;
+}
+
+.pending-merges-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.pending-merge-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    gap: var(--space-2);
+}
+
+.pending-merge-labels {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.pending-merge-node {
+    font-size: var(--text-xs);
+    color: var(--text-primary);
+    font-weight: var(--font-medium);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px;
+}
+
+.pending-merge-actions {
+    display: flex;
+    gap: var(--space-1);
+    flex-shrink: 0;
+}
+
+/* Approve/Reject Buttons */
+.btn-approve,
+.btn-reject,
+.btn-view-merge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--duration-fast) var(--ease-out);
+    font-size: var(--text-xs);
+}
+
+.btn-approve {
+    background: var(--color-success);
+    color: white;
+}
+
+.btn-approve:hover {
+    background: #059669;
+    transform: scale(1.1);
+}
+
+.btn-reject {
+    background: var(--color-danger);
+    color: white;
+}
+
+.btn-reject:hover {
+    background: #dc2626;
+    transform: scale(1.1);
+}
+
+.btn-view-merge {
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+}
+
+.btn-view-merge:hover {
+    background: var(--text-muted);
+    color: white;
+}
+
+/* Light Theme Adjustments for Entity Resolution */
+[data-theme="light"] .merge-modal {
+    background: var(--bg-primary);
+}
+
+[data-theme="light"] .merge-node {
+    background: var(--bg-secondary);
+}
+
+[data-theme="light"] .merge-node:has(input:checked) {
+    background: rgba(245, 158, 11, 0.05);
+    border-color: var(--accent-primary);
+}
+
+[data-theme="light"] .merge-node:has(input:checked) .merge-node-radio {
+    border-color: var(--accent-primary);
+    background: var(--accent-primary);
+}
+
+[data-theme="light"] .pending-merges-section {
+    background: var(--bg-secondary);
+}
+
+[data-theme="light"] .pending-merge-item {
+    background: var(--bg-primary);
+}
+
+[data-theme="light"] .duplicate-item {
+    background: var(--bg-secondary);
+}
+
+[data-theme="light"] .confidence-medium {
+    color: white;
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+    .merge-modal-overlay,
+    .merge-modal {
+        animation: none;
+    }
+
+    .duplicate-merge-btn:hover,
+    .btn-approve:hover,
+    .btn-reject:hover {
+        transform: none;
+    }
+}
+
+/* Mobile Responsiveness for Merge Modal */
+@media (max-width: 640px) {
+    .merge-modal {
+        padding: var(--space-4);
+        max-height: 90vh;
+    }
+
+    .merge-comparison {
+        grid-template-columns: 1fr;
+        gap: var(--space-3);
+    }
+
+    .merge-vs {
+        padding: var(--space-2) 0;
+    }
+
+    .pending-merge-labels {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-1);
+    }
+
+    .pending-merge-node {
+        max-width: none;
+    }
+}

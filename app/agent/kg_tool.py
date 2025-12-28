@@ -140,7 +140,8 @@ def _get_kg_service() -> "KnowledgeGraphService":
             },
             "transcript_id": {
                 "type": "string",
-                "description": "ID of the saved transcript (from save_transcript). Required for evidence linking.",
+                "description": "ID of the saved transcript (from save_transcript). "
+                "Recommended for evidence linking. If not provided, auto-detection by title is attempted.",
             },
         },
         "required": ["project_id", "transcript", "title"],
@@ -1051,6 +1052,780 @@ def _handle_suggestions(kb: "KnowledgeBase", project_name: str) -> dict[str, Any
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TOOL 7: find_duplicate_entities
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+@tool(
+    "find_duplicate_entities",
+    "Find potential duplicate entities in a Knowledge Graph project. "
+    "Uses string similarity, alias overlap, type matching, and graph context "
+    "to identify entities that may refer to the same real-world thing.",
+    {
+        "type": "object",
+        "properties": {
+            "project_id": {
+                "type": "string",
+                "description": "ID of the Knowledge Graph project to scan for duplicates",
+            },
+            "min_confidence": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "description": "Minimum confidence threshold (0.0-1.0, default 0.7)",
+            },
+        },
+        "required": ["project_id"],
+    },
+)
+async def find_duplicate_entities(args: dict[str, Any]) -> dict[str, Any]:
+    """
+    Find potential duplicate entities in a KG project.
+
+    Scans all nodes using the EntityMatcher algorithm which considers:
+    - String similarity (Jaro-Winkler on labels)
+    - Alias overlap (Jaccard similarity)
+    - Type matching (same entity type bonus)
+    - Graph context (shared neighbors)
+
+    Args:
+        args: Tool arguments containing:
+            - project_id: Target KG project ID
+            - min_confidence: Optional minimum confidence threshold (default 0.7)
+
+    Returns:
+        MCP tool response with candidate list or error
+    """
+    try:
+        project_id = args.get("project_id", "")
+        min_confidence = args.get("min_confidence", 0.7)
+
+        if not project_id:
+            return {"success": False, "error": "project_id is required"}
+
+        # Validate min_confidence range
+        if not 0.0 <= min_confidence <= 1.0:
+            return {
+                "success": False,
+                "error": "min_confidence must be between 0.0 and 1.0",
+            }
+
+        kg_service = _get_kg_service()
+
+        # Validate project exists
+        project = await kg_service.get_project(project_id)
+        if not project:
+            return {"success": False, "error": f"Project '{project_id}' not found"}
+
+        # Get knowledge base
+        kb = await kg_service.get_knowledge_base(project_id)
+        if not kb:
+            return {
+                "success": False,
+                "error": f"Project '{project_id}' has no knowledge base. "
+                "Bootstrap and extract content first.",
+            }
+
+        # Import resolution config and find candidates
+        from app.kg.resolution import ResolutionConfig
+
+        config = ResolutionConfig(review_threshold=min_confidence)
+        candidates = kb.find_resolution_candidates(config)
+
+        if not candidates:
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"## Duplicate Scan Results\n\n"
+                        f"No potential duplicates found in **{project.name}** "
+                        f"above {min_confidence:.0%} confidence threshold.\n\n"
+                        f"The graph has {len(kb._nodes)} unique entities.",
+                    }
+                ]
+            }
+
+        # Build formatted response
+        lines = [
+            "## Duplicate Scan Results\n",
+            f"Found **{len(candidates)}** potential duplicate(s) in **{project.name}**:\n",
+            "| Confidence | Entity A | Entity B | Signals |",
+            "|------------|----------|----------|---------|",
+        ]
+
+        for candidate in candidates[:20]:  # Limit to top 20
+            node_a = kb.get_node(candidate.node_a_id)
+            node_b = kb.get_node(candidate.node_b_id)
+
+            if not node_a or not node_b:
+                continue
+
+            # Format key signals
+            signals = candidate.signals
+            signal_parts = []
+            if signals.get("string_sim", 0) > 0.5:
+                signal_parts.append(f"name:{signals['string_sim']:.0%}")
+            if signals.get("alias_sim", 0) > 0:
+                signal_parts.append(f"alias:{signals['alias_sim']:.0%}")
+            if signals.get("type_sim", 0) > 0:
+                signal_parts.append("same-type")
+            if signals.get("graph_sim", 0) > 0:
+                signal_parts.append(f"neighbors:{signals['graph_sim']:.0%}")
+
+            signal_str = ", ".join(signal_parts) if signal_parts else "low signals"
+
+            lines.append(
+                f"| {candidate.confidence:.0%} | "
+                f"{node_a.label} ({node_a.entity_type}) | "
+                f"{node_b.label} ({node_b.entity_type}) | "
+                f"{signal_str} |"
+            )
+
+        if len(candidates) > 20:
+            lines.append(f"\n*... and {len(candidates) - 20} more candidates*")
+
+        # Add action guidance
+        lines.append("\n### Next Steps")
+        lines.append("- **High confidence (90%+)**: Consider auto-merging")
+        lines.append("- **Medium confidence (70-90%)**: Review and confirm")
+        lines.append("- **Low confidence (<70%)**: May be false positives")
+
+        return {"content": [{"type": "text", "text": "\n".join(lines)}]}
+
+    except Exception as e:
+        return {"success": False, "error": f"Duplicate scan failed: {e!s}"}
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TOOL 8: merge_entities_tool
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+@tool(
+    "merge_entities_tool",
+    "Merge two entities into one. The survivor entity keeps its label and absorbs "
+    "the merged entity's aliases, relationships, and properties. "
+    "Use for confirmed duplicates.",
+    {
+        "type": "object",
+        "properties": {
+            "project_id": {
+                "type": "string",
+                "description": "ID of the Knowledge Graph project",
+            },
+            "survivor_id": {
+                "type": "string",
+                "description": "ID of the entity to keep (the survivor)",
+            },
+            "merged_id": {
+                "type": "string",
+                "description": "ID of the entity to merge into the survivor (will be removed)",
+            },
+        },
+        "required": ["project_id", "survivor_id", "merged_id"],
+    },
+)
+async def merge_entities_tool(args: dict[str, Any]) -> dict[str, Any]:
+    """
+    Merge two entities into one.
+
+    The survivor entity keeps its primary label and absorbs:
+    - Merged entity's label as an alias
+    - All aliases from merged entity
+    - All relationships (edges redirected to survivor)
+    - Properties (survivor wins on conflict)
+    - Source IDs (combined provenance)
+
+    Args:
+        args: Tool arguments containing:
+            - project_id: Target KG project ID
+            - survivor_id: ID of the node to keep
+            - merged_id: ID of the node to merge in
+
+    Returns:
+        MCP tool response with merge confirmation or error
+    """
+    try:
+        project_id = args.get("project_id", "")
+        survivor_id = args.get("survivor_id", "")
+        merged_id = args.get("merged_id", "")
+
+        if not project_id:
+            return {"success": False, "error": "project_id is required"}
+        if not survivor_id:
+            return {"success": False, "error": "survivor_id is required"}
+        if not merged_id:
+            return {"success": False, "error": "merged_id is required"}
+
+        if survivor_id == merged_id:
+            return {"success": False, "error": "Cannot merge an entity with itself"}
+
+        kg_service = _get_kg_service()
+
+        # Validate project exists
+        project = await kg_service.get_project(project_id)
+        if not project:
+            return {"success": False, "error": f"Project '{project_id}' not found"}
+
+        # Get knowledge base
+        kb = await kg_service.get_knowledge_base(project_id)
+        if not kb:
+            return {
+                "success": False,
+                "error": f"Project '{project_id}' has no knowledge base.",
+            }
+
+        # Get nodes before merge for reporting
+        survivor = kb.get_node(survivor_id)
+        merged = kb.get_node(merged_id)
+
+        if not survivor:
+            return {
+                "success": False,
+                "error": f"Survivor entity '{survivor_id}' not found",
+            }
+        if not merged:
+            return {"success": False, "error": f"Merged entity '{merged_id}' not found"}
+
+        # Perform the merge
+        history = kb.merge_nodes(
+            survivor_id=survivor_id,
+            merged_id=merged_id,
+            merge_type="agent",
+        )
+
+        # Save updated KB
+        from app.kg.persistence import save_knowledge_base
+
+        save_knowledge_base(kb, kg_service.kb_path)
+
+        # Update project stats and add to merge history
+        project.thing_count = len(kb._nodes)
+        project.connection_count = len(kb._edges)
+        project.merge_history.append(history)
+        await kg_service._save_project(project)
+
+        text = (
+            f"## Merge Complete\n\n"
+            f"**Merged:** {merged.label} -> {survivor.label}\n\n"
+            f"### Changes\n"
+            f"- Added alias: '{history.merged_label}'\n"
+            f"- New aliases: {len(history.merged_aliases)}\n"
+            f"- Relationships redirected to survivor\n\n"
+            f"**{survivor.label}** now represents both entities."
+        )
+
+        return {"content": [{"type": "text", "text": text}]}
+
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        return {"success": False, "error": f"Merge failed: {e!s}"}
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TOOL 9: review_pending_merges
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+@tool(
+    "review_pending_merges",
+    "Get pending merge candidates awaiting user review. "
+    "Shows entity pairs with confidence scores for approval or rejection.",
+    {
+        "type": "object",
+        "properties": {
+            "project_id": {
+                "type": "string",
+                "description": "ID of the Knowledge Graph project",
+            },
+        },
+        "required": ["project_id"],
+    },
+)
+async def review_pending_merges(args: dict[str, Any]) -> dict[str, Any]:
+    """
+    Get pending merge candidates for review.
+
+    Returns the list of resolution candidates stored in the project
+    that are awaiting user confirmation.
+
+    Args:
+        args: Tool arguments containing:
+            - project_id: Target KG project ID
+
+    Returns:
+        MCP tool response with pending candidates or error
+    """
+    try:
+        project_id = args.get("project_id", "")
+
+        if not project_id:
+            return {"success": False, "error": "project_id is required"}
+
+        kg_service = _get_kg_service()
+
+        # Validate project exists
+        project = await kg_service.get_project(project_id)
+        if not project:
+            return {"success": False, "error": f"Project '{project_id}' not found"}
+
+        # Get knowledge base for node details
+        kb = await kg_service.get_knowledge_base(project_id)
+
+        # Filter for pending candidates only
+        pending = [c for c in project.pending_merges if c.status == "pending"]
+
+        if not pending:
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"## Pending Merges\n\n"
+                        f"No pending merge candidates for **{project.name}**.\n\n"
+                        f"Use `find_duplicate_entities` to scan for potential duplicates.",
+                    }
+                ]
+            }
+
+        lines = [
+            f"## Pending Merges for {project.name}\n",
+            f"Found **{len(pending)}** candidate(s) awaiting review:\n",
+        ]
+
+        for i, candidate in enumerate(pending, 1):
+            node_a = kb.get_node(candidate.node_a_id) if kb else None
+            node_b = kb.get_node(candidate.node_b_id) if kb else None
+
+            label_a = node_a.label if node_a else candidate.node_a_id
+            label_b = node_b.label if node_b else candidate.node_b_id
+            type_a = node_a.entity_type if node_a else "unknown"
+            type_b = node_b.entity_type if node_b else "unknown"
+
+            lines.append(f"### {i}. {label_a} <-> {label_b}")
+            lines.append(f"- **Confidence:** {candidate.confidence:.0%}")
+            lines.append(f"- **Types:** {type_a} / {type_b}")
+            lines.append(f"- **Candidate ID:** `{candidate.id}`")
+
+            # Show key signals
+            if candidate.signals:
+                signal_parts = []
+                for key, value in candidate.signals.items():
+                    if value > 0:
+                        signal_parts.append(f"{key}: {value:.0%}")
+                if signal_parts:
+                    lines.append(f"- **Signals:** {', '.join(signal_parts)}")
+
+            lines.append("")
+
+        lines.append("### Actions")
+        lines.append("- Use `approve_merge` with the candidate ID to confirm")
+        lines.append("- Use `reject_merge` with the candidate ID to reject")
+
+        return {"content": [{"type": "text", "text": "\n".join(lines)}]}
+
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get pending merges: {e!s}"}
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TOOL 10: approve_merge
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+@tool(
+    "approve_merge",
+    "Approve a pending merge candidate. The two entities will be merged, "
+    "with the first entity (node_a) becoming the survivor.",
+    {
+        "type": "object",
+        "properties": {
+            "project_id": {
+                "type": "string",
+                "description": "ID of the Knowledge Graph project",
+            },
+            "candidate_id": {
+                "type": "string",
+                "description": "ID of the pending merge candidate to approve",
+            },
+        },
+        "required": ["project_id", "candidate_id"],
+    },
+)
+async def approve_merge(args: dict[str, Any]) -> dict[str, Any]:
+    """
+    Approve a pending merge candidate.
+
+    Finds the candidate by ID, executes the merge (node_a survives),
+    and removes the candidate from the pending list.
+
+    Args:
+        args: Tool arguments containing:
+            - project_id: Target KG project ID
+            - candidate_id: ID of the candidate to approve
+
+    Returns:
+        MCP tool response with merge confirmation or error
+    """
+    try:
+        project_id = args.get("project_id", "")
+        candidate_id = args.get("candidate_id", "")
+
+        if not project_id:
+            return {"success": False, "error": "project_id is required"}
+        if not candidate_id:
+            return {"success": False, "error": "candidate_id is required"}
+
+        kg_service = _get_kg_service()
+
+        # Validate project exists
+        project = await kg_service.get_project(project_id)
+        if not project:
+            return {"success": False, "error": f"Project '{project_id}' not found"}
+
+        # Find the candidate
+        candidate = None
+        candidate_idx = -1
+        for idx, c in enumerate(project.pending_merges):
+            if c.id == candidate_id:
+                candidate = c
+                candidate_idx = idx
+                break
+
+        if not candidate:
+            return {
+                "success": False,
+                "error": f"Candidate '{candidate_id}' not found in pending merges",
+            }
+
+        if candidate.status != "pending":
+            return {
+                "success": False,
+                "error": f"Candidate '{candidate_id}' is not pending (status: {candidate.status})",
+            }
+
+        # Get knowledge base
+        kb = await kg_service.get_knowledge_base(project_id)
+        if not kb:
+            return {
+                "success": False,
+                "error": f"Project '{project_id}' has no knowledge base.",
+            }
+
+        # Get node labels for response
+        node_a = kb.get_node(candidate.node_a_id)
+        node_b = kb.get_node(candidate.node_b_id)
+
+        if not node_a or not node_b:
+            # Remove invalid candidate
+            project.pending_merges.pop(candidate_idx)
+            await kg_service._save_project(project)
+            return {
+                "success": False,
+                "error": "One or both entities no longer exist. Candidate removed.",
+            }
+
+        # Perform the merge (node_a is the survivor)
+        history = kb.merge_nodes(
+            survivor_id=candidate.node_a_id,
+            merged_id=candidate.node_b_id,
+            merge_type="user",
+        )
+        history.confidence = candidate.confidence
+
+        # Save KB
+        from app.kg.persistence import save_knowledge_base
+
+        save_knowledge_base(kb, kg_service.kb_path)
+
+        # Update project: remove candidate, add to history, update stats
+        project.pending_merges.pop(candidate_idx)
+        project.merge_history.append(history)
+        project.thing_count = len(kb._nodes)
+        project.connection_count = len(kb._edges)
+        await kg_service._save_project(project)
+
+        text = (
+            f"## Merge Approved\n\n"
+            f"**{node_b.label}** merged into **{node_a.label}** "
+            f"(confidence: {candidate.confidence:.0%})\n\n"
+            f"- Added alias: '{history.merged_label}'\n"
+            f"- Relationships and properties transferred\n\n"
+            f"Remaining pending: {len(project.pending_merges)}"
+        )
+
+        return {"content": [{"type": "text", "text": text}]}
+
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        return {"success": False, "error": f"Approve failed: {e!s}"}
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TOOL 11: reject_merge
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+@tool(
+    "reject_merge",
+    "Reject a pending merge candidate. The two entities will remain separate.",
+    {
+        "type": "object",
+        "properties": {
+            "project_id": {
+                "type": "string",
+                "description": "ID of the Knowledge Graph project",
+            },
+            "candidate_id": {
+                "type": "string",
+                "description": "ID of the pending merge candidate to reject",
+            },
+        },
+        "required": ["project_id", "candidate_id"],
+    },
+)
+async def reject_merge(args: dict[str, Any]) -> dict[str, Any]:
+    """
+    Reject a pending merge candidate.
+
+    Marks the candidate as rejected and removes it from the pending list.
+    The two entities remain separate.
+
+    Args:
+        args: Tool arguments containing:
+            - project_id: Target KG project ID
+            - candidate_id: ID of the candidate to reject
+
+    Returns:
+        MCP tool response with rejection confirmation or error
+    """
+    try:
+        project_id = args.get("project_id", "")
+        candidate_id = args.get("candidate_id", "")
+
+        if not project_id:
+            return {"success": False, "error": "project_id is required"}
+        if not candidate_id:
+            return {"success": False, "error": "candidate_id is required"}
+
+        kg_service = _get_kg_service()
+
+        # Validate project exists
+        project = await kg_service.get_project(project_id)
+        if not project:
+            return {"success": False, "error": f"Project '{project_id}' not found"}
+
+        # Find and remove the candidate
+        candidate = None
+        candidate_idx = -1
+        for idx, c in enumerate(project.pending_merges):
+            if c.id == candidate_id:
+                candidate = c
+                candidate_idx = idx
+                break
+
+        if not candidate:
+            return {
+                "success": False,
+                "error": f"Candidate '{candidate_id}' not found in pending merges",
+            }
+
+        # Get node labels for response (optional, for better messaging)
+        kb = await kg_service.get_knowledge_base(project_id)
+        node_a_label = candidate.node_a_id
+        node_b_label = candidate.node_b_id
+
+        if kb:
+            node_a = kb.get_node(candidate.node_a_id)
+            node_b = kb.get_node(candidate.node_b_id)
+            if node_a:
+                node_a_label = node_a.label
+            if node_b:
+                node_b_label = node_b.label
+
+        # Mark as rejected and remove from pending
+        candidate.status = "rejected"
+        project.pending_merges.pop(candidate_idx)
+        await kg_service._save_project(project)
+
+        text = (
+            f"## Merge Rejected\n\n"
+            f"**{node_a_label}** and **{node_b_label}** will remain separate entities.\n\n"
+            f"Remaining pending: {len(project.pending_merges)}"
+        )
+
+        return {"content": [{"type": "text", "text": text}]}
+
+    except Exception as e:
+        return {"success": False, "error": f"Reject failed: {e!s}"}
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TOOL 12: compare_entities_semantic
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+@tool(
+    "compare_entities_semantic",
+    "Compare two entities for semantic similarity. Shows detailed breakdown "
+    "of string similarity, alias overlap, type matching, and shared connections.",
+    {
+        "type": "object",
+        "properties": {
+            "project_id": {
+                "type": "string",
+                "description": "ID of the Knowledge Graph project",
+            },
+            "node_a_id": {
+                "type": "string",
+                "description": "ID of the first entity to compare",
+            },
+            "node_b_id": {
+                "type": "string",
+                "description": "ID of the second entity to compare",
+            },
+        },
+        "required": ["project_id", "node_a_id", "node_b_id"],
+    },
+)
+async def compare_entities_semantic(args: dict[str, Any]) -> dict[str, Any]:
+    """
+    Compare two entities for semantic similarity.
+
+    Provides detailed breakdown of all similarity signals:
+    - String similarity (Jaro-Winkler on labels)
+    - Alias overlap (Jaccard on alias sets)
+    - Type matching (same entity type)
+    - Graph context (shared neighbors)
+
+    Args:
+        args: Tool arguments containing:
+            - project_id: Target KG project ID
+            - node_a_id: ID of the first entity
+            - node_b_id: ID of the second entity
+
+    Returns:
+        MCP tool response with detailed comparison or error
+    """
+    try:
+        project_id = args.get("project_id", "")
+        node_a_id = args.get("node_a_id", "")
+        node_b_id = args.get("node_b_id", "")
+
+        if not project_id:
+            return {"success": False, "error": "project_id is required"}
+        if not node_a_id:
+            return {"success": False, "error": "node_a_id is required"}
+        if not node_b_id:
+            return {"success": False, "error": "node_b_id is required"}
+
+        if node_a_id == node_b_id:
+            return {"success": False, "error": "Cannot compare an entity with itself"}
+
+        kg_service = _get_kg_service()
+
+        # Validate project exists
+        project = await kg_service.get_project(project_id)
+        if not project:
+            return {"success": False, "error": f"Project '{project_id}' not found"}
+
+        # Get knowledge base
+        kb = await kg_service.get_knowledge_base(project_id)
+        if not kb:
+            return {
+                "success": False,
+                "error": f"Project '{project_id}' has no knowledge base.",
+            }
+
+        # Get nodes
+        node_a = kb.get_node(node_a_id)
+        node_b = kb.get_node(node_b_id)
+
+        if not node_a:
+            return {"success": False, "error": f"Entity '{node_a_id}' not found"}
+        if not node_b:
+            return {"success": False, "error": f"Entity '{node_b_id}' not found"}
+
+        # Compute similarity using EntityMatcher
+        from app.kg.resolution import EntityMatcher
+
+        matcher = EntityMatcher()
+        confidence, signals = matcher.compute_similarity(node_a, node_b, kb)
+
+        # Get shared neighbors
+        neighbors_a = {n.label for n in kb.get_neighbors(node_a_id)}
+        neighbors_b = {n.label for n in kb.get_neighbors(node_b_id)}
+        shared_neighbors = neighbors_a & neighbors_b
+
+        # Build detailed comparison
+        lines = [
+            "## Entity Comparison\n",
+            f"### {node_a.label} vs {node_b.label}\n",
+            f"**Overall Confidence:** {confidence:.1%}\n",
+            "",
+            "### Entity Details",
+            "",
+            "| Attribute | Entity A | Entity B |",
+            "|-----------|----------|----------|",
+            f"| Label | {node_a.label} | {node_b.label} |",
+            f"| Type | {node_a.entity_type} | {node_b.entity_type} |",
+            f"| Aliases | {', '.join(node_a.aliases) or 'none'} | {', '.join(node_b.aliases) or 'none'} |",
+            f"| Connections | {len(neighbors_a)} | {len(neighbors_b)} |",
+            "",
+            "### Similarity Signals",
+            "",
+            "| Signal | Score | Description |",
+            "|--------|-------|-------------|",
+        ]
+
+        # Format signals with descriptions
+        signal_descriptions = {
+            "string_sim": "Label text similarity (Jaro-Winkler)",
+            "alias_sim": "Alias overlap (Jaccard)",
+            "type_sim": "Same entity type",
+            "graph_sim": "Shared neighbors",
+            "semantic_sim": "Semantic embedding (placeholder)",
+        }
+
+        for signal, score in signals.items():
+            desc = signal_descriptions.get(signal, signal)
+            status = "High" if score >= 0.7 else "Medium" if score >= 0.4 else "Low"
+            lines.append(f"| {signal} | {score:.1%} ({status}) | {desc} |")
+
+        # Show shared neighbors if any
+        if shared_neighbors:
+            lines.append(f"\n### Shared Connections ({len(shared_neighbors)})")
+            for neighbor in list(shared_neighbors)[:10]:
+                lines.append(f"- {neighbor}")
+            if len(shared_neighbors) > 10:
+                lines.append(f"- ... and {len(shared_neighbors) - 10} more")
+
+        # Recommendation
+        lines.append("\n### Recommendation")
+        if confidence >= 0.9:
+            lines.append(
+                f"**Strong match** ({confidence:.0%}) - These are likely the same entity. "
+                "Consider merging automatically."
+            )
+        elif confidence >= 0.7:
+            lines.append(
+                f"**Possible match** ({confidence:.0%}) - Review carefully. "
+                "May be the same entity with variations."
+            )
+        else:
+            lines.append(
+                f"**Weak match** ({confidence:.0%}) - Likely different entities. "
+                "Do not merge without additional evidence."
+            )
+
+        return {"content": [{"type": "text", "text": "\n".join(lines)}]}
+
+    except Exception as e:
+        return {"success": False, "error": f"Comparison failed: {e!s}"}
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # EXPORTS
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1061,4 +1836,10 @@ KG_TOOLS = [
     bootstrap_kg_project,
     get_kg_stats,
     ask_about_graph,
+    find_duplicate_entities,
+    merge_entities_tool,
+    review_pending_merges,
+    approve_merge,
+    reject_merge,
+    compare_entities_semantic,
 ]

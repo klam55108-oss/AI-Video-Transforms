@@ -14,17 +14,22 @@ Follows existing router patterns (chat.py, transcripts.py).
 
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
+
+logger = logging.getLogger(__name__)
 from fastapi.responses import FileResponse
 
 from app.api.deps import ValidatedProjectId, get_kg_service
+from app.core.validators import UUID_PATTERN
 from app.core.config import get_settings
 from app.kg.domain import DiscoveryStatus, ProjectState
 from app.kg.persistence import load_knowledge_base
+from app.kg.resolution import MergeHistory, ResolutionCandidate
 from app.models.api import (
     CreateProjectResponse,
     DiscoveryResponse,
@@ -40,11 +45,49 @@ from app.models.requests import (
     CreateProjectRequest,
     ExportRequest,
     ExtractRequest,
+    MergeEntitiesRequest,
+    ReviewMergeRequest,
 )
 from app.services.kg_service import KnowledgeGraphService
 
 
 router = APIRouter(prefix="/kg", tags=["knowledge-graph"])
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# DEPENDENCIES
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+async def validate_session_for_merge(
+    x_session_id: str | None = Header(None, alias="X-Session-ID"),
+) -> str | None:
+    """Validate session for merge operations.
+
+    Not full auth (no user system), but ensures:
+    1. Session ID format is valid (UUID v4) if provided
+    2. Allows determining merge_type (agent vs user)
+
+    Args:
+        x_session_id: Optional session ID from X-Session-ID header.
+
+    Returns:
+        Validated session ID or None if not provided.
+
+    Raises:
+        HTTPException: 400 if session ID format is invalid.
+    """
+    if x_session_id is None:
+        return None
+
+    # Validate UUID v4 format
+    if not UUID_PATTERN.match(x_session_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid session ID format (must be UUID v4)",
+        )
+
+    return x_session_id
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -533,6 +576,170 @@ async def download_export(filename: str) -> FileResponse:
     )
 
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ENTITY RESOLUTION ENDPOINTS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+@router.get("/projects/{project_id}/duplicates")
+async def scan_duplicates(
+    project_id: str = Depends(ValidatedProjectId()),
+    kg_service: KnowledgeGraphService = Depends(get_kg_service),
+) -> list[ResolutionCandidate]:
+    """
+    Scan project for duplicate entities.
+
+    Performs an on-demand scan of all entities in the knowledge graph
+    to find potential duplicates based on string similarity, alias
+    overlap, and graph context.
+
+    Args:
+        project_id: Target project ID
+        kg_service: Injected KG service
+
+    Returns:
+        List of ResolutionCandidate objects sorted by confidence (desc)
+
+    Raises:
+        HTTPException: 404 if project not found or has no KB
+    """
+    try:
+        candidates = await kg_service.scan_for_duplicates(project_id)
+        return candidates
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/projects/{project_id}/merge")
+async def merge_entities(
+    request: MergeEntitiesRequest,
+    project_id: str = Depends(ValidatedProjectId()),
+    session_id: str | None = Depends(validate_session_for_merge),
+    kg_service: KnowledgeGraphService = Depends(get_kg_service),
+) -> MergeHistory:
+    """
+    Execute entity merge.
+
+    Merges two entities in the knowledge graph. The survivor node
+    absorbs the merged node's aliases, edges, and properties.
+
+    The merge_type is determined by the presence of X-Session-ID header:
+    - "agent" if session_id is provided (agent-triggered merge)
+    - "user" if no session_id (UI-triggered merge)
+
+    Args:
+        project_id: Target project ID
+        request: MergeEntitiesRequest with survivor_id, merged_id, and optional request_id
+        session_id: Optional session ID from X-Session-ID header
+        kg_service: Injected KG service
+
+    Returns:
+        MergeHistory record with audit information
+
+    Raises:
+        HTTPException: 404 if project not found
+        HTTPException: 400 if invalid node IDs
+    """
+    # Determine merge type based on session presence
+    merge_type = "agent" if session_id else "user"
+
+    try:
+        history = await kg_service.merge_entities(
+            project_id=project_id,
+            survivor_id=request.survivor_id,
+            merged_id=request.merged_id,
+            merge_type=merge_type,
+            session_id=session_id,
+            request_id=request.request_id,
+        )
+        return history
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(status_code=404, detail=error_msg)
+        raise HTTPException(status_code=400, detail=error_msg)
+
+
+@router.get("/projects/{project_id}/merge-candidates")
+async def get_merge_candidates(
+    project_id: str = Depends(ValidatedProjectId()),
+    kg_service: KnowledgeGraphService = Depends(get_kg_service),
+) -> list[ResolutionCandidate]:
+    """
+    Get pending merge candidates.
+
+    Returns all resolution candidates that are awaiting user review
+    (not yet approved or rejected).
+
+    Args:
+        project_id: Target project ID
+        kg_service: Injected KG service
+
+    Returns:
+        List of pending ResolutionCandidate objects
+    """
+    candidates = await kg_service.get_pending_merges(project_id)
+    return candidates
+
+
+@router.post("/projects/{project_id}/merge-candidates/{candidate_id}/review")
+async def review_candidate(
+    request: ReviewMergeRequest,
+    project_id: str = Depends(ValidatedProjectId()),
+    candidate_id: str = "",
+    kg_service: KnowledgeGraphService = Depends(get_kg_service),
+) -> ResolutionCandidate | MergeHistory:
+    """
+    Approve or reject a merge candidate.
+
+    If approved, executes the merge and returns a MergeHistory record.
+    If rejected, updates the candidate status and returns it.
+
+    Args:
+        project_id: Target project ID
+        candidate_id: 8-character candidate identifier
+        request: ReviewMergeRequest with approved flag
+        kg_service: Injected KG service
+
+    Returns:
+        MergeHistory if approved, ResolutionCandidate if rejected
+
+    Raises:
+        HTTPException: 404 if project or candidate not found
+    """
+    try:
+        result = await kg_service.review_merge_candidate(
+            project_id=project_id,
+            candidate_id=candidate_id,
+            approved=request.approved,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/projects/{project_id}/merge-history")
+async def get_merge_history(
+    project_id: str = Depends(ValidatedProjectId()),
+    kg_service: KnowledgeGraphService = Depends(get_kg_service),
+) -> list[MergeHistory]:
+    """
+    Get merge audit trail.
+
+    Returns the complete history of all merges that have been
+    executed on this project.
+
+    Args:
+        project_id: Target project ID
+        kg_service: Injected KG service
+
+    Returns:
+        List of MergeHistory records
+    """
+    history = await kg_service.get_merge_history(project_id)
+    return history
+
+
 @router.get("/projects/{project_id}/nodes")
 async def list_nodes(
     entity_type: str | None = None,
@@ -648,29 +855,48 @@ async def get_node_evidence(
     for source_id in node.source_ids:
         source = kb.get_source(source_id)
         if not source:
+            logger.debug(f"Source {source_id} not found in KB for node {node_id}")
             continue
 
         # Use transcript_id from metadata if available, otherwise fall back to source_id
         transcript_id = source.metadata.get("transcript_id") or source_id
 
-        # Get plain text content
-        metadata = storage.get_transcript_metadata(transcript_id)
-        if not metadata:
+        # Get raw transcript data (includes full file_path)
+        raw_metadata = storage.get_transcript_raw(transcript_id)
+        if not raw_metadata:
+            logger.debug(f"No transcript metadata for {transcript_id}")
             continue
 
-        content = storage.get_transcript_content(metadata.filename)
+        file_path = raw_metadata.get("file_path")
+        if not file_path:
+            logger.debug(f"No file_path in metadata for {transcript_id}")
+            continue
+
+        content = storage.get_transcript_content(file_path)
         if not content:
             continue
 
-        # Find first occurrence of entity label in transcript for context
-        label_lower = node.label.lower()
-        content_lower = content.content.lower()
-        match_idx = content_lower.find(label_lower)
+        # Build search terms: label + all aliases
+        search_terms = [node.label.lower()]
+        search_terms.extend(alias.lower() for alias in node.aliases)
 
-        if match_idx >= 0:
+        # Find first occurrence of any search term in transcript
+        content_lower = content.content.lower()
+        best_match_idx = -1
+        matched_term = None
+
+        for term in search_terms:
+            if len(term) < 2:  # Skip single-char terms
+                continue
+            idx = content_lower.find(term)
+            if idx >= 0 and (best_match_idx < 0 or idx < best_match_idx):
+                best_match_idx = idx
+                matched_term = term
+
+        if best_match_idx >= 0:
             # Extract context around the match (100 chars before, 400 after)
-            start_idx = max(0, match_idx - 100)
-            end_idx = min(len(content.content), match_idx + 400)
+            start_idx = max(0, best_match_idx - 100)
+            end_idx = min(len(content.content), best_match_idx + 400)
             excerpt = content.content[start_idx:end_idx]
 
             # Add ellipsis if truncated
@@ -683,14 +909,15 @@ async def get_node_evidence(
                 SegmentEvidence(
                     source_id=source_id,
                     source_title=source.title,
-                    segment_id="",  # No segment markers
+                    segment_id="",
                     text=excerpt,
                     start=None,
                     end=None,
+                    transcript_id=transcript_id,
                 )
             )
         else:
-            # Entity not found in text - just show beginning of transcript
+            # Entity not found in text - show beginning with note
             evidence_list.append(
                 SegmentEvidence(
                     source_id=source_id,
@@ -699,6 +926,7 @@ async def get_node_evidence(
                     text=content.content[:500] + "...",
                     start=None,
                     end=None,
+                    transcript_id=transcript_id,
                 )
             )
 

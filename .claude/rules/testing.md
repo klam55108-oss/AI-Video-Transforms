@@ -10,7 +10,7 @@ paths: tests/**/*.py
 - Fixtures defined in `tests/conftest.py`
 - Run: `uv run pytest` or `uv run pytest -v` for verbose
 
-## Test Organization (647 tests across 31 modules)
+## Test Organization (910 tests across 39 modules)
 
 ### Core Tests
 | File | Description |
@@ -38,15 +38,21 @@ paths: tests/**/*.py
 | `test_kg_domain.py` | Domain models (ThingType, KGProject) |
 | `test_kg_e2e_flow.py` | End-to-end KG workflows |
 | `test_kg_extraction_tool.py` | Extraction tool logic |
+| `test_kg_input_validation.py` | Input validation edge cases |
 | `test_kg_integration.py` | KG integration tests |
 | `test_kg_knowledge_base.py` | Graph storage (NetworkX) |
 | `test_kg_mcp_tools.py` | KG MCP tool registration |
+| `test_kg_normalization.py` | Text normalization, n-gram generation |
 | `test_kg_persistence.py` | JSON/GraphML export |
+| `test_kg_resolution.py` | Entity resolution, similarity matching |
+| `test_kg_resolution_api.py` | Merge/duplicate detection API |
 | `test_kg_schemas.py` | Extraction schemas |
 | `test_kg_service.py` | KnowledgeGraphService |
 | `test_kg_service_extraction.py` | Service extraction logic |
 | `test_kg_templates.py` | Prompt templates |
 | `test_kg_tools.py` | Bootstrap/extraction tools |
+| `test_merge_safety.py` | Merge operation safety checks |
+| `test_resolution_audit.py` | Merge audit trail integration |
 
 
 ## Async Tests

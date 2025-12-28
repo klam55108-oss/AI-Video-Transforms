@@ -5,9 +5,11 @@ import { state, KG_PROJECT_STORAGE_KEY } from '../core/state.js';
 import { escapeHtml } from '../core/utils.js';
 import { showToast } from '../ui/toast.js';
 import { showKGPanel, hideKGPanel } from '../ui/workspace.js';
-import { kgClient } from './api.js';
+import { kgClient, getPendingMerges, reviewMergeCandidate } from './api.js';
 import { startKGPolling, stopKGPolling, refreshKGProjectStatus } from './polling.js';
 import { updateKGUI } from './ui.js';
+import { showMergeModal, getConfidenceLevel } from './merge-modal.js';
+import { initKGGraph } from './graph.js';
 
 function toggleKGPanel() {
     if (!state.kgContent || !state.kgCaret) return;
@@ -317,6 +319,228 @@ async function selectKGProject(projectId) {
     }
 }
 
+// ============================================
+// Pending Merge Reviews Section
+// ============================================
+
+/**
+ * Load and display pending merge candidates for the current project.
+ */
+async function loadPendingMerges() {
+    if (!state.kgCurrentProjectId) return;
+
+    const container = document.getElementById('kg-pending-merges');
+    if (!container) return;
+
+    try {
+        const response = await getPendingMerges(state.kgCurrentProjectId);
+        const candidates = (response.candidates || []).filter(c => c.status === 'pending');
+
+        if (candidates.length === 0) {
+            container.classList.add('hidden');
+            updatePendingMergesBadge(0);
+            return;
+        }
+
+        container.classList.remove('hidden');
+        renderPendingMergesSection(candidates);
+        updatePendingMergesBadge(candidates.length);
+    } catch (e) {
+        console.error('Failed to load pending merges:', e);
+        container.classList.add('hidden');
+        updatePendingMergesBadge(0);
+    }
+}
+
+/**
+ * Render the pending merges section in the KG panel.
+ * @param {Array} candidates - List of pending merge candidates
+ */
+function renderPendingMergesSection(candidates) {
+    const container = document.getElementById('kg-pending-merges');
+    if (!container) return;
+
+    const itemsHTML = candidates.map(candidate => {
+        const confidenceLevel = getConfidenceLevel(candidate.confidence);
+        const confidencePercent = Math.round(candidate.confidence * 100);
+
+        // Get node labels from cytoscape if available
+        let labelA = candidate.node_a_id;
+        let labelB = candidate.node_b_id;
+
+        if (state.cytoscapeInstance) {
+            const nodeA = state.cytoscapeInstance.nodes(`[id = "${candidate.node_a_id}"]`);
+            const nodeB = state.cytoscapeInstance.nodes(`[id = "${candidate.node_b_id}"]`);
+            if (nodeA.length > 0) labelA = nodeA.data('label') || labelA;
+            if (nodeB.length > 0) labelB = nodeB.data('label') || labelB;
+        }
+
+        return `
+            <div class="pending-merge-item" data-candidate-id="${escapeHtml(candidate.id)}">
+                <div class="pending-merge-labels">
+                    <span class="pending-merge-node" title="${escapeHtml(labelA)}">${escapeHtml(truncateLabel(labelA, 15))}</span>
+                    <i class="ph-regular ph-arrows-left-right text-[var(--text-muted)]"></i>
+                    <span class="pending-merge-node" title="${escapeHtml(labelB)}">${escapeHtml(truncateLabel(labelB, 15))}</span>
+                    <span class="confidence-badge confidence-${confidenceLevel}">${confidencePercent}%</span>
+                </div>
+                <div class="pending-merge-actions">
+                    <button class="btn-approve"
+                            onclick="window.kg_approveMerge('${escapeHtml(candidate.id)}')"
+                            title="Approve merge">
+                        <i class="ph-bold ph-check"></i>
+                    </button>
+                    <button class="btn-reject"
+                            onclick="window.kg_rejectMerge('${escapeHtml(candidate.id)}')"
+                            title="Reject merge">
+                        <i class="ph-bold ph-x"></i>
+                    </button>
+                    <button class="btn-view-merge"
+                            onclick="window.kg_viewMergeCandidate('${escapeHtml(candidate.id)}', '${escapeHtml(candidate.node_a_id)}', '${escapeHtml(candidate.node_b_id)}', ${candidate.confidence})"
+                            title="View details">
+                        <i class="ph-regular ph-eye"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = `
+        <div class="pending-merges-section">
+            <div class="pending-merges-header">
+                <i class="ph-regular ph-git-merge"></i>
+                <span>Pending Reviews</span>
+                <span class="pending-merges-count">${candidates.length}</span>
+            </div>
+            <div class="pending-merges-list">
+                ${itemsHTML}
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Update the pending merges badge count in the panel header.
+ * @param {number} count - Number of pending merge candidates
+ */
+function updatePendingMergesBadge(count) {
+    const badge = document.getElementById('kg-merges-badge');
+    if (badge) {
+        if (count > 0) {
+            badge.textContent = count;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+}
+
+/**
+ * Truncate a label for display.
+ * @param {string} label
+ * @param {number} maxLen
+ * @returns {string}
+ */
+function truncateLabel(label, maxLen = 20) {
+    if (!label) return '';
+    return label.length > maxLen ? label.slice(0, maxLen - 1) + '...' : label;
+}
+
+/**
+ * Approve a merge candidate.
+ * @param {string} candidateId
+ */
+async function approveMergeCandidate(candidateId) {
+    if (!state.kgCurrentProjectId) return;
+
+    try {
+        await reviewMergeCandidate(state.kgCurrentProjectId, candidateId, true);
+        showToast('Merge approved', 'success');
+
+        // Refresh the pending merges list and graph
+        await loadPendingMerges();
+        if (state.kgCurrentProjectId && state.kgCurrentView === 'graph') {
+            await initKGGraph(state.kgCurrentProjectId);
+        }
+
+        // Dispatch event for other components
+        window.dispatchEvent(new CustomEvent('kg-merge-reviewed', {
+            detail: { projectId: state.kgCurrentProjectId, candidateId, approved: true }
+        }));
+    } catch (e) {
+        console.error('Failed to approve merge:', e);
+        showToast(e.message || 'Failed to approve merge', 'error');
+    }
+}
+
+/**
+ * Reject a merge candidate.
+ * @param {string} candidateId
+ */
+async function rejectMergeCandidate(candidateId) {
+    if (!state.kgCurrentProjectId) return;
+
+    try {
+        await reviewMergeCandidate(state.kgCurrentProjectId, candidateId, false);
+        showToast('Merge rejected', 'info');
+
+        // Refresh the pending merges list
+        await loadPendingMerges();
+
+        // Dispatch event for other components
+        window.dispatchEvent(new CustomEvent('kg-merge-reviewed', {
+            detail: { projectId: state.kgCurrentProjectId, candidateId, approved: false }
+        }));
+    } catch (e) {
+        console.error('Failed to reject merge:', e);
+        showToast(e.message || 'Failed to reject merge', 'error');
+    }
+}
+
+/**
+ * View merge candidate details in a modal.
+ * @param {string} candidateId
+ * @param {string} nodeAId
+ * @param {string} nodeBId
+ * @param {number} confidence
+ */
+async function viewMergeCandidate(candidateId, nodeAId, nodeBId, confidence) {
+    if (!state.kgCurrentProjectId) return;
+
+    // Get node data from cytoscape
+    let nodeA = { id: nodeAId, label: nodeAId };
+    let nodeB = { id: nodeBId, label: nodeBId };
+
+    if (state.cytoscapeInstance) {
+        const cyNodeA = state.cytoscapeInstance.nodes(`[id = "${nodeAId}"]`);
+        const cyNodeB = state.cytoscapeInstance.nodes(`[id = "${nodeBId}"]`);
+
+        if (cyNodeA.length > 0) nodeA = cyNodeA.data();
+        if (cyNodeB.length > 0) nodeB = cyNodeB.data();
+    }
+
+    // Get signals from the candidate
+    try {
+        const response = await getPendingMerges(state.kgCurrentProjectId);
+        const candidate = (response.candidates || []).find(c => c.id === candidateId);
+        const signals = candidate?.signals || {};
+
+        showMergeModal(state.kgCurrentProjectId, nodeA, nodeB, confidence, signals);
+    } catch (e) {
+        console.error('Failed to view merge candidate:', e);
+        showMergeModal(state.kgCurrentProjectId, nodeA, nodeB, confidence, {});
+    }
+}
+
+// Window exports for onclick handlers
+window.kg_approveMerge = approveMergeCandidate;
+window.kg_rejectMerge = rejectMergeCandidate;
+window.kg_viewMergeCandidate = viewMergeCandidate;
+
+// Listen for merge completion events to refresh pending list
+window.addEventListener('kg-merge-completed', () => {
+    loadPendingMerges();
+});
+
 export {
     toggleKGPanel,
     toggleKGAdvanced,
@@ -330,5 +554,11 @@ export {
     handleDropdownKeydown,
     deleteKGProject,
     updateDropdownFocus,
-    clearDropdownFocus
+    clearDropdownFocus,
+    loadPendingMerges,
+    renderPendingMergesSection,
+    updatePendingMergesBadge,
+    approveMergeCandidate,
+    rejectMergeCandidate,
+    viewMergeCandidate
 };

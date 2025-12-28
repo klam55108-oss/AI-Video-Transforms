@@ -25,6 +25,7 @@ import networkx as nx  # type: ignore[import-untyped]
 
 from app.kg.domain import DomainProfile
 from app.kg.models import Edge, Node, RelationshipDetail, Source
+from app.kg.resolution import MergeHistory, ResolutionCandidate, ResolutionConfig
 
 # Constants for insights queries
 GROUP_SAMPLE_SIZE = 5  # Number of entities to show in group samples
@@ -310,6 +311,22 @@ class KnowledgeBase:
             if edge.source_node_id == source_id and edge.target_node_id == target_id:
                 return edge
         return None
+
+    def get_edges_for_node(self, node_id: str) -> list[Edge]:
+        """
+        Get all edges connected to a node (both incoming and outgoing).
+
+        Args:
+            node_id: ID of the node to find edges for
+
+        Returns:
+            List of Edge objects where the node is either source or target
+        """
+        edges: list[Edge] = []
+        for edge in self._edges.values():
+            if edge.source_node_id == node_id or edge.target_node_id == node_id:
+                edges.append(edge)
+        return edges
 
     def get_or_create_edge(self, source_id: str, target_id: str) -> tuple[Edge, bool]:
         """
@@ -1109,3 +1126,286 @@ class KnowledgeBase:
         suggestions.sort(key=lambda x: priority_order.get(x["priority"], 3))
 
         return suggestions[:limit]
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # ENTITY RESOLUTION
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    def find_resolution_candidates(
+        self,
+        config: ResolutionConfig | None = None,
+    ) -> list[ResolutionCandidate]:
+        """
+        Scan all nodes for potential duplicates using blocking strategy.
+
+        Uses EntityMatcher with optional custom configuration to find
+        pairs of nodes that may represent the same real-world entity.
+
+        Args:
+            config: Optional ResolutionConfig. Uses defaults if not provided.
+
+        Returns:
+            List of ResolutionCandidate objects sorted by confidence (desc)
+        """
+        from app.kg.resolution import EntityMatcher
+
+        if config is None:
+            config = ResolutionConfig()
+
+        matcher = EntityMatcher(config)
+        nodes = list(self._nodes.values())
+        return matcher.find_candidates(nodes, kb=self, min_confidence=config.review_threshold)
+
+    def merge_nodes(
+        self,
+        survivor_id: str,
+        merged_id: str,
+        merge_type: str = "user",
+        merged_by: str | None = None,
+    ) -> MergeHistory:
+        """
+        Merge two nodes into one, preserving all relationships.
+
+        The survivor node absorbs the merged node's:
+        - Aliases (including merged node's label as new alias)
+        - Edges (redirected to survivor)
+        - Properties (survivor wins on conflict)
+        - Source IDs (combined)
+
+        After merge, the merged node is removed from the graph.
+
+        Args:
+            survivor_id: ID of the node that remains
+            merged_id: ID of the node to merge into survivor
+            merge_type: How merge was triggered (auto, user, agent)
+            merged_by: Optional session ID for agent merges
+
+        Returns:
+            MergeHistory record with audit information
+
+        Raises:
+            ValueError: If either node doesn't exist
+        """
+        survivor = self._nodes.get(survivor_id)
+        merged = self._nodes.get(merged_id)
+
+        if survivor is None:
+            raise ValueError(f"Survivor node not found: {survivor_id}")
+        if merged is None:
+            raise ValueError(f"Merged node not found: {merged_id}")
+
+        # Track what we're merging for the audit record
+        merged_label = merged.label
+        new_aliases: list[str] = []
+
+        # 1. Add merged node's label as alias to survivor (if not already present)
+        if merged.label.lower() != survivor.label.lower():
+            if merged.label not in survivor.aliases:
+                survivor.add_alias(merged.label)
+                new_aliases.append(merged.label)
+
+        # 2. Transfer aliases from merged to survivor
+        for alias in merged.aliases:
+            if alias.lower() != survivor.label.lower() and alias not in survivor.aliases:
+                survivor.add_alias(alias)
+                new_aliases.append(alias)
+
+        # 3. Merge properties (survivor wins on conflict)
+        for key, value in merged.properties.items():
+            if key not in survivor.properties:
+                survivor.properties[key] = value
+
+        # 4. Combine source_ids
+        for source_id in merged.source_ids:
+            survivor.add_source(source_id)
+
+        # 5. Redirect edges - find all edges involving merged node
+        edges_to_update: list[str] = []
+        edges_to_remove: list[str] = []
+
+        for edge_id, edge in list(self._edges.items()):
+            if edge.source_node_id == merged_id or edge.target_node_id == merged_id:
+                # Determine new source/target
+                new_source = survivor_id if edge.source_node_id == merged_id else edge.source_node_id
+                new_target = survivor_id if edge.target_node_id == merged_id else edge.target_node_id
+
+                # Skip self-loops that would result from merge
+                if new_source == new_target:
+                    edges_to_remove.append(edge_id)
+                    continue
+
+                # Check if an edge already exists between these nodes
+                existing_edge = self.get_edge_between(new_source, new_target)
+                if existing_edge is not None and existing_edge.id != edge_id:
+                    # Merge relationships into existing edge
+                    for rel in edge.relationships:
+                        existing_edge.add_relationship(rel)
+                    edges_to_remove.append(edge_id)
+                else:
+                    # Update this edge to use survivor
+                    edge.source_node_id = new_source
+                    edge.target_node_id = new_target
+                    edges_to_update.append(edge_id)
+
+        # 6. Update NetworkX graph for updated edges
+        for edge_id in edges_to_update:
+            edge = self._edges[edge_id]
+            # Remove old edge from NetworkX (if exists)
+            if self._graph.has_edge(merged_id, edge.target_node_id):
+                self._graph.remove_edge(merged_id, edge.target_node_id)
+            if self._graph.has_edge(edge.source_node_id, merged_id):
+                self._graph.remove_edge(edge.source_node_id, merged_id)
+            # Add/update edge with new endpoints
+            self._graph.add_edge(
+                edge.source_node_id,
+                edge.target_node_id,
+                edge_id=edge.id,
+                relationships=edge.get_relationship_types(),
+            )
+
+        # 7. Remove edges that became redundant
+        for edge_id in edges_to_remove:
+            if edge_id in self._edges:
+                edge = self._edges.pop(edge_id)
+                # Remove from NetworkX if it exists
+                if self._graph.has_edge(edge.source_node_id, edge.target_node_id):
+                    self._graph.remove_edge(edge.source_node_id, edge.target_node_id)
+
+        # 8. Update label/alias indices
+        # Remove merged node's entries
+        if merged.label.lower() in self._label_to_id:
+            del self._label_to_id[merged.label.lower()]
+        for alias in merged.aliases:
+            if alias.lower() in self._alias_to_id:
+                # Only remove if it points to merged node
+                if self._alias_to_id.get(alias.lower()) == merged_id:
+                    del self._alias_to_id[alias.lower()]
+
+        # Add new aliases to survivor's index
+        for alias in new_aliases:
+            self._alias_to_id[alias.lower()] = survivor_id
+
+        # 9. Remove merged node from graph and storage
+        if merged_id in self._graph:
+            self._graph.remove_node(merged_id)
+        del self._nodes[merged_id]
+
+        # 10. Update survivor's data in NetworkX
+        self._graph.nodes[survivor_id].update(survivor.model_dump())
+
+        # Invalidate caches
+        self._invalidate_undirected_cache()
+        self.updated_at = _utc_now()
+        survivor.updated_at = _utc_now()
+
+        # Create and return audit record
+        history = MergeHistory(
+            survivor_id=survivor_id,
+            merged_id=merged_id,
+            merged_label=merged_label,
+            merged_aliases=new_aliases,
+            confidence=1.0,  # Will be set by caller if from resolution
+            merge_type=merge_type,  # type: ignore[arg-type]
+            merged_by=merged_by,
+        )
+
+        return history
+
+    def auto_resolve_candidates(
+        self,
+        candidates: list[ResolutionCandidate],
+        threshold: float = 0.9,
+    ) -> list[MergeHistory]:
+        """
+        Auto-merge all candidates above the specified threshold.
+
+        Processes candidates in order of confidence (highest first).
+        Skips candidates where one of the nodes has already been merged.
+
+        Args:
+            candidates: List of ResolutionCandidate objects
+            threshold: Minimum confidence to auto-merge (default 0.9)
+
+        Returns:
+            List of MergeHistory records for completed merges
+        """
+        history: list[MergeHistory] = []
+        merged_ids: set[str] = set()
+
+        # Sort by confidence descending
+        sorted_candidates = sorted(candidates, key=lambda c: c.confidence, reverse=True)
+
+        for candidate in sorted_candidates:
+            # Skip if below threshold
+            if candidate.confidence < threshold:
+                continue
+
+            # Skip if either node was already merged
+            if candidate.node_a_id in merged_ids or candidate.node_b_id in merged_ids:
+                continue
+
+            # Skip if either node no longer exists
+            if candidate.node_a_id not in self._nodes or candidate.node_b_id not in self._nodes:
+                continue
+
+            try:
+                # Choose survivor (use node_a as survivor for consistency)
+                record = self.merge_nodes(
+                    survivor_id=candidate.node_a_id,
+                    merged_id=candidate.node_b_id,
+                    merge_type="auto",
+                )
+                record.confidence = candidate.confidence
+                history.append(record)
+                merged_ids.add(candidate.node_b_id)
+            except ValueError:
+                # Node disappeared during processing, skip
+                continue
+
+        return history
+
+    def find_candidates_for_node(
+        self,
+        node: Node,
+        config: ResolutionConfig | None = None,
+    ) -> list[ResolutionCandidate]:
+        """
+        Find resolution candidates for a single node against existing nodes.
+
+        Useful for checking if a newly extracted entity is a duplicate
+        of an existing node before adding it to the graph.
+
+        Args:
+            node: The node to find candidates for
+            config: Optional ResolutionConfig. Uses defaults if not provided.
+
+        Returns:
+            List of ResolutionCandidate objects sorted by confidence (desc)
+        """
+        from app.kg.resolution import EntityMatcher
+
+        if config is None:
+            config = ResolutionConfig()
+
+        matcher = EntityMatcher(config)
+        candidates: list[ResolutionCandidate] = []
+
+        for existing in self._nodes.values():
+            # Skip comparing with itself
+            if existing.id == node.id:
+                continue
+
+            confidence, signals = matcher.compute_similarity(node, existing, kb=self)
+
+            if confidence >= config.review_threshold:
+                candidate = ResolutionCandidate(
+                    node_a_id=node.id,
+                    node_b_id=existing.id,
+                    confidence=confidence,
+                    signals=signals,
+                )
+                candidates.append(candidate)
+
+        # Sort by confidence descending
+        candidates.sort(key=lambda c: c.confidence, reverse=True)
+        return candidates

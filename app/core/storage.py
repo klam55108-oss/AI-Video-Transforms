@@ -186,6 +186,7 @@ class StorageManager:
         original_source: str,
         source_type: str,
         session_id: str | None = None,
+        title: str | None = None,
     ) -> dict[str, Any]:
         """
         Register a transcript file in the metadata.
@@ -195,6 +196,7 @@ class StorageManager:
             original_source: YouTube URL or uploaded filename
             source_type: "youtube", "upload", or "local"
             session_id: Optional link to originating session (must be valid UUID if provided)
+            title: Optional human-readable title (e.g., video name for YouTube sources)
 
         Returns:
             The transcript metadata entry
@@ -220,6 +222,7 @@ class StorageManager:
             "created_at": datetime.now(timezone.utc).isoformat(),
             "file_size": path.stat().st_size if path.exists() else 0,
             "session_id": session_id,
+            "title": title,  # Human-readable title for matching
             "format": "text",  # Default format for backward compatibility
         }
 

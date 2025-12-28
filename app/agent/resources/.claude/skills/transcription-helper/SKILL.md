@@ -40,10 +40,12 @@ ONLY proceed after explicit confirmation ("yes", "proceed", "confirm", "go ahead
    - `temperature`: 0.0 for consistent results
    - `prompt`: Domain vocabulary if provided
 2. Validate results (check for text content, note any splitting)
-3. **IMMEDIATELY** use `save_transcript` to:
-   - Persist the transcription
-   - Get transcript ID for reference
-   - Free up context memory
+3. **IMMEDIATELY** use `save_transcript` with:
+   - `content`: The transcription text
+   - `original_source`: The file path or YouTube URL
+   - `source_type`: "youtube", "upload", or "local"
+   - **`title`**: The video's display name (e.g., "The Search" NOT the URL)
+   - This persists the transcript, gets an ID, and **enables evidence linking in KG**
 
 ### Phase 4: Results & Follow-up
 After successful transcription:

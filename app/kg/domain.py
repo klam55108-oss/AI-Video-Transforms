@@ -21,6 +21,9 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+# Forward reference for resolution types (imported at end to avoid circular import)
+# These are imported at module level after class definitions
+
 
 def _generate_id() -> str:
     """Generate a 12-character hex ID from UUID4."""
@@ -232,6 +235,9 @@ class KGProject(BaseModel):
         state: Current lifecycle state
         domain_profile: Auto-inferred domain configuration
         pending_discoveries: Discoveries awaiting user confirmation
+        pending_merges: Resolution candidates awaiting user confirmation
+        merge_history: Audit trail of completed merges
+        resolution_config: Configuration for entity resolution algorithm
         source_count: Number of videos processed
         thing_count: Number of entities extracted
         connection_count: Number of relationships extracted
@@ -246,6 +252,11 @@ class KGProject(BaseModel):
     state: ProjectState = ProjectState.CREATED
     domain_profile: DomainProfile | None = None
     pending_discoveries: list[Discovery] = Field(default_factory=list)
+    pending_merges: list["ResolutionCandidate"] = Field(default_factory=list)
+    merge_history: list["MergeHistory"] = Field(default_factory=list)
+    resolution_config: "ResolutionConfig" = Field(
+        default_factory=lambda: _get_default_resolution_config()
+    )
     source_count: int = 0
     thing_count: int = 0
     connection_count: int = 0
@@ -253,3 +264,18 @@ class KGProject(BaseModel):
     error: str | None = None
     created_at: datetime = Field(default_factory=_utc_now)
     updated_at: datetime = Field(default_factory=_utc_now)
+
+
+def _get_default_resolution_config() -> "ResolutionConfig":
+    """Get default ResolutionConfig. Avoids circular import at class definition time."""
+    from app.kg.resolution import ResolutionConfig
+
+    return ResolutionConfig()
+
+
+# Import resolution types for runtime validation
+# These are imported after class definitions to avoid circular imports
+from app.kg.resolution import MergeHistory, ResolutionCandidate, ResolutionConfig  # noqa: E402
+
+# Update forward references for Pydantic
+KGProject.model_rebuild()

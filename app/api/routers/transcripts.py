@@ -37,6 +37,55 @@ async def list_transcripts(
     return TranscriptListResponse(transcripts=transcripts, total=len(transcripts))
 
 
+@router.get("/{transcript_id}")
+async def get_transcript(
+    transcript_id: str = Depends(ValidatedTranscriptId()),
+    storage_svc: StorageService = Depends(get_storage_service),
+) -> dict:
+    """
+    Get transcript content and metadata by ID.
+
+    Used by the transcript viewer modal to display full transcript content.
+
+    Args:
+        transcript_id: Short ID of the transcript (validated)
+        storage_svc: Injected storage service
+
+    Returns:
+        Transcript data including text content and metadata
+
+    Raises:
+        HTTPException: If transcript not found
+    """
+    import json as json_lib
+
+    # Get raw metadata (includes file_path)
+    metadata_dict = storage_svc.get_transcript_raw(transcript_id)
+    if not metadata_dict:
+        raise HTTPException(status_code=404, detail="Transcript not found")
+
+    # Try JSON file first (has segments), fall back to text file
+    json_path = Path(metadata_dict["file_path"]).with_suffix(".json")
+    if json_path.exists():
+        transcript_data = json_lib.loads(json_path.read_text(encoding="utf-8"))
+        return transcript_data
+
+    # Fall back to plain text file
+    txt_path = Path(metadata_dict["file_path"])
+    if not txt_path.exists():
+        raise HTTPException(status_code=404, detail="Transcript file not found")
+
+    # Return minimal structure for text-only transcripts
+    return {
+        "id": transcript_id,
+        "text": txt_path.read_text(encoding="utf-8"),
+        "source": metadata_dict.get("original_source", ""),
+        "source_type": metadata_dict.get("source_type", "local_file"),
+        "duration": metadata_dict.get("duration", 0),
+        "title": metadata_dict.get("title", metadata_dict.get("filename", "")),
+    }
+
+
 @router.get("/{transcript_id}/export")
 async def export_transcript(
     transcript_id: str = Depends(ValidatedTranscriptId()),

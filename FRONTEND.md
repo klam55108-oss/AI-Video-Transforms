@@ -59,7 +59,8 @@ app/static/js/
     ├── search.js        # Graph search functionality
     ├── inspector.js     # Node inspector panel
     ├── evidence.js      # Node evidence/citation viewer
-    └── suggestions.js   # Interactive insight suggestion cards
+    ├── suggestions.js   # Interactive insight suggestion cards
+    └── merge-modal.js   # Entity merge confirmation UI
 ```
 
 ---
@@ -461,6 +462,28 @@ export function parseSuggestionBlocks(text);           // Extract suggestion pat
 
 **Styling**: Cards use CSS Grid for responsive layout with hover effects defined in `style.css` (`.kg-suggestion-cards`, `.suggestion-card`).
 
+#### `kg/merge-modal.js`
+Entity merge confirmation modal for duplicate resolution.
+
+```javascript
+export function showMergeModal(projectId, candidate);   // Open modal with merge preview
+export function closeMergeModal();                       // Close without action
+export function confirmMerge();                          // Execute merge operation
+```
+
+**Features**:
+- Interactive preview of source → target entity merge
+- Combined aliases display showing merge result
+- Keyboard accessible (Escape to close, focus trap)
+- Audit trail integration for merge operations
+- Toast notifications for success/failure feedback
+
+**Accessibility**:
+- Focus trap keeps keyboard navigation within modal
+- Escape key closes modal
+- Click-outside-to-dismiss with backdrop overlay
+- ARIA labels for screen readers
+
 ---
 
 ## Dependency Graph
@@ -530,6 +553,11 @@ window.batchExportKGProjects  // Export all projects as single ZIP
 window.changeGraphLayout
 window.fitGraphView
 window.resetGraphView
+
+// KG Entity Resolution
+window.kg_showMergeModal     // Open merge confirmation modal
+window.kg_closeMergeModal    // Close merge modal
+window.kg_confirmMerge       // Execute entity merge
 
 // Jobs
 window.cancelJob

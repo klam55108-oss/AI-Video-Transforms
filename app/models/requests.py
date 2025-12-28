@@ -7,9 +7,79 @@ including chat messages and session initialization.
 
 from __future__ import annotations
 
+import re
+
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.validators import UUID_PATTERN
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Entity Name Validation Constants
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Maximum length for entity names (labels, names) in KB
+MAX_ENTITY_NAME_LENGTH = 500
+
+# Control character pattern (C0 and C1 control chars)
+# C0: \x00-\x1f (except common whitespace like \t \n \r which we'll preserve)
+# C1: \x7f-\x9f (DEL and extended control chars)
+CONTROL_CHAR_PATTERN = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+
+# Node ID pattern: exactly 12 hex characters (matches KG node ID format)
+# Node IDs are generated via uuid4().hex[:12] which produces lowercase hex
+NODE_ID_PATTERN = re.compile(r"^[0-9a-f]{12}$")
+
+
+def sanitize_entity_name(value: str) -> str:
+    """Sanitize an entity name by stripping control characters.
+
+    Args:
+        value: The entity name to sanitize.
+
+    Returns:
+        Sanitized string with control characters removed and whitespace stripped.
+
+    Raises:
+        ValueError: If the resulting name exceeds MAX_ENTITY_NAME_LENGTH.
+    """
+    if not value:
+        return value
+
+    # Strip control characters (preserving normal whitespace like spaces, tabs)
+    sanitized = CONTROL_CHAR_PATTERN.sub("", value)
+
+    # Strip leading/trailing whitespace
+    sanitized = sanitized.strip()
+
+    # Enforce max length
+    if len(sanitized) > MAX_ENTITY_NAME_LENGTH:
+        raise ValueError(
+            f"Entity name exceeds {MAX_ENTITY_NAME_LENGTH} characters "
+            f"(got {len(sanitized)})"
+        )
+
+    return sanitized
+
+
+class EntityNameMixin:
+    """Mixin providing entity name validation for Pydantic models.
+
+    Models using this mixin should have 'name' and/or 'label' fields.
+    The validator strips control characters and enforces max length.
+
+    Example:
+        class CreateEntityRequest(EntityNameMixin, BaseModel):
+            name: str
+            label: str | None = None
+    """
+
+    @field_validator("name", "label", mode="before", check_fields=False)
+    @classmethod
+    def validate_entity_name(cls, v: str | None) -> str | None:
+        """Strip control characters and enforce max length on entity names."""
+        if v is None:
+            return None
+        return sanitize_entity_name(v)
 
 
 class ChatRequest(BaseModel):
@@ -115,4 +185,60 @@ class BatchExportRequest(BaseModel):
         default="graphml",
         pattern="^(graphml|json|csv)$",
         description="Export format: 'graphml', 'json', or 'csv'",
+    )
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Entity Resolution Request Models
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class MergeEntitiesRequest(BaseModel):
+    """Request model for merging two entities.
+
+    Node IDs must be exactly 12 lowercase hex characters (KG node ID format).
+    Optional request_id provides idempotency for retry scenarios.
+    """
+
+    survivor_id: str = Field(..., description="ID of node to keep (12 hex chars)")
+    merged_id: str = Field(..., description="ID of node to merge into survivor (12 hex chars)")
+    request_id: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Idempotency key for deduplicating retries",
+    )
+
+    @field_validator("survivor_id", "merged_id")
+    @classmethod
+    def validate_node_id(cls, v: str) -> str:
+        """Validate node ID format (12 lowercase hex characters)."""
+        if not v:
+            raise ValueError("Node ID cannot be empty")
+        if len(v) != 12:
+            raise ValueError("Node ID must be exactly 12 characters")
+        if not NODE_ID_PATTERN.match(v):
+            raise ValueError("Node ID must be lowercase hexadecimal")
+        return v
+
+
+class ReviewMergeRequest(BaseModel):
+    """Request model for approving or rejecting a merge candidate."""
+
+    approved: bool = Field(..., description="Whether to approve the merge")
+
+
+class ScanDuplicatesRequest(BaseModel):
+    """Request model for scanning for duplicate entities."""
+
+    auto_merge_threshold: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Override auto-merge threshold (0.0-1.0)",
+    )
+    review_threshold: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Override review threshold (0.0-1.0)",
     )

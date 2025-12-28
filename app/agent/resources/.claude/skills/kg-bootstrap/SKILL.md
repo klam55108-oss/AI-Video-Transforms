@@ -33,7 +33,7 @@ Use `bootstrap_kg_project` with:
 Format results conversationally:
 
 ```
-## Knowledge Graph Bootstrap Complete!
+## Knowledge Graph Schema Discovered!
 
 **Project:** [Name]
 **Confidence:** [X]%
@@ -48,14 +48,39 @@ Format results conversationally:
 - **founded**: Company founding
 - [etc.]
 
-### Key Entities Found ([N])
+### Example Entities Identified ([N])
 - [Entity Name] ([Type])
 - [etc.]
 
-Your Knowledge Graph is ready! Would you like me to:
+Now extracting entities into the graph...
+```
+
+### Step 4.5: CRITICAL — Extract from Bootstrap Transcript
+
+**IMMEDIATELY after bootstrap**, call `extract_to_kg` with the SAME transcript:
+
+```
+extract_to_kg(
+    project_id="...",
+    transcript="...",        ← Same transcript used for bootstrap
+    title="...",             ← Same title
+    transcript_id="..."      ← REQUIRED for evidence linking
+)
+```
+
+This populates the actual graph with entities. Bootstrap only creates the schema (types and patterns); extraction adds the nodes and edges.
+
+After extraction completes, present:
+```
+## Knowledge Graph Complete!
+
+**Entities Added:** [N]
+**Relationships Found:** [N]
+
+Would you like me to:
 1. Extract entities from another transcript
 2. View current graph statistics
-3. Export the graph data
+3. Explore key players and connections
 ```
 
 ### Step 5: Continue Building
@@ -89,6 +114,24 @@ Without `transcript_id`, the graph inspector won't be able to show supporting ev
 
 - A project MUST be bootstrapped before extraction
 - Bootstrap happens ONCE per project (first transcript only)
+- **Bootstrap creates schema ONLY** — you MUST call `extract_to_kg` afterward to populate the graph
+- **ALWAYS extract from the bootstrap transcript** — don't skip to "another transcript"
 - **Always pass `transcript_id`** when using `extract_to_kg`
 - Always show progress in chat — user shouldn't need to check sidebar
 - The sidebar syncs automatically, but chat is the primary interface
+
+## Common Mistake to Avoid
+
+❌ WRONG:
+```
+bootstrap_kg_project(transcript)
+→ "Your KG is ready! Extract from ANOTHER transcript?"
+```
+
+✅ CORRECT:
+```
+bootstrap_kg_project(transcript)
+→ "Schema discovered! Now extracting entities..."
+extract_to_kg(same_transcript)
+→ "X entities and Y relationships added!"
+```

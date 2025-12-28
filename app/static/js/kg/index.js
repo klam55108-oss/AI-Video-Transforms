@@ -13,13 +13,14 @@ import * as search from './search.js';
 import * as panel from './panel.js';
 import * as evidence from './evidence.js';
 import * as suggestions from './suggestions.js';
+import * as mergeModal from './merge-modal.js';
 
 // Resolve circular dependencies between graph and inspector
 graph.setInspectorModule(inspector);
 inspector.setGraphModule(graph);
 
 // Re-export all public APIs
-export { handleKGApiError, kgClient } from './api.js';
+export { handleKGApiError, kgClient, scanForDuplicates, mergeEntities, getPendingMerges, reviewMergeCandidate, getMergeHistory } from './api.js';
 export { updateKGUI, updateKGStateBadge, updateKGActionButton, updateKGConfirmations, renderKGConfirmations, updateKGStats } from './ui.js';
 export { startKGPolling, stopKGPolling, refreshKGProjectStatus } from './polling.js';
 export { createKGProject, confirmKGDiscovery, exportKGGraph, batchExportKGProjects, initBatchExportModal } from './actions.js';
@@ -54,9 +55,13 @@ export {
     handleDropdownKeydown,
     deleteKGProject,
     updateDropdownFocus,
-    clearDropdownFocus
+    clearDropdownFocus,
+    loadPendingMerges,
+    renderPendingMergesSection,
+    updatePendingMergesBadge
 } from './panel.js';
 export { renderSuggestionCards, enhanceInsightMessage, isInsightMessage } from './suggestions.js';
+export { showMergeModal, closeMergeModal, showMergeConfirmation, getConfidenceLevel, getConfidenceLabel } from './merge-modal.js';
 
 // Expose key functions to window for onclick handlers (temporary - will refactor to event delegation)
 window.kg_confirmKGDiscovery = actions.confirmKGDiscovery;
