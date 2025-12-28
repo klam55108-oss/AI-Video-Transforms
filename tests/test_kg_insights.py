@@ -200,10 +200,14 @@ def test_get_key_entities_influence(complex_kb: KnowledgeBase) -> None:
     results = complex_kb.get_key_entities(limit=5, method="influence")
 
     assert len(results) <= 5
-    # Should have influence percentages
+    # Should have influence percentages or zero-influence message
     for result in results:
         assert "score" in result
-        assert "Influences" in result["why"]
+        # Zero-score nodes get "No measurable", non-zero get "Influences"
+        if result["score"] > 0.0001:
+            assert "Influences" in result["why"]
+        else:
+            assert "No measurable" in result["why"]
 
 
 def test_get_key_entities_bridging(complex_kb: KnowledgeBase) -> None:
@@ -213,7 +217,11 @@ def test_get_key_entities_bridging(complex_kb: KnowledgeBase) -> None:
     assert len(results) <= 5
     for result in results:
         assert "score" in result
-        assert "Bridges" in result["why"]
+        # Zero-score nodes get "Does not bridge", non-zero get "Bridges"
+        if result["score"] > 0.0001:
+            assert "Bridges" in result["why"]
+        else:
+            assert "Does not bridge" in result["why"]
 
 
 def test_get_key_entities_empty_kb(empty_kb: KnowledgeBase) -> None:

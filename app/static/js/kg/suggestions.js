@@ -4,6 +4,7 @@
 // ============================================
 
 import { escapeHtml } from '../core/utils.js';
+import { showToast } from '../ui/toast.js';
 
 // ============================================
 // Constants
@@ -318,11 +319,17 @@ export function renderSuggestionCards(container, suggestions) {
             ${safeDesc ? `<span class="desc">${safeDesc}</span>` : ''}
         `;
 
-        // Click handler sends the query
+        // Click handler sends the query with graceful degradation
         card.addEventListener('click', () => {
             if (typeof window.sendMessage === 'function') {
                 window.sendMessage(suggestion.query);
             } else {
+                // Fallback: copy query to clipboard and notify user
+                navigator.clipboard?.writeText(suggestion.query).then(() => {
+                    showToast('Query copied to clipboard. Paste it in the chat input.', 'info');
+                }).catch(() => {
+                    showToast('Chat not ready. Please try again.', 'warning');
+                });
                 console.warn('sendMessage not available on window');
             }
         });

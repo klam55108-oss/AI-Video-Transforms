@@ -535,26 +535,29 @@ class KnowledgeBase:
         if len(self._nodes) == 0:
             return []
 
-        # Get the undirected view for centrality calculations
+        # Cache the undirected view for centrality calculations (used by multiple methods)
         undirected = self._graph.to_undirected()
 
         # Calculate centrality based on method
         if method == "influence":
             try:
                 centrality = nx.pagerank(self._graph)
-            except nx.NetworkXError:
-                # PageRank can fail on empty graphs
+            except (nx.NetworkXError, nx.PowerIterationFailedConvergence):
+                # PageRank can fail on empty graphs or fail to converge
                 centrality = {node_id: 0.0 for node_id in self._nodes}
             why_template = "Influences {score:.0%} of the network through connections"
+            zero_why = "No measurable network influence"
         elif method == "bridging":
             try:
                 centrality = nx.betweenness_centrality(undirected)
             except nx.NetworkXError:
                 centrality = {node_id: 0.0 for node_id in self._nodes}
             why_template = "Bridges {pct:.0%} of shortest paths between entities"
+            zero_why = "Does not bridge any paths"
         else:  # Default: connections (degree centrality)
             centrality = dict(undirected.degree())
             why_template = "Connected to {count} other entities"
+            zero_why = "No connections"
 
         # Build results with optional entity_type filter
         results: list[dict[str, Any]] = []
@@ -567,8 +570,10 @@ class KnowledgeBase:
             if entity_type and node.entity_type != entity_type:
                 continue
 
-            # Generate human-readable "why" explanation
-            if method == "connections":
+            # Generate human-readable "why" explanation with zero-score guard
+            if score == 0 or (isinstance(score, float) and score < 0.0001):
+                why = zero_why
+            elif method == "connections":
                 why = why_template.format(count=int(score))
             elif method == "bridging":
                 why = why_template.format(pct=score)
@@ -768,8 +773,14 @@ class KnowledgeBase:
         """
         Discover clusters of related entities using community detection.
 
-        Uses Louvain community detection algorithm on the undirected
-        graph to find groups of closely connected entities.
+        Uses the Louvain community detection algorithm (Blondel et al., 2008)
+        on the undirected graph to find groups of closely connected entities.
+
+        Algorithm Details:
+        - Time complexity: O(n log n) where n is the number of edges
+        - Optimizes modularity to find natural community structure
+        - Deterministic results via seed=42 for reproducibility
+        - Falls back gracefully if graph is too small or disconnected
 
         Returns:
             List of groups with {name, entities, size, sample}
@@ -968,7 +979,7 @@ class KnowledgeBase:
 
         return results
 
-    def get_smart_suggestions(self) -> list[dict[str, Any]]:
+    def get_smart_suggestions(self, limit: int = 5) -> list[dict[str, Any]]:
         """
         Analyze the graph and suggest what to explore next.
 
@@ -982,8 +993,12 @@ class KnowledgeBase:
         - Entity type distribution
         - Underexplored relationships
 
+        Args:
+            limit: Maximum number of suggestions to return (default 5).
+                   Prevents overly verbose responses.
+
         Returns:
-            List of {question, why, action, priority} suggestions
+            List of {question, why, action, priority} suggestions (capped at limit)
         """
         suggestions: list[dict[str, Any]] = []
         stats = self.stats()
@@ -1061,8 +1076,8 @@ class KnowledgeBase:
                 "priority": "low",
             })
 
-        # Sort by priority
+        # Sort by priority and apply limit
         priority_order = {"high": 0, "medium": 1, "low": 2}
         suggestions.sort(key=lambda x: priority_order.get(x["priority"], 3))
 
-        return suggestions
+        return suggestions[:limit]

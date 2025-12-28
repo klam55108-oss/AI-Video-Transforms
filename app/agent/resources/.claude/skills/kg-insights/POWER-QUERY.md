@@ -2,6 +2,22 @@
 
 When users ask "What can I do with this graph?" or seem unsure how to proceed, provide personalized suggestions based on their graph's actual content.
 
+## Quick Reference
+
+| Query Type | What It Does | Best For |
+|------------|--------------|----------|
+| `key_entities` | Find most connected/influential entities | Starting exploration |
+| `connection` | Trace path between two entities | Understanding relationships |
+| `common_ground` | Find shared connections | Discovering hidden links |
+| `groups` | Cluster entities by connectivity | Finding themes |
+| `isolated` | Find disconnected subgraphs | Gap analysis |
+| `suggestions` | Auto-generate exploration ideas | When user is unsure |
+
+**Quick Usage:**
+```
+ask_about_graph(project_id="...", question_type="suggestions")
+```
+
 ## Trigger Phrases
 
 Invoke this when user says:

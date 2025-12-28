@@ -18,7 +18,22 @@ from uuid import uuid4
 from claude_agent_sdk import tool
 
 if TYPE_CHECKING:
+    from app.kg.knowledge_base import KnowledgeBase
     from app.services.kg_service import KnowledgeGraphService
+
+# Maximum entity name length for input validation (security)
+MAX_ENTITY_NAME_LENGTH = 500
+
+
+def _validate_entity_name(name: str, param_name: str) -> dict[str, Any] | None:
+    """Validate entity name length. Returns error dict if invalid, None if valid."""
+    if name and len(name) > MAX_ENTITY_NAME_LENGTH:
+        return {
+            "success": False,
+            "error": f"{param_name} exceeds maximum length ({MAX_ENTITY_NAME_LENGTH} chars)",
+        }
+    return None
+
 
 # Module-level cache for fallback singleton.
 # This exists because KG tools can be invoked in two contexts:
@@ -625,30 +640,30 @@ async def ask_about_graph(args: dict[str, Any]) -> dict[str, Any]:
                 "Bootstrap and extract content first.",
             }
 
-        # Route to appropriate query
+        # Route to appropriate query (handlers are synchronous)
         if question_type == "key_entities":
-            return await _handle_key_entities(kb, args, project.name)
+            return _handle_key_entities(kb, args, project.name)
 
         elif question_type == "connection":
-            return await _handle_connection(kb, args, project.name)
+            return _handle_connection(kb, args)
 
         elif question_type == "common_ground":
-            return await _handle_common_ground(kb, args, project.name)
+            return _handle_common_ground(kb, args)
 
         elif question_type == "groups":
-            return await _handle_groups(kb, project.name)
+            return _handle_groups(kb, project.name)
 
         elif question_type == "isolated":
-            return await _handle_isolated(kb, project.name)
+            return _handle_isolated(kb, project.name)
 
         elif question_type == "mentions":
-            return await _handle_mentions(kb, args, project.name)
+            return _handle_mentions(kb, args)
 
         elif question_type == "evidence":
-            return await _handle_evidence(kb, args, project.name)
+            return _handle_evidence(kb, args)
 
         elif question_type == "suggestions":
-            return await _handle_suggestions(kb, project.name)
+            return _handle_suggestions(kb, project.name)
 
         else:
             return {
@@ -662,8 +677,8 @@ async def ask_about_graph(args: dict[str, Any]) -> dict[str, Any]:
         return {"success": False, "error": f"Graph query failed: {e!s}"}
 
 
-async def _handle_key_entities(
-    kb: Any,
+def _handle_key_entities(
+    kb: "KnowledgeBase",
     args: dict[str, Any],
     project_name: str,
 ) -> dict[str, Any]:
@@ -712,10 +727,9 @@ async def _handle_key_entities(
     return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
 
-async def _handle_connection(
-    kb: Any,
+def _handle_connection(
+    kb: "KnowledgeBase",
     args: dict[str, Any],
-    project_name: str,
 ) -> dict[str, Any]:
     """Handle connection query type."""
     entity_1 = args.get("entity_1", "")
@@ -726,6 +740,12 @@ async def _handle_connection(
             "success": False,
             "error": "Both entity_1 and entity_2 are required for connection queries",
         }
+
+    # Validate entity name lengths
+    if error := _validate_entity_name(entity_1, "entity_1"):
+        return error
+    if error := _validate_entity_name(entity_2, "entity_2"):
+        return error
 
     result = kb.find_connection(entity_1, entity_2)
 
@@ -760,10 +780,9 @@ async def _handle_connection(
     return {"content": [{"type": "text", "text": text}]}
 
 
-async def _handle_common_ground(
-    kb: Any,
+def _handle_common_ground(
+    kb: "KnowledgeBase",
     args: dict[str, Any],
-    project_name: str,
 ) -> dict[str, Any]:
     """Handle common_ground query type."""
     entity_1 = args.get("entity_1", "")
@@ -774,6 +793,12 @@ async def _handle_common_ground(
             "success": False,
             "error": "Both entity_1 and entity_2 are required for common_ground queries",
         }
+
+    # Validate entity name lengths
+    if error := _validate_entity_name(entity_1, "entity_1"):
+        return error
+    if error := _validate_entity_name(entity_2, "entity_2"):
+        return error
 
     results = kb.find_common_ground(entity_1, entity_2)
 
@@ -802,7 +827,7 @@ async def _handle_common_ground(
     return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
 
-async def _handle_groups(kb: Any, project_name: str) -> dict[str, Any]:
+def _handle_groups(kb: "KnowledgeBase", project_name: str) -> dict[str, Any]:
     """Handle groups query type."""
     results = kb.discover_groups()
 
@@ -836,7 +861,7 @@ async def _handle_groups(kb: Any, project_name: str) -> dict[str, Any]:
     return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
 
-async def _handle_isolated(kb: Any, project_name: str) -> dict[str, Any]:
+def _handle_isolated(kb: "KnowledgeBase", project_name: str) -> dict[str, Any]:
     """Handle isolated query type."""
     results = kb.find_isolated_topics()
 
@@ -870,10 +895,9 @@ async def _handle_isolated(kb: Any, project_name: str) -> dict[str, Any]:
     return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
 
-async def _handle_mentions(
-    kb: Any,
+def _handle_mentions(
+    kb: "KnowledgeBase",
     args: dict[str, Any],
-    project_name: str,
 ) -> dict[str, Any]:
     """Handle mentions query type."""
     entity = args.get("entity_1", "")
@@ -883,6 +907,10 @@ async def _handle_mentions(
             "success": False,
             "error": "entity_1 is required for mentions queries",
         }
+
+    # Validate entity name length
+    if error := _validate_entity_name(entity, "entity_1"):
+        return error
 
     results = kb.get_mentions(entity)
 
@@ -911,10 +939,9 @@ async def _handle_mentions(
     return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
 
-async def _handle_evidence(
-    kb: Any,
+def _handle_evidence(
+    kb: "KnowledgeBase",
     args: dict[str, Any],
-    project_name: str,
 ) -> dict[str, Any]:
     """Handle evidence query type."""
     entity_1 = args.get("entity_1", "")
@@ -925,6 +952,12 @@ async def _handle_evidence(
             "success": False,
             "error": "Both entity_1 and entity_2 are required for evidence queries",
         }
+
+    # Validate entity name lengths
+    if error := _validate_entity_name(entity_1, "entity_1"):
+        return error
+    if error := _validate_entity_name(entity_2, "entity_2"):
+        return error
 
     results = kb.get_evidence(entity_1, entity_2)
 
@@ -957,7 +990,7 @@ async def _handle_evidence(
     return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
 
-async def _handle_suggestions(kb: Any, project_name: str) -> dict[str, Any]:
+def _handle_suggestions(kb: "KnowledgeBase", project_name: str) -> dict[str, Any]:
     """Handle suggestions query type."""
     results = kb.get_smart_suggestions()
 

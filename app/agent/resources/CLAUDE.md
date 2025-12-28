@@ -42,6 +42,19 @@ All tools use short names (e.g., `transcribe_video`, not `mcp__video-tools__tran
 | `bootstrap_kg_project` | `project_id`, `transcript`, `title` | Domain profile with entity/relationship types |
 | `extract_to_kg` | `project_id`, `transcript`, `title`, `transcript_id` | Extraction stats (entities/relationships added) |
 | `get_kg_stats` | `project_id` | Graph statistics by type |
+| `ask_about_graph` | `project_id`, `question_type`, params... | Formatted insights response |
+
+**`ask_about_graph` Question Types:**
+| Type | Required Params | Description |
+|------|-----------------|-------------|
+| `key_entities` | `method` (connections/influence/bridging), `limit` | Find most important entities |
+| `connection` | `entity_1`, `entity_2` | Trace path between entities |
+| `common_ground` | `entity_1`, `entity_2` | Find shared connections |
+| `groups` | (none) | Discover topic clusters (Louvain algorithm) |
+| `isolated` | (none) | Find disconnected subgraphs |
+| `mentions` | `entity_1` | Where entity appears in sources |
+| `evidence` | `entity_1`, `entity_2` | Get quotes for relationships |
+| `suggestions` | (none) | Smart exploration suggestions |
 
 **KG Rules:**
 - Projects MUST be bootstrapped before extraction
