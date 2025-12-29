@@ -345,9 +345,9 @@ See [CLAUDE.md](CLAUDE.md) for development guidelines and architecture patterns.
 
 | Feature | Status | Description |
 |---------|:------:|-------------|
-| Time-aligned SRT/VTT export | 🟢 | Generate subtitles with timestamps from transcription |
+| Time-aligned SRT/VTT export | 🟢 | Generate subtitles with word-level timestamps from transcription |
 | Speaker diarization | 🟡 | Identify and label different speakers in transcripts |
-| PDF report generation | 🔵 | Export KG analysis as formatted reports |
+| Neo4j import scripts | 🔵 | Generate Cypher queries for direct Neo4j import |
 
 ### 🔄 Processing & Scale
 
