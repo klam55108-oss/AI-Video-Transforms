@@ -1,21 +1,65 @@
+<div align="center">
+
+<img src="cognivagent-icon.svg" alt="CognivAgent" width="150">
+
 # CognivAgent
 
-<p align="center">
-  <img src="cognivagent-icon.svg" alt="CognivAgent" width="128">
-</p>
+**Transform videos into searchable knowledge graphs**
 
-> AI agent that transforms videos into searchable transcripts and knowledge graphs.
+<!-- TODO: Add hero screenshot showing the main interface -->
+<!-- ![CognivAgent Demo](screenshots/hero.png) -->
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-910%20passing-brightgreen.svg)](#development)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](#development)
 [![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#development)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-Built with **Claude Agent SDK** and **OpenAI gpt-4o-transcribe**.
+Built with [Claude Agent SDK](https://github.com/anthropics/anthropic-sdk-python) and [OpenAI gpt-4o-transcribe](https://platform.openai.com/)
+
+---
+
+**[Quick Start](#-quick-start)** |
+**[Features](#-features)** |
+**[Screenshots](#-screenshots)** |
+**[Documentation](#-documentation)** |
+**[Contributing](#-contributing)**
+
+</div>
+
+---
+
+## Important Disclaimers
+
+### YouTube Content Policy
+
+> **This project is NOT designed for downloading videos or audio from YouTube.**
+>
+> CognivAgent extracts **transcripts only** for analysis purposes. All video/audio content
+> is **automatically deleted during runtime** after transcription completes.
+>
+> **Contributions that change this behavior will NOT be accepted.**
+
+### Security Notice
+
+> **This code is NOT ready for production deployment.**
+>
+> The application requires serious security analysis before being deployed beyond localhost.
+>
+> **Strong recommendation: Only run on localhost for development and research.**
 
 ---
 
 ## Quick Start
+
+### One-Line Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/costiash/agent-video-to-data/main/install.sh | bash
+```
+
+> **Security Note**: This pipes a remote script to your shell. We recommend [reviewing install.sh](install.sh) first, or using the Manual Install below.
+
+### Manual Install
 
 ```bash
 git clone https://github.com/costiash/agent-video-to-data.git
@@ -38,6 +82,8 @@ docker-compose up -d
 # Open http://localhost:8000
 ```
 
+See the [Docker Guide](guides/docker-deployment.md) for detailed deployment options.
+
 ---
 
 ## Features
@@ -45,53 +91,116 @@ docker-compose up -d
 | Feature | Description |
 |---------|-------------|
 | **Video Transcription** | Local videos and YouTube URLs via gpt-4o-transcribe with domain vocabulary prompts |
-| **Background Jobs** | Async job queue with persistence, restart recovery, cancel/retry, step progress UI |
 | **Knowledge Graphs** | Auto-bootstrap domain schemas, extract entities/relationships with source citations |
-| **Entity Resolution** | Detect and merge duplicate entities using multi-signal similarity matching (Jaro-Winkler, alias overlap) |
-| **Graph Insights** | Natural language queries: find key players, trace connections, discover clusters |
-| **Graph Visualization** | Interactive Cytoscape.js with search, type filtering, node inspector, evidence panel |
+| **Entity Resolution** | Detect and merge duplicates using multi-signal similarity matching (Jaro-Winkler, alias overlap) |
+| **Chat Interface** | Real-time activity streaming, Markdown rendering, dark/light themes |
+| **Graph Visualization** | Interactive Cytoscape.js with search, type filtering, node inspector |
 | **Transcript Library** | Save, search, export (TXT/JSON/SRT/VTT), and full-text viewer |
-| **Audit Trail** | Real-time tool usage logging, security blocking, session lifecycle tracking via SDK hooks |
-| **Chat Interface** | Markdown rendering, dark/light themes, 3-panel workspace layout, real-time activity streaming |
+| **Audit Trail** | Security blocking, tool usage logging, session lifecycle tracking |
+| **Background Jobs** | Async queue with persistence, restart recovery, cancel/retry, step progress UI |
+
+---
+
+## Screenshots
+
+<div align="center">
+
+### Chat Interface
+
+<!-- TODO: Add screenshot of chat interface with a conversation -->
+*Screenshot coming soon - showing real-time chat with the AI agent*
+
+### Knowledge Graph Visualization
+
+<!-- TODO: Add screenshot of KG visualization with nodes and edges -->
+*Screenshot coming soon - showing interactive graph with entity relationships*
+
+### Transcript Library
+
+<!-- TODO: Add screenshot of transcript library panel -->
+*Screenshot coming soon - showing saved transcripts with search and export*
+
+</div>
+
+---
+
+## Demo Video
+
+<div align="center">
+
+<!-- TODO: Add demo video embed or link -->
+*Demo video coming soon - 3-minute walkthrough of key features*
+
+</div>
 
 ---
 
 ## Knowledge Graph Workflow
 
 ```
-Create Project  →  Bootstrap  →  Confirm Discoveries  →  Extract  →  Export
+Create Project  -->  Bootstrap  -->  Confirm Discoveries  -->  Extract  -->  Export
 ```
 
-1. **Create** — Name your research topic
-2. **Bootstrap** — First video auto-infers entity types and relationships
-3. **Confirm** — Review and approve/reject discovered patterns
-4. **Extract** — Subsequent videos use the confirmed schema
-5. **Export** — Download as GraphML (Gephi/Neo4j) or JSON
+1. **Create** - Name your research topic
+2. **Bootstrap** - First video auto-infers entity types and relationships
+3. **Confirm** - Review and approve/reject discovered patterns
+4. **Extract** - Subsequent videos use the confirmed schema
+5. **Export** - Download as GraphML (Gephi, Neo4j, yEd) or JSON
 
 ---
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      FastAPI Application                        │
-├───────────────────┬─────────────────────┬───────────────────────┤
-│    API Layer      │   Services Layer    │     Core Layer        │
-│  ─────────────    │   ───────────────   │   ──────────────      │
-│  9 Routers        │  SessionService     │  SessionActor         │
-│  Dependency Inj.  │  StorageService     │  Cost Tracking        │
-│  Error Handlers   │  KnowledgeGraphSvc  │  Config               │
-│                   │  JobQueueService    │  Audit Hooks          │
-│                   │  AuditService       │                       │
-├───────────────────┴─────────────────────┴───────────────────────┤
-│                 Claude Agent SDK + MCP Tools                    │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph Frontend
+        UI[Web UI<br/>37 ES Modules]
+    end
+
+    subgraph API[FastAPI Layer]
+        R1[Chat Router]
+        R2[KG Router]
+        R3[Jobs Router]
+        R4[Transcripts Router]
+        R5[Audit Router]
+    end
+
+    subgraph Services
+        SS[SessionService]
+        KS[KnowledgeGraphService]
+        JS[JobQueueService]
+        AS[AuditService]
+    end
+
+    subgraph Core
+        SA[SessionActor]
+        AGENT[Claude Agent<br/>+ MCP Tools]
+    end
+
+    subgraph External
+        CLAUDE[Claude API]
+        OPENAI[OpenAI API<br/>gpt-4o-transcribe]
+    end
+
+    UI --> R1
+    UI --> R2
+    UI --> R3
+    UI --> R4
+    UI --> R5
+    R1 --> SS
+    R2 --> KS
+    R3 --> JS
+    R5 --> AS
+    SS --> SA
+    SA --> AGENT
+    AGENT --> CLAUDE
+    AGENT --> OPENAI
 ```
 
-**SessionActor Pattern** — Queue-based actor model prevents Claude SDK cancel scope errors:
+**SessionActor Pattern** - Queue-based actor model prevents Claude SDK cancel scope errors:
 
 ```
-HTTP Request → input_queue → [SessionActor] → response_queue → Response
+HTTP Request --> input_queue --> [SessionActor] --> response_queue --> Response
 ```
 
 ---
@@ -131,9 +240,9 @@ data/                # Runtime storage
 ## Development
 
 ```bash
-uv run python -m app.main              # Dev server → http://127.0.0.1:8000
-uv run pytest                          # Run tests
-uv run mypy .                          # Type check
+uv run python -m app.main              # Dev server at http://127.0.0.1:8000
+uv run pytest                          # Run all 910 tests
+uv run mypy .                          # Type check (strict mode)
 uv run ruff check . && ruff format .   # Lint + format
 ```
 
@@ -160,14 +269,82 @@ See [CLAUDE.md](CLAUDE.md) for all configuration options.
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [CLAUDE.md](CLAUDE.md) | Development guidelines, architecture patterns, configuration |
-| [FRONTEND.md](FRONTEND.md) | Frontend ES modules architecture |
-| [DOCKER.md](DOCKER.md) | Docker deployment guide |
+| Guide | Description |
+|-------|-------------|
+| [Knowledge Graph](guides/knowledge-graph.md) | Entity extraction, graph visualization, domain bootstrapping |
+| [SDK Agent](guides/sdk-agent.md) | Claude Agent SDK integration, MCP tools, hooks system |
+| [Frontend Architecture](guides/frontend-architecture.md) | 37 ES modules, state management, UI patterns |
+| [Docker Deployment](guides/docker-deployment.md) | Container setup, health checks, production |
+| [API Reference](guides/api-reference.md) | All 9 routers, endpoints, request/response examples |
+| [Extending CognivAgent](guides/extending-cognivagent.md) | Add tools, routers, modules, KG skills |
+| [CLAUDE.md](CLAUDE.md) | Development guidelines for AI assistants |
+
+---
+
+## Contributing
+
+**CognivAgent is actively seeking contributors!**
+
+This is a community-driven project at the upgraded MVP stage. We welcome contributions of all sizes.
+
+### Good First Issues
+
+| Issue | Difficulty | Area |
+|-------|------------|------|
+| Add "copy to clipboard" button in transcript viewer | Easy | Frontend |
+| Add keyboard shortcut for theme toggle | Easy | Frontend |
+| Show transcript language in library list | Medium | Full Stack |
+| Add paragraph breaks to SRT/VTT export | Medium | Backend |
+| Implement time-aligned SRT/VTT with segment timestamps | Harder | Backend |
+
+### Get Started
+
+```bash
+git clone https://github.com/costiash/agent-video-to-data.git
+cd agent-video-to-data
+uv sync
+uv run pytest  # Verify everything works
+```
+
+See [CLAUDE.md](CLAUDE.md) for development guidelines and architecture patterns.
+
+---
+
+## Roadmap
+
+### What's Working
+
+- Video transcription (local + YouTube)
+- Knowledge graph extraction
+- Entity resolution with similarity matching
+- Interactive graph visualization
+- Background job queue with persistence
+- Audit trail and security blocking
+
+### What's Next (Community Driven)
+
+- [ ] Time-aligned transcripts (SRT/VTT with timestamps)
+- [ ] Speaker diarization
+- [ ] Evidence/provenance linking in graph
+- [ ] Batch video processing
+
+### Help Wanted
+
+- Screenshots and demo video
+- Documentation improvements
+- Test coverage expansion
+- Accessibility enhancements
 
 ---
 
 ## License
 
-MIT
+Apache 2.0 - See [LICENSE](LICENSE)
+
+---
+
+<div align="center">
+
+**Built with [Claude Agent SDK](https://github.com/anthropics/anthropic-sdk-python) and [OpenAI gpt-4o-transcribe](https://platform.openai.com/)**
+
+</div>
