@@ -669,6 +669,99 @@
         </div>
     </div>
 
+    <!-- Upload Options Modal -->
+    <div id="upload-options-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div class="bg-[var(--bg-primary)] rounded-xl shadow-2xl border border-[var(--border-subtle)] w-full max-w-md mx-4 overflow-hidden">
+            <!-- Modal Header -->
+            <div class="px-5 py-4 border-b border-[var(--border-subtle)]">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-base font-semibold text-[var(--text-primary)]">
+                        <i class="ph-bold ph-video-camera mr-2 text-[var(--accent-primary)]"></i>
+                        Transcription Options
+                    </h3>
+                    <button type="button" id="upload-modal-close"
+                            class="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] transition-colors"
+                            aria-label="Close upload options">
+                        <i class="ph-bold ph-x text-lg"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-5 py-4 space-y-4">
+                <!-- File Info -->
+                <div class="flex items-center gap-3 p-3 rounded-lg bg-[var(--bg-secondary)]">
+                    <i class="ph-bold ph-file-video text-2xl text-[var(--accent-primary)]"></i>
+                    <div class="flex-1 min-w-0">
+                        <p id="upload-filename" class="text-sm font-medium text-[var(--text-primary)] truncate">video.mp4</p>
+                        <p id="upload-filesize" class="text-xs text-[var(--text-muted)]">0 MB</p>
+                    </div>
+                </div>
+
+                <!-- Language Selection -->
+                <div class="space-y-2">
+                    <label for="upload-language" class="block text-sm font-medium text-[var(--text-secondary)]">
+                        Language <span class="text-[var(--text-muted)]">(optional)</span>
+                    </label>
+                    <select id="upload-language"
+                            class="w-full px-3 py-2 text-sm rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] focus:border-transparent transition-shadow">
+                        <option value="">Auto-detect</option>
+                        <option value="en">English</option>
+                        <option value="es">Spanish</option>
+                        <option value="fr">French</option>
+                        <option value="de">German</option>
+                        <option value="it">Italian</option>
+                        <option value="pt">Portuguese</option>
+                        <option value="ru">Russian</option>
+                        <option value="zh">Chinese</option>
+                        <option value="ja">Japanese</option>
+                        <option value="ko">Korean</option>
+                        <option value="ar">Arabic</option>
+                        <option value="hi">Hindi</option>
+                        <option value="he">Hebrew</option>
+                        <option value="nl">Dutch</option>
+                        <option value="pl">Polish</option>
+                        <option value="tr">Turkish</option>
+                        <option value="vi">Vietnamese</option>
+                        <option value="th">Thai</option>
+                        <option value="id">Indonesian</option>
+                        <option value="uk">Ukrainian</option>
+                    </select>
+                    <p class="text-xs text-[var(--text-muted)]">
+                        Specifying the language improves accuracy and speed.
+                    </p>
+                </div>
+
+                <!-- Domain Vocabulary -->
+                <div class="space-y-2">
+                    <label for="upload-domain" class="block text-sm font-medium text-[var(--text-secondary)]">
+                        Domain / Vocabulary Hints <span class="text-[var(--text-muted)]">(optional)</span>
+                    </label>
+                    <textarea id="upload-domain"
+                              rows="3"
+                              placeholder="e.g., quantum physics lecture with terms like entanglement, superposition, qubit..."
+                              class="w-full px-3 py-2 text-sm rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] focus:border-transparent transition-shadow resize-none"></textarea>
+                    <p class="text-xs text-[var(--text-muted)]">
+                        Add technical terms, proper nouns, or acronyms to improve accuracy.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-5 py-4 bg-[var(--bg-secondary)] border-t border-[var(--border-subtle)] flex justify-end gap-3">
+                <button type="button" id="upload-modal-cancel"
+                        class="px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                    Cancel
+                </button>
+                <button type="button" id="upload-modal-start"
+                        class="px-4 py-2 text-sm font-medium rounded-lg bg-[var(--accent-primary)] text-white hover:bg-[var(--accent-primary-hover)] transition-colors">
+                    <i class="ph-bold ph-play mr-1.5"></i>
+                    Start Transcription
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Batch Export Modal -->
     <div id="batch-export-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm">
         <div class="bg-[var(--bg-primary)] rounded-xl shadow-2xl border border-[var(--border-subtle)] w-full max-w-sm mx-4 overflow-hidden">
