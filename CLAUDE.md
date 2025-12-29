@@ -199,4 +199,18 @@ For Claude Code (not the app agent), these skills provide multi-model AI capabil
 
 | Document | Purpose |
 |----------|---------|
-| @README.md | Project overview, quick start |
+| @README.md | Project overview, quick start, contributing |
+| @FRONTEND.md | Frontend module structure (37 ES modules) |
+| @CONTRIBUTING.md | Contributor guidelines, PR process, coding standards |
+| @guides/README.md | Documentation index for all guides |
+
+### Guides
+
+| Guide | Purpose |
+|-------|---------|
+| [Knowledge Graph](guides/knowledge-graph.md) | Entity extraction, graph visualization, domain bootstrapping |
+| [SDK Agent](guides/sdk-agent.md) | Claude Agent SDK integration, MCP tools, hooks system |
+| [Frontend Architecture](guides/frontend-architecture.md) | 37 ES modules, state management, UI patterns |
+| [Docker Deployment](guides/docker-deployment.md) | Container setup, health checks, production deployment |
+| [API Reference](guides/api-reference.md) | All 9 routers, endpoints, request/response examples |
+| [Extending CognivAgent](guides/extending-cognivagent.md) | Add tools, routers, modules, KG skills |

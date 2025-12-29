@@ -165,11 +165,8 @@ async def save_transcript(args: dict[str, Any]) -> dict[str, Any]:
     session_id = args.get("session_id")
     custom_filename = args.get("custom_filename")
 
-    # DEBUG: Log title parameter for evidence linking debugging
-    logger.info(
-        f"[EVIDENCE-DEBUG] save_transcript called: "
-        f"title={title!r}, source_type={source_type}, "
-        f"original_source={original_source[:50] if original_source else 'None'}..."
+    logger.debug(
+        f"save_transcript: title={title!r}, source_type={source_type}"
     )
 
     # Validate required parameters
@@ -237,12 +234,7 @@ async def save_transcript(args: dict[str, Any]) -> dict[str, Any]:
 
         transcript_id = entry["id"]
 
-        # DEBUG: Log the saved transcript metadata
-        logger.info(
-            f"[EVIDENCE-DEBUG] Transcript saved: "
-            f"id={transcript_id}, title={entry.get('title')!r}, "
-            f"file={filename}"
-        )
+        logger.debug(f"Transcript saved: id={transcript_id}, title={entry.get('title')!r}")
         char_count = len(content)
         preview = content[:200] + "..." if len(content) > 200 else content
 

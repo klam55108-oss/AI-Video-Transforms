@@ -858,27 +858,19 @@ Call all bootstrap tools in order to build a complete domain profile.
 
         # Add source to KB with transcript_id for evidence linking
         # Auto-detect transcript_id if not provided by matching the title against saved transcripts
-        # DEBUG: Log incoming parameters
-        logger.info(
-            f"[EVIDENCE-DEBUG] extract_from_transcript evidence setup: "
-            f"transcript_id param={transcript_id!r}, title={title!r}, source_id={source_id}"
+        logger.debug(
+            f"Evidence linking setup: transcript_id={transcript_id!r}, title={title!r}"
         )
 
         resolved_transcript_id = transcript_id
         if not resolved_transcript_id and title:
-            logger.info(
-                f"[EVIDENCE-DEBUG] transcript_id not provided, attempting auto-detect by title..."
-            )
             resolved_transcript_id = self._find_transcript_by_title(title)
             if resolved_transcript_id:
-                logger.info(
-                    f"[EVIDENCE-DEBUG] Auto-detected transcript_id='{resolved_transcript_id}' "
-                    f"by title match for source '{title}'"
+                logger.debug(
+                    f"Auto-detected transcript_id='{resolved_transcript_id}' for '{title}'"
                 )
             else:
-                logger.warning(
-                    f"[EVIDENCE-DEBUG] FAILED to auto-detect transcript_id for title '{title}'"
-                )
+                logger.debug(f"Could not auto-detect transcript_id for title '{title}'")
 
         source_metadata: dict[str, Any] = {}
         if resolved_transcript_id:
@@ -1099,27 +1091,16 @@ Call all bootstrap tools in order to build a complete domain profile.
         """
         from app.services import get_services
 
-        # DEBUG: Log the search attempt
-        logger.info(
-            f"[EVIDENCE-DEBUG] _find_transcript_by_title called with: {search_title!r}"
-        )
+        logger.debug(f"Searching for transcript by title: {search_title!r}")
 
         if not search_title or not search_title.strip():
-            logger.info("[EVIDENCE-DEBUG] Search title is empty, returning None")
             return None
 
         try:
             storage = get_services().storage
             transcripts = storage.list_transcripts()
 
-            # DEBUG: Log all available transcripts and their titles
-            logger.info(
-                f"[EVIDENCE-DEBUG] Available transcripts ({len(transcripts)} total):"
-            )
-            for idx, t in enumerate(transcripts):
-                logger.info(
-                    f"[EVIDENCE-DEBUG]   [{idx}] id={t.id}, title={t.title!r}"
-                )
+            logger.debug(f"Searching {len(transcripts)} transcripts for title match")
 
             search_normalized = search_title.strip().lower()
 
