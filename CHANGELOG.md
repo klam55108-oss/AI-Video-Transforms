@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed mypy type errors in merge safety tests
 - Fixed ruff lint errors (import ordering, unused variables)
 
-## [0.1.0] - 2025-01-XX
+## [0.1.0] - TBD
 
 Initial open-source release of CognivAgent.
 
@@ -56,8 +56,8 @@ Initial open-source release of CognivAgent.
   - Code syntax highlighting and copy-to-clipboard
   - Session history with restore capability
 - **Transcript Library**: Save, search, and export transcripts
-  - Full-text search with preview highlighting
-  - Export formats: TXT, JSON, SRT, VTT
+  - Full-text viewer with in-document search and highlighting
+  - Export formats: TXT, JSON
   - Lazy loading for large transcript lists
 - **3-Panel Workspace**: Resizable chat + KG visualization layout
   - Minimum width enforcement
