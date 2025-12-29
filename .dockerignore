@@ -46,6 +46,8 @@ coverage.xml
 # Documentation
 docs/
 *.md
+# Exception: README.md is required by pyproject.toml (readme field) for hatchling metadata validation during uv sync
+!README.md
 LICENSE
 .claude/
 ai_docs/

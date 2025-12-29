@@ -71,6 +71,38 @@ get_project_root() {
 }
 
 # =============================================================================
+# System Dependencies Check
+# =============================================================================
+
+check_ffmpeg() {
+    print_step "Checking for FFmpeg (required for transcription)..."
+
+    if command_exists ffmpeg; then
+        local ffmpeg_version
+        ffmpeg_version=$(ffmpeg -version 2>&1 | head -1 | grep -oP '\d+\.\d+' | head -1 || echo "unknown")
+        print_success "FFmpeg is installed (version: $ffmpeg_version)"
+        return 0
+    fi
+
+    print_error "FFmpeg not found!"
+    echo ""
+    echo "  FFmpeg is required for video/audio transcription."
+    echo ""
+    echo "  Install with:"
+    echo "    Ubuntu/Debian: sudo apt install ffmpeg"
+    echo "    macOS:         brew install ffmpeg"
+    echo "    Fedora:        sudo dnf install ffmpeg"
+    echo "    Arch:          sudo pacman -S ffmpeg"
+    echo ""
+    print_warning "Continuing without FFmpeg - transcription will not work!"
+    echo ""
+    read -rp "Continue anyway? [y/N]: " continue_choice
+    if [[ ! "$continue_choice" =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+}
+
+# =============================================================================
 # UV Installation
 # =============================================================================
 
@@ -243,6 +275,9 @@ EOF
 
 install_native() {
     local project_root="$1"
+
+    # Check system dependencies for native installation
+    check_ffmpeg
 
     print_divider
     echo ""

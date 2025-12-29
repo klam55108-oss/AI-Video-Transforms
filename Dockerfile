@@ -17,7 +17,9 @@ RUN useradd -m -u 1000 agent
 WORKDIR /app
 
 # Copy dependency files first (leverage Docker layer caching)
-COPY pyproject.toml uv.lock ./
+# README.md is required because pyproject.toml references it in the 'readme' field
+# and hatchling validates metadata during uv sync
+COPY pyproject.toml uv.lock README.md ./
 
 # Install dependencies (production only, no dev dependencies)
 RUN uv sync --frozen --no-dev
