@@ -133,9 +133,9 @@ Save, search, and export transcripts with full-text viewer and highlighting.
 
 <div align="center">
 
-<video src="https://github.com/costiash/agent-video-to-data/raw/main/assets/demo_video.mp4" controls width="800"></video>
+https://github.com/user-attachments/assets/2b4d7f2e-edd0-43b5-8117-50464314be71
 
-[▶️ **Watch Demo Video**](assets/demo_video.mp4) — 5-minute full workflow: building a knowledge graph from multiple videos and querying it with agent skills
+*5-minute full workflow: building a knowledge graph from multiple videos and querying it with agent skills*
 
 </div>
 
