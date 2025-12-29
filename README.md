@@ -331,57 +331,65 @@ See [CLAUDE.md](CLAUDE.md) for development guidelines and architecture patterns.
 
 ## Roadmap
 
-> **Status Legend:** 🟢 Planned (ready to implement) · 🟡 Exploration (needs research/design) · 🔵 Future (long-term vision)
+**Every item below is an invitation to contribute.** Whether you're looking for a quick win or a deep dive, pick something that interests you and open a PR!
 
-### 🔍 Search & Discovery
+| Status | Meaning |
+|--------|---------|
+| **Ready** | Well-defined, ready to implement |
+| **Needs Design** | Requires research or architecture decisions first |
+| **Future** | Longer-term vision, open for discussion |
 
-| Feature | Status | Description |
-|---------|:------:|-------------|
-| Full-text transcript search | 🟢 | Backend indexing with SQLite FTS5 + frontend search UI |
-| Semantic search with embeddings | 🟡 | Vector similarity search for concept-based queries across transcripts |
-| Cross-transcript entity search | 🟢 | Find all mentions of an entity across multiple videos |
+---
 
-### 📤 Export & Formats
-
-| Feature | Status | Description |
-|---------|:------:|-------------|
-| Time-aligned SRT/VTT export | 🟢 | Generate subtitles with word-level timestamps from transcription |
-| Speaker diarization | 🟡 | Identify and label different speakers in transcripts |
-| Neo4j import scripts | 🔵 | Generate Cypher queries for direct Neo4j import |
-
-### 🔄 Processing & Scale
+### Search & Discovery
 
 | Feature | Status | Description |
-|---------|:------:|-------------|
-| Batch video processing | 🟢 | Queue multiple videos for sequential transcription |
-| Playlist/channel import | 🟡 | Import entire YouTube playlists or channels |
-| Parallel transcription | 🔵 | Process multiple videos concurrently |
+|---------|--------|-------------|
+| Full-text transcript search | Ready | Backend indexing with SQLite FTS5 + frontend search UI |
+| Semantic search with embeddings | Needs Design | Vector similarity for concept-based queries across transcripts |
+| Cross-transcript entity search | Ready | Find all mentions of an entity across multiple videos |
 
-### 🧠 AI & Analysis
-
-| Feature | Status | Description |
-|---------|:------:|-------------|
-| Video frame analysis | 🟡 | Extract visual context (slides, diagrams) to enrich knowledge graphs |
-| Context window optimization | 🟡 | Improve agent context efficiency for longer conversations |
-| Evidence/provenance linking | 🟢 | Link KG nodes to source transcript timestamps |
-| Multi-model extraction | 🔵 | Use specialized models for different entity types |
-
-### 🎨 UI/UX Improvements
+### Export & Formats
 
 | Feature | Status | Description |
-|---------|:------:|-------------|
-| Graph panel enhancements | 🟢 | Better layout algorithms, node clustering, improved zoom/pan |
-| Entity relationship explorer | 🟢 | Drill-down view for entity connections and paths |
-| Mobile responsive design | 🔵 | Full mobile experience for tablet/phone |
-| Collaborative workspaces | 🔵 | Share KG projects with team members |
+|---------|--------|-------------|
+| Time-aligned SRT/VTT export | Ready | Generate subtitles with word-level timestamps from transcription |
+| Speaker diarization | Needs Design | Identify and label different speakers in transcripts |
+| Neo4j import scripts | Future | Generate Cypher queries for direct Neo4j import |
 
-### 🔧 Developer Experience
+### Processing & Scale
 
 | Feature | Status | Description |
-|---------|:------:|-------------|
-| Plugin architecture | 🟡 | Custom extractors and analyzers as plugins |
-| REST API authentication | 🟢 | API keys and OAuth for programmatic access |
-| Webhook notifications | 🟢 | Notify external services on job completion |
+|---------|--------|-------------|
+| Batch video processing | Ready | Queue multiple videos for sequential transcription |
+| Playlist/channel import | Needs Design | Import entire YouTube playlists or channels |
+| Parallel transcription | Future | Process multiple videos concurrently |
+
+### AI & Analysis
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Video frame analysis | Needs Design | Extract visual context (slides, diagrams) to enrich knowledge graphs |
+| Context window optimization | Needs Design | Improve agent context efficiency for longer conversations |
+| Evidence/provenance linking | Ready | Link KG nodes to source transcript timestamps |
+| Multi-model extraction | Future | Use specialized models for different entity types |
+
+### UI/UX Improvements
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Graph panel enhancements | Ready | Better layout algorithms, node clustering, improved zoom/pan |
+| Entity relationship explorer | Ready | Drill-down view for entity connections and paths |
+| Mobile responsive design | Future | Full mobile experience for tablet/phone |
+| Collaborative workspaces | Future | Share KG projects with team members |
+
+### Developer Experience
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Plugin architecture | Needs Design | Custom extractors and analyzers as plugins |
+| REST API authentication | Ready | API keys and OAuth for programmatic access |
+| Webhook notifications | Ready | Notify external services on job completion |
 
 ---
 
