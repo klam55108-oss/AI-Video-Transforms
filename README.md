@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="cognivagent-icon.svg" alt="CognivAgent" width="150">
+<img src="assets/cognivagent-icon.svg" alt="CognivAgent" width="150">
 
 # CognivAgent
 
@@ -103,24 +103,29 @@ See the [Docker Guide](guides/docker-deployment.md) for detailed deployment opti
 
 ## Screenshots
 
-<div align="center">
-
 ### Chat Interface
 
-<!-- TODO: Add screenshot of chat interface with a conversation -->
-*Screenshot coming soon - showing real-time chat with the AI agent*
+Real-time conversation with the AI agent, featuring activity streaming and Markdown rendering.
+
+| Dark Mode | Light Mode |
+|:---------:|:----------:|
+| ![Chat Interface Dark](assets/chat_interface_dark.png) | ![Chat Interface Light](assets/chat_interface_light.png) |
 
 ### Knowledge Graph Visualization
 
-<!-- TODO: Add screenshot of KG visualization with nodes and edges -->
-*Screenshot coming soon - showing interactive graph with entity relationships*
+Interactive graph powered by Cytoscape.js with search, type filtering, and node inspector.
+
+| Dark Mode | Light Mode |
+|:---------:|:----------:|
+| ![Knowledge Graph Dark](assets/kg_vis_dark.png) | ![Knowledge Graph Light](assets/kg_vis_light.png) |
 
 ### Transcript Library
 
-<!-- TODO: Add screenshot of transcript library panel -->
-*Screenshot coming soon - showing saved transcripts with search and export*
+Save, search, and export transcripts with full-text viewer and highlighting.
 
-</div>
+| Dark Mode | Light Mode |
+|:---------:|:----------:|
+| ![Transcript Library Dark](assets/transcription_dark.png) | ![Transcript Library Light](assets/transcription_light.png) |
 
 ---
 
@@ -128,8 +133,9 @@ See the [Docker Guide](guides/docker-deployment.md) for detailed deployment opti
 
 <div align="center">
 
-<!-- TODO: Add demo video embed or link -->
-*Demo video coming soon - 3-minute walkthrough of key features*
+<video src="https://github.com/costiash/agent-video-to-data/raw/main/assets/demo_video.mp4" controls width="800"></video>
+
+[▶️ **Watch Demo Video**](assets/demo_video.mp4) — 5-minute full workflow: building a knowledge graph from multiple videos and querying it with agent skills
 
 </div>
 
@@ -152,12 +158,13 @@ Create Project  -->  Bootstrap  -->  Confirm Discoveries  -->  Extract  -->  Exp
 ## Architecture
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#818cf8', 'primaryTextColor': '#1e1b4b', 'primaryBorderColor': '#6366f1', 'lineColor': '#94a3b8', 'secondaryColor': '#f8fafc', 'tertiaryColor': '#f1f5f9'}}}%%
 graph TB
-    subgraph Frontend
+    subgraph Frontend["🖥️ Frontend"]
         UI[Web UI<br/>37 ES Modules]
     end
 
-    subgraph API[FastAPI Layer]
+    subgraph API["⚡ FastAPI Layer"]
         R1[Chat Router]
         R2[KG Router]
         R3[Jobs Router]
@@ -165,19 +172,19 @@ graph TB
         R5[Audit Router]
     end
 
-    subgraph Services
+    subgraph Services["🔧 Services"]
         SS[SessionService]
         KS[KnowledgeGraphService]
         JS[JobQueueService]
         AS[AuditService]
     end
 
-    subgraph Core
+    subgraph Core["🧠 Core"]
         SA[SessionActor]
         AGENT[Claude Agent<br/>+ MCP Tools]
     end
 
-    subgraph External
+    subgraph External["🌐 External"]
         CLAUDE[Claude API]
         OPENAI[OpenAI API<br/>gpt-4o-transcribe]
     end
@@ -195,6 +202,18 @@ graph TB
     SA --> AGENT
     AGENT --> CLAUDE
     AGENT --> OPENAI
+
+    classDef frontend fill:#dbeafe,stroke:#3b82f6,stroke-width:2px,color:#1e40af
+    classDef api fill:#dcfce7,stroke:#22c55e,stroke-width:2px,color:#166534
+    classDef services fill:#f3e8ff,stroke:#a855f7,stroke-width:2px,color:#6b21a8
+    classDef core fill:#ffedd5,stroke:#f97316,stroke-width:2px,color:#9a3412
+    classDef external fill:#fee2e2,stroke:#ef4444,stroke-width:2px,color:#991b1b
+
+    class UI frontend
+    class R1,R2,R3,R4,R5 api
+    class SS,KS,JS,AS services
+    class SA,AGENT core
+    class CLAUDE,OPENAI external
 ```
 
 **SessionActor Pattern** - Queue-based actor model prevents Claude SDK cancel scope errors:
@@ -330,7 +349,7 @@ See [CLAUDE.md](CLAUDE.md) for development guidelines and architecture patterns.
 
 ### Help Wanted
 
-- Screenshots and demo video
+- Demo video walkthrough
 - Documentation improvements
 - Test coverage expansion
 - Accessibility enhancements

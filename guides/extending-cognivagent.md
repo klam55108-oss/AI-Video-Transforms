@@ -34,19 +34,20 @@ Clear extension points with:
 ## Extension Points Overview
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#818cf8', 'primaryTextColor': '#1e1b4b', 'primaryBorderColor': '#6366f1', 'lineColor': '#94a3b8', 'secondaryColor': '#f8fafc', 'tertiaryColor': '#f1f5f9'}}}%%
 graph TB
-    subgraph "Backend Extensions"
+    subgraph Backend["⚙️ Backend Extensions"]
         TOOL[MCP Tools<br/>app/agent/tools.py]
         ROUTER[API Routers<br/>app/api/routers/]
         SERVICE[Services<br/>app/services/]
     end
 
-    subgraph "Frontend Extensions"
+    subgraph Frontend["🖥️ Frontend Extensions"]
         MODULE[ES Modules<br/>app/static/js/]
         TEMPLATE[Jinja2 Templates<br/>app/templates/]
     end
 
-    subgraph "Agent Extensions"
+    subgraph Agent["🧠 Agent Extensions"]
         SKILL[Skills<br/>app/agent/resources/.claude/skills/]
         PROMPT[Prompts<br/>app/kg/prompts/]
     end
@@ -55,6 +56,14 @@ graph TB
     ROUTER --> SERVICE
     MODULE --> ROUTER
     SKILL --> TOOL
+
+    classDef backend fill:#dcfce7,stroke:#22c55e,stroke-width:2px,color:#166534
+    classDef frontend fill:#dbeafe,stroke:#3b82f6,stroke-width:2px,color:#1e40af
+    classDef agent fill:#ffedd5,stroke:#f97316,stroke-width:2px,color:#9a3412
+
+    class TOOL,ROUTER,SERVICE backend
+    class MODULE,TEMPLATE frontend
+    class SKILL,PROMPT agent
 ```
 
 ---

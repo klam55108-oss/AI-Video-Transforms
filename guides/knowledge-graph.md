@@ -47,13 +47,18 @@ CognivAgent builds a knowledge graph that:
 ### Workflow
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#818cf8', 'primaryTextColor': '#1e1b4b', 'primaryBorderColor': '#6366f1', 'lineColor': '#94a3b8', 'secondaryColor': '#f8fafc', 'tertiaryColor': '#f1f5f9'}}}%%
 graph LR
-    A[Create Project] --> B[Bootstrap]
-    B --> C[Confirm Discoveries]
-    C --> D[Extract]
-    D --> E[Resolve Duplicates]
-    E --> F[Export]
+    A[📁 Create Project] --> B[🔍 Bootstrap]
+    B --> C[✓ Confirm Discoveries]
+    C --> D[⚡ Extract]
+    D --> E[🔗 Resolve Duplicates]
+    E --> F[📤 Export]
     D --> D
+
+    classDef step fill:#e0e7ff,stroke:#6366f1,stroke-width:2px,color:#3730a3
+
+    class A,B,C,D,E,F step
 ```
 
 ### Step 1: Create Project
@@ -121,23 +126,24 @@ Download as GraphML (for Gephi, Neo4j, yEd) or JSON.
 ## Architecture Diagram
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#818cf8', 'primaryTextColor': '#1e1b4b', 'primaryBorderColor': '#6366f1', 'lineColor': '#94a3b8', 'secondaryColor': '#f8fafc', 'tertiaryColor': '#f1f5f9'}}}%%
 graph TB
-    subgraph "API Layer"
+    subgraph API["⚡ API Layer"]
         KG_API["/kg/* Endpoints"]
     end
 
-    subgraph "Service Layer"
+    subgraph Service["🔧 Service Layer"]
         KGS[KnowledgeGraphService]
         CLAUDE[Claude API]
     end
 
-    subgraph "Domain Layer"
+    subgraph Domain["🧠 Domain Layer"]
         DP[DomainProfile]
         KB[KnowledgeBase]
         RES[EntityResolver]
     end
 
-    subgraph "Storage"
+    subgraph Storage["💾 Storage"]
         JSON[(JSON Files)]
         GRAPHML[(GraphML Export)]
     end
@@ -149,6 +155,16 @@ graph TB
     KGS --> RES
     KB --> JSON
     KB --> GRAPHML
+
+    classDef api fill:#dcfce7,stroke:#22c55e,stroke-width:2px,color:#166534
+    classDef service fill:#f3e8ff,stroke:#a855f7,stroke-width:2px,color:#6b21a8
+    classDef domain fill:#ffedd5,stroke:#f97316,stroke-width:2px,color:#9a3412
+    classDef storage fill:#e0e7ff,stroke:#6366f1,stroke-width:2px,color:#3730a3
+
+    class KG_API api
+    class KGS,CLAUDE service
+    class DP,KB,RES domain
+    class JSON,GRAPHML storage
 ```
 
 ---

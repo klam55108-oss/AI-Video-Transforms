@@ -62,20 +62,21 @@ open http://localhost:8000
 ## Architecture Diagram
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#818cf8', 'primaryTextColor': '#1e1b4b', 'primaryBorderColor': '#6366f1', 'lineColor': '#94a3b8', 'secondaryColor': '#f8fafc', 'tertiaryColor': '#f1f5f9'}}}%%
 graph TB
-    subgraph "Host Machine"
+    subgraph Host["💻 Host Machine"]
         ENV[.env file]
         DATA[data/ volume]
     end
 
-    subgraph "Docker Container"
+    subgraph Container["🐳 Docker Container"]
         NGINX[Port 8000]
         APP[FastAPI App]
         UV[uv + Python 3.11]
         FFMPEG[FFmpeg]
     end
 
-    subgraph "External Services"
+    subgraph External["🌐 External Services"]
         CLAUDE[Claude API]
         OPENAI[OpenAI API]
     end
@@ -87,6 +88,14 @@ graph TB
     APP --> FFMPEG
     APP --> CLAUDE
     APP --> OPENAI
+
+    classDef host fill:#f1f5f9,stroke:#64748b,stroke-width:2px,color:#334155
+    classDef container fill:#dbeafe,stroke:#3b82f6,stroke-width:2px,color:#1e40af
+    classDef external fill:#fee2e2,stroke:#ef4444,stroke-width:2px,color:#991b1b
+
+    class ENV,DATA host
+    class NGINX,APP,UV,FFMPEG container
+    class CLAUDE,OPENAI external
 ```
 
 ---

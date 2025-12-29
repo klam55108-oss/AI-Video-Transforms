@@ -52,46 +52,47 @@ CognivAgent wraps the Claude Agent SDK with:
 ### Architecture Diagram
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#818cf8', 'primaryTextColor': '#1e1b4b', 'primaryBorderColor': '#6366f1', 'lineColor': '#94a3b8', 'secondaryColor': '#f8fafc', 'tertiaryColor': '#f1f5f9'}}}%%
 graph TB
-    subgraph "User Interface"
+    subgraph UI_Layer["🖥️ User Interface"]
         UI[Web Chat UI]
     end
 
-    subgraph "FastAPI Layer"
+    subgraph API_Layer["⚡ FastAPI Layer"]
         API[9 API Routers]
     end
 
-    subgraph "Session Management"
+    subgraph Session["📋 Session Management"]
         SA[SessionActor]
         IQ[Input Queue]
         OQ[Response Queue]
     end
 
-    subgraph "Claude Agent SDK"
+    subgraph SDK["🧠 Claude Agent SDK"]
         AGENT[Claude Agent]
         CLAUDEMD[CLAUDE.md<br/>Agent Instructions]
     end
 
-    subgraph "Hooks System"
+    subgraph Hooks["🛡️ Hooks System"]
         PRE[PreToolUse Hook<br/>Security Blocking]
         POST[PostToolUse Hook<br/>Audit Logging]
         STOP[Stop Hook<br/>Lifecycle Tracking]
     end
 
-    subgraph "MCP Tools (16 total)"
+    subgraph Tools["🔧 MCP Tools"]
         TRANS[Transcription Tools<br/>transcribe_video, save_transcript]
         FILE[File Operations<br/>write_file, get_transcript]
-        KG[Knowledge Graph Tools<br/>bootstrap, extract, merge]
+        KG_TOOLS[Knowledge Graph Tools<br/>bootstrap, extract, merge]
     end
 
-    subgraph "Agent Skills"
+    subgraph Skills["✨ Agent Skills"]
         SKILL1[transcription-helper]
         SKILL2[kg-bootstrap]
         SKILL3[error-recovery]
         SKILL4[content-saver]
     end
 
-    subgraph "External Services"
+    subgraph External["🌐 External Services"]
         OPENAI[OpenAI gpt-4o-transcribe]
         CLAUDE_API[Claude API]
     end
@@ -105,10 +106,10 @@ graph TB
     AGENT --> PRE
     PRE --> TRANS
     PRE --> FILE
-    PRE --> KG
+    PRE --> KG_TOOLS
     TRANS --> POST
     FILE --> POST
-    KG --> POST
+    KG_TOOLS --> POST
     POST --> AGENT
 
     AGENT -.->|invoke| SKILL1
@@ -118,6 +119,24 @@ graph TB
 
     TRANS --> OPENAI
     AGENT --> CLAUDE_API
+
+    classDef ui fill:#dbeafe,stroke:#3b82f6,stroke-width:2px,color:#1e40af
+    classDef api fill:#dcfce7,stroke:#22c55e,stroke-width:2px,color:#166534
+    classDef session fill:#f1f5f9,stroke:#64748b,stroke-width:2px,color:#334155
+    classDef sdk fill:#ffedd5,stroke:#f97316,stroke-width:2px,color:#9a3412
+    classDef hooks fill:#fce7f3,stroke:#ec4899,stroke-width:2px,color:#9d174d
+    classDef tools fill:#f3e8ff,stroke:#a855f7,stroke-width:2px,color:#6b21a8
+    classDef skills fill:#e0e7ff,stroke:#6366f1,stroke-width:2px,color:#3730a3
+    classDef external fill:#fee2e2,stroke:#ef4444,stroke-width:2px,color:#991b1b
+
+    class UI ui
+    class API api
+    class SA,IQ,OQ session
+    class AGENT,CLAUDEMD sdk
+    class PRE,POST,STOP hooks
+    class TRANS,FILE,KG_TOOLS tools
+    class SKILL1,SKILL2,SKILL3,SKILL4 skills
+    class OPENAI,CLAUDE_API external
 
     SA --> OQ
     OQ --> API

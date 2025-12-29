@@ -97,18 +97,19 @@ app/static/js/
 ## Architecture Diagram
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#818cf8', 'primaryTextColor': '#1e1b4b', 'primaryBorderColor': '#6366f1', 'lineColor': '#94a3b8', 'secondaryColor': '#f8fafc', 'tertiaryColor': '#f1f5f9'}}}%%
 graph TB
-    subgraph "Entry Point"
+    subgraph Entry["📦 Entry Point"]
         MAIN[main.js]
     end
 
-    subgraph "Core"
+    subgraph Core["⚙️ Core"]
         STATE[state.js]
         CONFIG[config.js]
         UTILS[utils.js]
     end
 
-    subgraph "Chat"
+    subgraph Chat["💬 Chat"]
         MSG[messages.js]
         SEND[send.js]
         SESS[session.js]
@@ -116,27 +117,27 @@ graph TB
         ACT[activity.js]
     end
 
-    subgraph "UI"
+    subgraph UI["🎨 UI"]
         THEME[theme.js]
         TOAST[toast.js]
         SIDEBAR[sidebar.js]
         WORK[workspace.js]
     end
 
-    subgraph "Panels"
+    subgraph Panels["📋 Panels"]
         HIST[history.js]
         TRANS[transcripts.js]
         AUDIT_P[audit/panel.js]
     end
 
-    subgraph "Knowledge Graph"
+    subgraph KG["🕸️ Knowledge Graph"]
         KG_API[kg/api.js]
         KG_GRAPH[kg/graph.js]
         KG_SEARCH[kg/search.js]
         KG_INSP[kg/inspector.js]
     end
 
-    subgraph "External CDN"
+    subgraph CDN["🌐 External CDN"]
         MARKED[Marked.js]
         PURIFY[DOMPurify]
         CYTO[Cytoscape.js]
@@ -157,6 +158,22 @@ graph TB
 
     MSG --> TOAST
     SEND --> TOAST
+
+    classDef entry fill:#f1f5f9,stroke:#64748b,stroke-width:2px,color:#334155
+    classDef core fill:#f3e8ff,stroke:#a855f7,stroke-width:2px,color:#6b21a8
+    classDef chat fill:#dbeafe,stroke:#3b82f6,stroke-width:2px,color:#1e40af
+    classDef ui fill:#dcfce7,stroke:#22c55e,stroke-width:2px,color:#166534
+    classDef panels fill:#fce7f3,stroke:#ec4899,stroke-width:2px,color:#9d174d
+    classDef kg fill:#e0e7ff,stroke:#6366f1,stroke-width:2px,color:#3730a3
+    classDef cdn fill:#fee2e2,stroke:#ef4444,stroke-width:2px,color:#991b1b
+
+    class MAIN entry
+    class STATE,CONFIG,UTILS core
+    class MSG,SEND,SESS,STATUS,ACT chat
+    class THEME,TOAST,SIDEBAR,WORK ui
+    class HIST,TRANS,AUDIT_P panels
+    class KG_API,KG_GRAPH,KG_SEARCH,KG_INSP kg
+    class MARKED,PURIFY,CYTO cdn
 ```
 
 ---

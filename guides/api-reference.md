@@ -47,8 +47,9 @@ http://localhost:8000
 ## Architecture Diagram
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#818cf8', 'primaryTextColor': '#1e1b4b', 'primaryBorderColor': '#6366f1', 'lineColor': '#94a3b8', 'secondaryColor': '#f8fafc', 'tertiaryColor': '#f1f5f9'}}}%%
 graph LR
-    subgraph "API Routers"
+    subgraph Routers["⚡ API Routers"]
         CHAT["/chat"]
         STATUS["/status"]
         TRANS["/transcripts"]
@@ -60,7 +61,7 @@ graph LR
         HIST["/history"]
     end
 
-    subgraph "Services"
+    subgraph Services["🔧 Services"]
         SS[SessionService]
         TS[StorageService]
         KGS[KnowledgeGraphService]
@@ -77,6 +78,12 @@ graph LR
     COST --> SS
     UPLOAD --> TS
     HIST --> TS
+
+    classDef router fill:#dcfce7,stroke:#22c55e,stroke-width:2px,color:#166534
+    classDef service fill:#f3e8ff,stroke:#a855f7,stroke-width:2px,color:#6b21a8
+
+    class CHAT,STATUS,TRANS,KG,JOBS,AUDIT,COST,UPLOAD,HIST router
+    class SS,TS,KGS,JQS,AS service
 ```
 
 > **Note**: `/chat` and `/status` are both defined in `chat.py` but mounted as separate routers for cleaner URL structure.
