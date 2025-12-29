@@ -95,7 +95,7 @@ See the [Docker Guide](guides/docker-deployment.md) for detailed deployment opti
 | **Entity Resolution** | Detect and merge duplicates using multi-signal similarity matching (Jaro-Winkler, alias overlap) |
 | **Chat Interface** | Real-time activity streaming, Markdown rendering, dark/light themes |
 | **Graph Visualization** | Interactive Cytoscape.js with search, type filtering, node inspector |
-| **Transcript Library** | Save, search, export (TXT/JSON/SRT/VTT), and full-text viewer |
+| **Transcript Library** | Save, search, export (TXT/JSON), and full-text viewer with highlighting |
 | **Audit Trail** | Security blocking, tool usage logging, session lifecycle tracking |
 | **Background Jobs** | Async queue with persistence, restart recovery, cancel/retry, step progress UI |
 
@@ -294,8 +294,8 @@ This is a community-driven project at the upgraded MVP stage. We welcome contrib
 | Add "copy to clipboard" button in transcript viewer | Easy | Frontend |
 | Add keyboard shortcut for theme toggle | Easy | Frontend |
 | Show transcript language in library list | Medium | Full Stack |
-| Add paragraph breaks to SRT/VTT export | Medium | Backend |
-| Implement time-aligned SRT/VTT with segment timestamps | Harder | Backend |
+| Add full-text transcript search (backend) | Medium | Full Stack |
+| Implement time-aligned SRT/VTT export with timestamps | Harder | Backend |
 
 ### Get Started
 

@@ -71,7 +71,6 @@ htmlcov/
 # Transient Documentation
 # =============================================================================
 # Internal tracking documents (auto-generated/maintained)
-CHANGELOG.md
 IMPLEMENTATION_SUMMARY.md
 
 # Agent swarm tracking documents (temporary, converted to proper docs)

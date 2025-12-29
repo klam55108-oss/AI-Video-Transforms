@@ -875,12 +875,17 @@ Call all bootstrap tools in order to build a complete domain profile.
         source_metadata: dict[str, Any] = {}
         if resolved_transcript_id:
             source_metadata["transcript_id"] = resolved_transcript_id
-            logger.debug(f"Set source.metadata['transcript_id'] = {resolved_transcript_id}")
+            logger.debug(
+                f"Set source.metadata['transcript_id'] = {resolved_transcript_id}"
+            )
         else:
             logger.warning("No transcript_id resolved - evidence linking will not work")
 
         source = Source(
-            id=source_id, title=title, source_type=SourceType.VIDEO, metadata=source_metadata
+            id=source_id,
+            title=title,
+            source_type=SourceType.VIDEO,
+            metadata=source_metadata,
         )
         logger.debug(
             f"Created Source: id={source.id}, title={source.title}, metadata={source.metadata}"
@@ -888,7 +893,9 @@ Call all bootstrap tools in order to build a complete domain profile.
         kb.add_source(source)
 
         # Apply extraction results to KB
-        newly_added_nodes = self._apply_extraction_to_kb(kb, extraction_result, source_id)
+        newly_added_nodes = self._apply_extraction_to_kb(
+            kb, extraction_result, source_id
+        )
 
         # Proactive entity resolution for newly added nodes
         auto_merge_count = 0
@@ -1109,7 +1116,10 @@ Call all bootstrap tools in order to build a complete domain profile.
             for t in transcripts:
                 if t.title:
                     saved_normalized = t.title.strip().lower()
-                    if search_normalized in saved_normalized or saved_normalized in search_normalized:
+                    if (
+                        search_normalized in saved_normalized
+                        or saved_normalized in search_normalized
+                    ):
                         logger.debug(f"Fuzzy title match found: id={t.id}")
                         return t.id
 

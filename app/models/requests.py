@@ -201,7 +201,9 @@ class MergeEntitiesRequest(BaseModel):
     """
 
     survivor_id: str = Field(..., description="ID of node to keep (12 hex chars)")
-    merged_id: str = Field(..., description="ID of node to merge into survivor (12 hex chars)")
+    merged_id: str = Field(
+        ..., description="ID of node to merge into survivor (12 hex chars)"
+    )
     request_id: str | None = Field(
         default=None,
         max_length=64,

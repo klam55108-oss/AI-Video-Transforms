@@ -233,9 +233,8 @@ class TestNormalizationIntegration:
         Index normalization helps with deduplication lookups.
         """
         # These should all map to same key
-        assert (
-            normalize_for_index("Dr. John Smith")
-            == normalize_for_index("Dr John Smith")
+        assert normalize_for_index("Dr. John Smith") == normalize_for_index(
+            "Dr John Smith"
         )
 
 

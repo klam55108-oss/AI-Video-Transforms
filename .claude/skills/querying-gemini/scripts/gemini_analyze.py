@@ -40,12 +40,50 @@ except ImportError as e:
 MAX_FILE_SIZE = 500 * 1024  # 500KB per file
 MAX_TOTAL_SIZE = 2 * 1024 * 1024  # 2MB total
 ALLOWED_EXTENSIONS = {
-    ".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".c", ".cpp", ".h", ".hpp",
-    ".cs", ".go", ".rs", ".rb", ".php", ".swift", ".kt", ".scala", ".sh",
-    ".bash", ".zsh", ".sql", ".md", ".json", ".yaml", ".yml", ".toml",
-    ".xml", ".html", ".css", ".scss", ".vue", ".svelte", ".astro",
+    ".py",
+    ".js",
+    ".ts",
+    ".jsx",
+    ".tsx",
+    ".java",
+    ".c",
+    ".cpp",
+    ".h",
+    ".hpp",
+    ".cs",
+    ".go",
+    ".rs",
+    ".rb",
+    ".php",
+    ".swift",
+    ".kt",
+    ".scala",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".sql",
+    ".md",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".xml",
+    ".html",
+    ".css",
+    ".scss",
+    ".vue",
+    ".svelte",
+    ".astro",
 }
-EXCLUDED_DIRS = {"__pycache__", "node_modules", ".git", ".venv", "venv", "dist", "build"}
+EXCLUDED_DIRS = {
+    "__pycache__",
+    "node_modules",
+    ".git",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+}
 BLOCKED_PATHS = {"/etc", "/usr", "/bin", "/sbin", "/var", "/root"}
 
 
@@ -100,15 +138,25 @@ def collect_files(target: Path, project_root: Path) -> list[tuple[Path, str]]:
         try:
             size = path.stat().st_size
             if size > MAX_FILE_SIZE:
-                print(f"WARNING: Skipping large file ({size} bytes): {path}", file=sys.stderr)
+                print(
+                    f"WARNING: Skipping large file ({size} bytes): {path}",
+                    file=sys.stderr,
+                )
                 continue
 
             if total_size + size > MAX_TOTAL_SIZE:
-                print(f"WARNING: Total size limit reached, skipping: {path}", file=sys.stderr)
+                print(
+                    f"WARNING: Total size limit reached, skipping: {path}",
+                    file=sys.stderr,
+                )
                 continue
 
             content = path.read_text(encoding="utf-8", errors="replace")
-            rel_path = path.relative_to(project_root) if project_root in path.parents or project_root == path.parent else path
+            rel_path = (
+                path.relative_to(project_root)
+                if project_root in path.parents or project_root == path.parent
+                else path
+            )
             files.append((rel_path, content))
             total_size += size
 
@@ -136,7 +184,9 @@ def build_analysis_prompt(
     # Build file content section
     file_sections = []
     for path, content in files:
-        file_sections.append(f"### File: `{path}`\n\n```{path.suffix.lstrip('.')}\n{content}\n```")
+        file_sections.append(
+            f"### File: `{path}`\n\n```{path.suffix.lstrip('.')}\n{content}\n```"
+        )
 
     files_content = "\n\n".join(file_sections)
 
@@ -152,7 +202,9 @@ def build_analysis_prompt(
         "comprehensive": "Perform a balanced analysis covering all major concerns.",
         "deep": "Conduct an exhaustive analysis with detailed findings for each dimension.",
     }
-    depth_instruction = depth_instructions.get(analysis_type, depth_instructions["comprehensive"])
+    depth_instruction = depth_instructions.get(
+        analysis_type, depth_instructions["comprehensive"]
+    )
 
     return f"""{ANALYZER_PROMPT}
 

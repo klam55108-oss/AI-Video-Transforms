@@ -624,13 +624,15 @@ class KnowledgeBase:
             else:
                 why = why_template.format(score=score)
 
-            results.append({
-                "node_id": node_id,
-                "label": node.label,
-                "entity_type": node.entity_type,
-                "score": float(score),
-                "why": why,
-            })
+            results.append(
+                {
+                    "node_id": node_id,
+                    "label": node.label,
+                    "entity_type": node.entity_type,
+                    "score": float(score),
+                    "why": why,
+                }
+            )
 
         # Sort by score descending and limit
         results.sort(key=lambda x: x["score"], reverse=True)
@@ -679,7 +681,9 @@ class KnowledgeBase:
             return {
                 "connected": True,
                 "steps": 0,
-                "path": [{"entity": node1.label, "relationship": None, "direction": None}],
+                "path": [
+                    {"entity": node1.label, "relationship": None, "direction": None}
+                ],
                 "explanation": "Same entity",
             }
 
@@ -715,14 +719,18 @@ class KnowledgeBase:
                 edge = self.get_edge_between(node_id, next_id)
                 if edge:
                     rel_types = edge.get_relationship_types()
-                    path_item["relationship"] = rel_types[0] if rel_types else "connected"
+                    path_item["relationship"] = (
+                        rel_types[0] if rel_types else "connected"
+                    )
                     path_item["direction"] = "outgoing"
                 else:
                     # Check reverse edge
                     edge = self.get_edge_between(next_id, node_id)
                     if edge:
                         rel_types = edge.get_relationship_types()
-                        path_item["relationship"] = rel_types[0] if rel_types else "connected"
+                        path_item["relationship"] = (
+                            rel_types[0] if rel_types else "connected"
+                        )
                         path_item["direction"] = "incoming"
 
             path_details.append(path_item)
@@ -778,13 +786,15 @@ class KnowledgeBase:
             rel1 = self._describe_relationship(node1.id, common_id)
             rel2 = self._describe_relationship(node2.id, common_id)
 
-            results.append({
-                "entity": common_node.label,
-                "entity_type": common_node.entity_type,
-                "connection_to_first": rel1,
-                "connection_to_second": rel2,
-                "explanation": f"Both {entity_1} and {entity_2} are connected to {common_node.label}",
-            })
+            results.append(
+                {
+                    "entity": common_node.label,
+                    "entity_type": common_node.entity_type,
+                    "connection_to_first": rel1,
+                    "connection_to_second": rel2,
+                    "explanation": f"Both {entity_1} and {entity_2} are connected to {common_node.label}",
+                }
+            )
 
         return results
 
@@ -851,12 +861,14 @@ class KnowledgeBase:
                 node_id = list(undirected.nodes())[0]
                 node = self._nodes.get(node_id)
                 if node:
-                    return [{
-                        "name": f"{node.label} group",
-                        "entities": [node.label],
-                        "size": 1,
-                        "sample": [node.label],
-                    }]
+                    return [
+                        {
+                            "name": f"{node.label} group",
+                            "entities": [node.label],
+                            "size": 1,
+                            "sample": [node.label],
+                        }
+                    ]
             return []
 
         try:
@@ -888,12 +900,14 @@ class KnowledgeBase:
             # Name group after most connected entity
             group_name = f"{best_node.label} group" if best_node else "Unknown group"
 
-            results.append({
-                "name": group_name,
-                "entities": entities,
-                "size": len(entities),
-                "sample": entities[:GROUP_SAMPLE_SIZE],
-            })
+            results.append(
+                {
+                    "name": group_name,
+                    "entities": entities,
+                    "size": len(entities),
+                    "sample": entities[:GROUP_SAMPLE_SIZE],
+                }
+            )
 
         # Sort by size descending
         results.sort(key=lambda x: x["size"], reverse=True)
@@ -931,12 +945,14 @@ class KnowledgeBase:
                     entities.append(node.label)
 
             if entities:
-                results.append({
-                    "entities": entities,
-                    "size": len(entities),
-                    "sample": entities[:GROUP_SAMPLE_SIZE],
-                    "explanation": f"Group of {len(entities)} entities disconnected from main graph",
-                })
+                results.append(
+                    {
+                        "entities": entities,
+                        "size": len(entities),
+                        "sample": entities[:GROUP_SAMPLE_SIZE],
+                        "explanation": f"Group of {len(entities)} entities disconnected from main graph",
+                    }
+                )
 
         return results
 
@@ -961,20 +977,24 @@ class KnowledgeBase:
         for source_id in node.source_ids:
             source = self._sources.get(source_id)
             if source:
-                results.append({
-                    "source_id": source.id,
-                    "source_title": source.title,
-                    "source_type": source.source_type.value,
-                    "mention_count": 1,  # Each source_id represents one mention
-                })
+                results.append(
+                    {
+                        "source_id": source.id,
+                        "source_title": source.title,
+                        "source_type": source.source_type.value,
+                        "mention_count": 1,  # Each source_id represents one mention
+                    }
+                )
             else:
                 # Source not found but ID is tracked
-                results.append({
-                    "source_id": source_id,
-                    "source_title": f"Source {source_id}",
-                    "source_type": "unknown",
-                    "mention_count": 1,
-                })
+                results.append(
+                    {
+                        "source_id": source_id,
+                        "source_title": f"Source {source_id}",
+                        "source_type": "unknown",
+                        "mention_count": 1,
+                    }
+                )
 
         return results
 
@@ -1014,13 +1034,15 @@ class KnowledgeBase:
                 source = self._sources.get(rel.source_id)
                 source_title = source.title if source else f"Source {rel.source_id}"
 
-                results.append({
-                    "relationship_type": rel.relationship_type,
-                    "quote": rel.evidence,
-                    "source_title": source_title,
-                    "source_id": rel.source_id,
-                    "confidence": rel.confidence,
-                })
+                results.append(
+                    {
+                        "relationship_type": rel.relationship_type,
+                        "quote": rel.evidence,
+                        "source_title": source_title,
+                        "source_id": rel.source_id,
+                        "confidence": rel.confidence,
+                    }
+                )
 
         return results
 
@@ -1054,38 +1076,46 @@ class KnowledgeBase:
 
         # Check if graph is empty
         if node_count == 0:
-            suggestions.append({
-                "question": "What content should we analyze first?",
-                "why": "Your knowledge graph is empty",
-                "action": "bootstrap",
-                "priority": "high",
-            })
+            suggestions.append(
+                {
+                    "question": "What content should we analyze first?",
+                    "why": "Your knowledge graph is empty",
+                    "action": "bootstrap",
+                    "priority": "high",
+                }
+            )
             return suggestions
 
         # Find key entities to suggest exploration
         key_entities = self.get_key_entities(limit=3, method="connections")
         if key_entities:
             top_entity = key_entities[0]
-            suggestions.append({
-                "question": f"Who or what is connected to {top_entity['label']}?",
-                "why": f"{top_entity['label']} is the most connected entity ({top_entity['why']})",
-                "action": "explore_entity",
-                "action_params": {"entity": top_entity["label"]},
-                "priority": "high",
-            })
+            suggestions.append(
+                {
+                    "question": f"Who or what is connected to {top_entity['label']}?",
+                    "why": f"{top_entity['label']} is the most connected entity ({top_entity['why']})",
+                    "action": "explore_entity",
+                    "action_params": {"entity": top_entity["label"]},
+                    "priority": "high",
+                }
+            )
 
         # Check for isolated topics
         isolated = self.find_isolated_topics()
         if isolated:
             first_isolated = isolated[0]
-            sample = first_isolated["sample"][0] if first_isolated["sample"] else "unknown"
-            suggestions.append({
-                "question": f"How does {sample} connect to the main graph?",
-                "why": f"Found {len(isolated)} isolated group(s) disconnected from the main network",
-                "action": "find_connection",
-                "action_params": {"isolated_group": first_isolated["entities"]},
-                "priority": "medium",
-            })
+            sample = (
+                first_isolated["sample"][0] if first_isolated["sample"] else "unknown"
+            )
+            suggestions.append(
+                {
+                    "question": f"How does {sample} connect to the main graph?",
+                    "why": f"Found {len(isolated)} isolated group(s) disconnected from the main network",
+                    "action": "find_connection",
+                    "action_params": {"isolated_group": first_isolated["entities"]},
+                    "priority": "medium",
+                }
+            )
 
         # Check entity type distribution for imbalances
         if entity_types:
@@ -1095,31 +1125,37 @@ class KnowledgeBase:
             if len(type_counts) > 1:
                 least_common = type_counts[-1]
                 if most_common[1] > 3 * least_common[1]:
-                    suggestions.append({
-                        "question": f"Are there more {least_common[0]} entities to discover?",
-                        "why": f"Only {least_common[1]} {least_common[0]} vs {most_common[1]} {most_common[0]}",
-                        "action": "explore_type",
-                        "action_params": {"entity_type": least_common[0]},
-                        "priority": "low",
-                    })
+                    suggestions.append(
+                        {
+                            "question": f"Are there more {least_common[0]} entities to discover?",
+                            "why": f"Only {least_common[1]} {least_common[0]} vs {most_common[1]} {most_common[0]}",
+                            "action": "explore_type",
+                            "action_params": {"entity_type": least_common[0]},
+                            "priority": "low",
+                        }
+                    )
 
         # Suggest exploring relationships if graph is sparse
         if node_count > 5 and edge_count < node_count:
-            suggestions.append({
-                "question": "What relationships are we missing?",
-                "why": f"Only {edge_count} connections between {node_count} entities (sparse graph)",
-                "action": "discover_relationships",
-                "priority": "medium",
-            })
+            suggestions.append(
+                {
+                    "question": "What relationships are we missing?",
+                    "why": f"Only {edge_count} connections between {node_count} entities (sparse graph)",
+                    "action": "discover_relationships",
+                    "priority": "medium",
+                }
+            )
 
         # Suggest community analysis for larger graphs
         if node_count >= 10:
-            suggestions.append({
-                "question": "What groups or clusters exist in this data?",
-                "why": f"Graph has {node_count} entities - community detection may reveal structure",
-                "action": "discover_groups",
-                "priority": "low",
-            })
+            suggestions.append(
+                {
+                    "question": "What groups or clusters exist in this data?",
+                    "why": f"Graph has {node_count} entities - community detection may reveal structure",
+                    "action": "discover_groups",
+                    "priority": "low",
+                }
+            )
 
         # Sort by priority and apply limit
         priority_order = {"high": 0, "medium": 1, "low": 2}
@@ -1154,7 +1190,9 @@ class KnowledgeBase:
 
         matcher = EntityMatcher(config)
         nodes = list(self._nodes.values())
-        return matcher.find_candidates(nodes, kb=self, min_confidence=config.review_threshold)
+        return matcher.find_candidates(
+            nodes, kb=self, min_confidence=config.review_threshold
+        )
 
     def merge_nodes(
         self,
@@ -1206,7 +1244,10 @@ class KnowledgeBase:
 
         # 2. Transfer aliases from merged to survivor
         for alias in merged.aliases:
-            if alias.lower() != survivor.label.lower() and alias not in survivor.aliases:
+            if (
+                alias.lower() != survivor.label.lower()
+                and alias not in survivor.aliases
+            ):
                 survivor.add_alias(alias)
                 new_aliases.append(alias)
 
@@ -1226,8 +1267,16 @@ class KnowledgeBase:
         for edge_id, edge in list(self._edges.items()):
             if edge.source_node_id == merged_id or edge.target_node_id == merged_id:
                 # Determine new source/target
-                new_source = survivor_id if edge.source_node_id == merged_id else edge.source_node_id
-                new_target = survivor_id if edge.target_node_id == merged_id else edge.target_node_id
+                new_source = (
+                    survivor_id
+                    if edge.source_node_id == merged_id
+                    else edge.source_node_id
+                )
+                new_target = (
+                    survivor_id
+                    if edge.target_node_id == merged_id
+                    else edge.target_node_id
+                )
 
                 # Skip self-loops that would result from merge
                 if new_source == new_target:
@@ -1345,7 +1394,10 @@ class KnowledgeBase:
                 continue
 
             # Skip if either node no longer exists
-            if candidate.node_a_id not in self._nodes or candidate.node_b_id not in self._nodes:
+            if (
+                candidate.node_a_id not in self._nodes
+                or candidate.node_b_id not in self._nodes
+            ):
                 continue
 
             try:

@@ -52,16 +52,18 @@ export function renderTranscriptsList(transcripts) {
     transcriptsList.innerHTML = transcripts.map(t => `
         <div class="flex items-center justify-between px-2 py-1.5 text-xs rounded-md group
                     text-[var(--sidebar-text-secondary)] hover:bg-[var(--sidebar-hover)]">
-            <div class="truncate flex-1 mr-2" title="${escapeHtml(t.filename)}">
+            <div class="truncate flex-1 mr-2 cursor-pointer"
+                 title="Click to view full transcript"
+                 onclick="window.openTranscriptViewer('${t.id}')">
                 <div class="font-medium truncate">${escapeHtml(t.filename)}</div>
                 <div class="text-[var(--sidebar-text-muted)] text-[10px]">${formatFileSize(t.file_size)} · ${formatRelativeTime(t.created_at)}</div>
             </div>
             <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onclick="window.downloadTranscript('${t.id}')" title="Download"
+                <button onclick="event.stopPropagation(); window.downloadTranscript('${t.id}')" title="Download"
                         class="p-1 hover:text-[var(--sidebar-text-primary)] transition-colors">
                     <i class="ph-bold ph-download-simple text-sm"></i>
                 </button>
-                <button onclick="window.deleteTranscript('${t.id}')" title="Delete"
+                <button onclick="event.stopPropagation(); window.deleteTranscript('${t.id}')" title="Delete"
                         class="p-1 hover:text-[var(--status-error)] transition-colors">
                     <i class="ph-bold ph-trash text-sm"></i>
                 </button>

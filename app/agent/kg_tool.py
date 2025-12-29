@@ -744,7 +744,9 @@ def _handle_key_entities(
 
     for i, entity in enumerate(results, 1):
         score_display = (
-            f"{entity['score']:.2%}" if method != "connections" else str(int(entity["score"]))
+            f"{entity['score']:.2%}"
+            if method != "connections"
+            else str(int(entity["score"]))
         )
         lines.append(
             f"| {i} | {entity['label']} | {entity['entity_type']} | "

@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from .client import GeminiClient, GeminiResponse, ThinkingLevel, get_client, reset_client
+from .client import (
+    GeminiClient,
+    GeminiResponse,
+    ThinkingLevel,
+    get_client,
+    reset_client,
+)
 from .prompts import (
     ANALYZER_PROMPT,
     CODE_GENERATOR_PROMPT,

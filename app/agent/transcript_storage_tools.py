@@ -165,9 +165,7 @@ async def save_transcript(args: dict[str, Any]) -> dict[str, Any]:
     session_id = args.get("session_id")
     custom_filename = args.get("custom_filename")
 
-    logger.debug(
-        f"save_transcript: title={title!r}, source_type={source_type}"
-    )
+    logger.debug(f"save_transcript: title={title!r}, source_type={source_type}")
 
     # Validate required parameters
     if not content:
@@ -234,7 +232,9 @@ async def save_transcript(args: dict[str, Any]) -> dict[str, Any]:
 
         transcript_id = entry["id"]
 
-        logger.debug(f"Transcript saved: id={transcript_id}, title={entry.get('title')!r}")
+        logger.debug(
+            f"Transcript saved: id={transcript_id}, title={entry.get('title')!r}"
+        )
         char_count = len(content)
         preview = content[:200] + "..." if len(content) > 200 else content
 

@@ -539,7 +539,9 @@ def _perform_transcription(
                         "error": "YouTube support requires yt-dlp. Install with: pip install yt-dlp",
                     }
                 logger.info(f"Downloading YouTube audio from: {video_source}")
-                audio_path, video_title = _download_youtube_audio(video_source, temp_dir)
+                audio_path, video_title = _download_youtube_audio(
+                    video_source, temp_dir
+                )
                 logger.info(f"YouTube audio downloaded: {audio_path}")
             else:
                 if not os.path.exists(video_source):

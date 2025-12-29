@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -62,7 +61,9 @@ async def project_with_kb(
 
     # Add test nodes
     node_a = Node(id="node_a", label="John Smith", entity_type="Person")
-    node_b = Node(id="node_b", label="J. Smith", entity_type="Person", aliases=["Johnny"])
+    node_b = Node(
+        id="node_b", label="J. Smith", entity_type="Person", aliases=["Johnny"]
+    )
     node_c = Node(id="node_c", label="Acme Corp", entity_type="Organization")
 
     kb.add_node(node_a)
@@ -224,6 +225,7 @@ class TestIdempotentMerge:
         # Add another node to merge
         from app.kg.persistence import load_knowledge_base
 
+        assert project.kb_id is not None
         kb = load_knowledge_base(kg_service.kb_path / project.kb_id)
         assert kb is not None
         new_node = Node(id="node_d", label="Another Person", entity_type="Person")
@@ -304,6 +306,7 @@ class TestPreMergeStateCapture:
         assert history.survivor_aliases_before == []
 
         # Check pre_merge_state has survivor data
+        assert history.pre_merge_state is not None
         survivor_data = history.pre_merge_state["survivor"]
         assert survivor_data["label"] == "John Smith"
 
@@ -322,6 +325,7 @@ class TestPreMergeStateCapture:
             merged_id="node_b",
         )
 
+        assert history.pre_merge_state is not None
         merged_data = history.pre_merge_state["merged"]
         assert merged_data["label"] == "J. Smith"
         assert "Johnny" in merged_data["aliases"]
@@ -343,6 +347,7 @@ class TestPreMergeStateCapture:
 
         # node_b had one edge (to node_c)
         assert history.edges_redirected == 1
+        assert history.pre_merge_state is not None
         assert len(history.pre_merge_state["edges"]) == 1
 
 
@@ -467,14 +472,14 @@ class TestConflictDetection:
         )
 
         # Re-add candidate to test (since merge removes it)
-        project = await kg_service.get_project(project.id)
-        assert project is not None
-        project.pending_merges.append(candidate)
-        await kg_service._save_project(project)
+        updated_project = await kg_service.get_project(project.id)
+        assert updated_project is not None
+        updated_project.pending_merges.append(candidate)
+        await kg_service._save_project(updated_project)
 
         # Check conflicts - node_b no longer exists
         result = await kg_service.check_merge_conflicts(
-            project_id=project.id,
+            project_id=updated_project.id,
             candidate_id="test_candidate",
         )
 
@@ -491,6 +496,7 @@ class TestConflictDetection:
         project = project_with_kb
         from app.kg.persistence import load_knowledge_base
 
+        assert project.kb_id is not None
         kb = load_knowledge_base(kg_service.kb_path / project.kb_id)
         assert kb is not None
 
@@ -656,6 +662,7 @@ class TestCaptureEdgesState:
         from app.kg.persistence import load_knowledge_base
 
         # Add an isolated node
+        assert project.kb_id is not None
         kb = load_knowledge_base(kg_service.kb_path / project.kb_id)
         assert kb is not None
         isolated = Node(id="isolated", label="Isolated Node", entity_type="Person")

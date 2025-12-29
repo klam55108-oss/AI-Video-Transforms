@@ -40,12 +40,50 @@ except ImportError as e:
 MAX_FILE_SIZE = 500 * 1024  # 500KB per file
 MAX_TOTAL_SIZE = 2 * 1024 * 1024  # 2MB total
 ALLOWED_EXTENSIONS = {
-    ".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".c", ".cpp", ".h", ".hpp",
-    ".cs", ".go", ".rs", ".rb", ".php", ".swift", ".kt", ".scala", ".sh",
-    ".bash", ".zsh", ".sql", ".md", ".json", ".yaml", ".yml", ".toml",
-    ".xml", ".html", ".css", ".scss", ".vue", ".svelte", ".astro",
+    ".py",
+    ".js",
+    ".ts",
+    ".jsx",
+    ".tsx",
+    ".java",
+    ".c",
+    ".cpp",
+    ".h",
+    ".hpp",
+    ".cs",
+    ".go",
+    ".rs",
+    ".rb",
+    ".php",
+    ".swift",
+    ".kt",
+    ".scala",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".sql",
+    ".md",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".xml",
+    ".html",
+    ".css",
+    ".scss",
+    ".vue",
+    ".svelte",
+    ".astro",
 }
-EXCLUDED_DIRS = {"__pycache__", "node_modules", ".git", ".venv", "venv", "dist", "build"}
+EXCLUDED_DIRS = {
+    "__pycache__",
+    "node_modules",
+    ".git",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+}
 BLOCKED_PATHS = {"/etc", "/usr", "/bin", "/sbin", "/var", "/root"}
 
 
@@ -88,15 +126,25 @@ def collect_files(target: Path, project_root: Path) -> list[tuple[Path, str]]:
         try:
             size = path.stat().st_size
             if size > MAX_FILE_SIZE:
-                print(f"WARNING: Skipping large file ({size} bytes): {path}", file=sys.stderr)
+                print(
+                    f"WARNING: Skipping large file ({size} bytes): {path}",
+                    file=sys.stderr,
+                )
                 continue
 
             if total_size + size > MAX_TOTAL_SIZE:
-                print(f"WARNING: Total size limit reached, skipping: {path}", file=sys.stderr)
+                print(
+                    f"WARNING: Total size limit reached, skipping: {path}",
+                    file=sys.stderr,
+                )
                 continue
 
             content = path.read_text(encoding="utf-8", errors="replace")
-            rel_path = path.relative_to(project_root) if project_root in path.parents or project_root == path.parent else path
+            rel_path = (
+                path.relative_to(project_root)
+                if project_root in path.parents or project_root == path.parent
+                else path
+            )
             files.append((rel_path, content))
             total_size += size
 
@@ -124,7 +172,9 @@ def build_fix_prompt(
     # Build file content section
     file_sections = []
     for path, content in files:
-        file_sections.append(f"### File: `{path}`\n\n```{path.suffix.lstrip('.')}\n{content}\n```")
+        file_sections.append(
+            f"### File: `{path}`\n\n```{path.suffix.lstrip('.')}\n{content}\n```"
+        )
 
     files_content = "\n\n".join(file_sections)
 
@@ -134,7 +184,9 @@ def build_fix_prompt(
         "minimal": "Apply the smallest possible change that fixes the issue while preserving all other behavior.",
         "comprehensive": "Fix the issue AND refactor related code to prevent similar issues in the future.",
     }
-    scope_instruction = scope_instructions.get(fix_scope, scope_instructions["root_cause"])
+    scope_instruction = scope_instructions.get(
+        fix_scope, scope_instructions["root_cause"]
+    )
 
     return f"""{FIXER_PROMPT}
 
@@ -198,7 +250,9 @@ async def fix_code(
 
     # Execute query with high thinking for root cause analysis
     client = GeminiClient()
-    return await client.query(prompt, thinking_level=ThinkingLevel.HIGH, timeout=timeout)
+    return await client.query(
+        prompt, thinking_level=ThinkingLevel.HIGH, timeout=timeout
+    )
 
 
 def format_markdown(response: GeminiResponse) -> str:
@@ -262,7 +316,10 @@ async def main() -> None:
 
     args = parser.parse_args()
 
-    print(f"Analyzing issues with Gemini 3 Flash (scope: {args.fix_scope})...", file=sys.stderr)
+    print(
+        f"Analyzing issues with Gemini 3 Flash (scope: {args.fix_scope})...",
+        file=sys.stderr,
+    )
     print(f"Target: {args.target}", file=sys.stderr)
 
     try:
