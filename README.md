@@ -314,7 +314,7 @@ This is a community-driven project at the upgraded MVP stage. We welcome contrib
 | Add keyboard shortcut for theme toggle (Ctrl/Cmd+D) | Easy | Frontend |
 | Show transcript language in library list | Easy | Full Stack |
 | Add transcript duration display in library | Easy | Full Stack |
-| Improve loading skeleton animations | Easy | Frontend |
+| Add transcript preview on hover | Easy | Frontend |
 
 ### Get Started
 
