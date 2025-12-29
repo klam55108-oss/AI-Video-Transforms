@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="cognivagent-icon.svg" alt="CognivAgent" width="150">
+<img src="assets/cognivagent-icon.svg" alt="CognivAgent" width="150">
 
 # CognivAgent
 
@@ -103,24 +103,29 @@ See the [Docker Guide](guides/docker-deployment.md) for detailed deployment opti
 
 ## Screenshots
 
-<div align="center">
-
 ### Chat Interface
 
-<!-- TODO: Add screenshot of chat interface with a conversation -->
-*Screenshot coming soon - showing real-time chat with the AI agent*
+Real-time conversation with the AI agent, featuring activity streaming and Markdown rendering.
+
+| Dark Mode | Light Mode |
+|:---------:|:----------:|
+| ![Chat Interface Dark](assets/chat_interface_dark.png) | ![Chat Interface Light](assets/chat_interface_light.png) |
 
 ### Knowledge Graph Visualization
 
-<!-- TODO: Add screenshot of KG visualization with nodes and edges -->
-*Screenshot coming soon - showing interactive graph with entity relationships*
+Interactive graph powered by Cytoscape.js with search, type filtering, and node inspector.
+
+| Dark Mode | Light Mode |
+|:---------:|:----------:|
+| ![Knowledge Graph Dark](assets/kg_vis_dark.png) | ![Knowledge Graph Light](assets/kg_vis_light.png) |
 
 ### Transcript Library
 
-<!-- TODO: Add screenshot of transcript library panel -->
-*Screenshot coming soon - showing saved transcripts with search and export*
+Save, search, and export transcripts with full-text viewer and highlighting.
 
-</div>
+| Dark Mode | Light Mode |
+|:---------:|:----------:|
+| ![Transcript Library Dark](assets/transcription_dark.png) | ![Transcript Library Light](assets/transcription_light.png) |
 
 ---
 
@@ -128,8 +133,9 @@ See the [Docker Guide](guides/docker-deployment.md) for detailed deployment opti
 
 <div align="center">
 
-<!-- TODO: Add demo video embed or link -->
-*Demo video coming soon - 3-minute walkthrough of key features*
+https://github.com/user-attachments/assets/2b4d7f2e-edd0-43b5-8117-50464314be71
+
+*5-minute full workflow: building a knowledge graph from multiple videos and querying it with agent skills*
 
 </div>
 
@@ -152,12 +158,13 @@ Create Project  -->  Bootstrap  -->  Confirm Discoveries  -->  Extract  -->  Exp
 ## Architecture
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#818cf8', 'primaryTextColor': '#1e1b4b', 'primaryBorderColor': '#6366f1', 'lineColor': '#94a3b8', 'secondaryColor': '#f8fafc', 'tertiaryColor': '#f1f5f9'}}}%%
 graph TB
-    subgraph Frontend
+    subgraph Frontend["🖥️ Frontend"]
         UI[Web UI<br/>37 ES Modules]
     end
 
-    subgraph API[FastAPI Layer]
+    subgraph API["⚡ FastAPI Layer"]
         R1[Chat Router]
         R2[KG Router]
         R3[Jobs Router]
@@ -165,19 +172,19 @@ graph TB
         R5[Audit Router]
     end
 
-    subgraph Services
+    subgraph Services["🔧 Services"]
         SS[SessionService]
         KS[KnowledgeGraphService]
         JS[JobQueueService]
         AS[AuditService]
     end
 
-    subgraph Core
+    subgraph Core["🧠 Core"]
         SA[SessionActor]
         AGENT[Claude Agent<br/>+ MCP Tools]
     end
 
-    subgraph External
+    subgraph External["🌐 External"]
         CLAUDE[Claude API]
         OPENAI[OpenAI API<br/>gpt-4o-transcribe]
     end
@@ -195,6 +202,18 @@ graph TB
     SA --> AGENT
     AGENT --> CLAUDE
     AGENT --> OPENAI
+
+    classDef frontend fill:#dbeafe,stroke:#3b82f6,stroke-width:2px,color:#1e40af
+    classDef api fill:#dcfce7,stroke:#22c55e,stroke-width:2px,color:#166534
+    classDef services fill:#f3e8ff,stroke:#a855f7,stroke-width:2px,color:#6b21a8
+    classDef core fill:#ffedd5,stroke:#f97316,stroke-width:2px,color:#9a3412
+    classDef external fill:#fee2e2,stroke:#ef4444,stroke-width:2px,color:#991b1b
+
+    class UI frontend
+    class R1,R2,R3,R4,R5 api
+    class SS,KS,JS,AS services
+    class SA,AGENT core
+    class CLAUDE,OPENAI external
 ```
 
 **SessionActor Pattern** - Queue-based actor model prevents Claude SDK cancel scope errors:
@@ -292,10 +311,10 @@ This is a community-driven project at the upgraded MVP stage. We welcome contrib
 | Issue | Difficulty | Area |
 |-------|------------|------|
 | Add "copy to clipboard" button in transcript viewer | Easy | Frontend |
-| Add keyboard shortcut for theme toggle | Easy | Frontend |
-| Show transcript language in library list | Medium | Full Stack |
-| Add full-text transcript search (backend) | Medium | Full Stack |
-| Implement time-aligned SRT/VTT export with timestamps | Harder | Backend |
+| Add keyboard shortcut for theme toggle (Ctrl/Cmd+D) | Easy | Frontend |
+| Show transcript language in library list | Easy | Full Stack |
+| Add transcript duration display in library | Easy | Full Stack |
+| Add transcript preview on hover | Easy | Frontend |
 
 ### Get Started
 
@@ -312,28 +331,65 @@ See [CLAUDE.md](CLAUDE.md) for development guidelines and architecture patterns.
 
 ## Roadmap
 
-### What's Working
+**Every item below is an invitation to contribute.** Whether you're looking for a quick win or a deep dive, pick something that interests you and open a PR!
 
-- Video transcription (local + YouTube)
-- Knowledge graph extraction
-- Entity resolution with similarity matching
-- Interactive graph visualization
-- Background job queue with persistence
-- Audit trail and security blocking
+| Status | Meaning |
+|--------|---------|
+| **Ready** | Well-defined, ready to implement |
+| **Needs Design** | Requires research or architecture decisions first |
+| **Future** | Longer-term vision, open for discussion |
 
-### What's Next (Community Driven)
+---
 
-- [ ] Time-aligned transcripts (SRT/VTT with timestamps)
-- [ ] Speaker diarization
-- [ ] Evidence/provenance linking in graph
-- [ ] Batch video processing
+### Search & Discovery
 
-### Help Wanted
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Full-text transcript search | Ready | Backend indexing with SQLite FTS5 + frontend search UI |
+| Semantic search with embeddings | Needs Design | Vector similarity for concept-based queries across transcripts |
+| Cross-transcript entity search | Ready | Find all mentions of an entity across multiple videos |
 
-- Screenshots and demo video
-- Documentation improvements
-- Test coverage expansion
-- Accessibility enhancements
+### Export & Formats
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Time-aligned SRT/VTT export | Ready | Generate subtitles with word-level timestamps from transcription |
+| Speaker diarization | Needs Design | Identify and label different speakers in transcripts |
+| Neo4j import scripts | Future | Generate Cypher queries for direct Neo4j import |
+
+### Processing & Scale
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Batch video processing | Ready | Queue multiple videos for sequential transcription |
+| Playlist/channel import | Needs Design | Import entire YouTube playlists or channels |
+| Parallel transcription | Future | Process multiple videos concurrently |
+
+### AI & Analysis
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Video frame analysis | Needs Design | Extract visual context (slides, diagrams) to enrich knowledge graphs |
+| Context window optimization | Needs Design | Improve agent context efficiency for longer conversations |
+| Evidence/provenance linking | Ready | Link KG nodes to source transcript timestamps |
+| Multi-model extraction | Future | Use specialized models for different entity types |
+
+### UI/UX Improvements
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Graph panel enhancements | Ready | Better layout algorithms, node clustering, improved zoom/pan |
+| Entity relationship explorer | Ready | Drill-down view for entity connections and paths |
+| Mobile responsive design | Future | Full mobile experience for tablet/phone |
+| Collaborative workspaces | Future | Share KG projects with team members |
+
+### Developer Experience
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Plugin architecture | Needs Design | Custom extractors and analyzers as plugins |
+| REST API authentication | Ready | API keys and OAuth for programmatic access |
+| Webhook notifications | Ready | Notify external services on job completion |
 
 ---
 
