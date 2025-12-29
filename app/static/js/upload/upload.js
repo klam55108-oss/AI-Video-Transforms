@@ -162,9 +162,9 @@ function showUploadModal(file) {
     modal.classList.remove('hidden');
     modal.classList.add('flex');
 
-    // Focus domain textarea for quick typing
+    // Focus language dropdown (first form field for natural tab order)
     setTimeout(() => {
-        domainTextarea?.focus();
+        languageSelect?.focus();
     }, 100);
 }
 
@@ -214,15 +214,18 @@ async function handleStartTranscription() {
         return;
     }
 
+    // Capture file and clear immediately to prevent double-submit on rapid clicks
     const file = pendingFile;
+    pendingFile = null;
+
     const languageSelect = getLanguageSelect();
     const domainTextarea = getDomainTextarea();
 
-    // Get optional params
+    // Get optional params before hiding modal
     const language = languageSelect?.value || '';
     const domain = domainTextarea?.value?.trim() || '';
 
-    // Hide modal first
+    // Hide modal
     hideUploadModal();
 
     // Show upload message
@@ -275,9 +278,7 @@ async function handleStartTranscription() {
         showToast('Upload failed', 'error');
         addMessage(`**Upload Error:** ${e.message}`, 'agent');
     }
-
-    // Reset file input
-    fileInput.value = '';
+    // Note: fileInput is already reset by hideUploadModal()
 }
 
 // ============================================
@@ -286,7 +287,7 @@ async function handleStartTranscription() {
 
 /**
  * Build a transcription request message with optional params.
- * Format is designed to be parsed by the agent for direct tool invocation.
+ * Format provides structured context for the agent to extract parameters.
  */
 function buildTranscriptionMessage(filePath, language, domain) {
     let message = `Please transcribe this uploaded video file: ${filePath}`;
