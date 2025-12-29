@@ -46,6 +46,7 @@ coverage.xml
 # Documentation
 docs/
 *.md
+!README.md
 LICENSE
 .claude/
 ai_docs/
