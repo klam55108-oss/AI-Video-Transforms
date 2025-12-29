@@ -20,13 +20,11 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
-
-logger = logging.getLogger(__name__)
 from fastapi.responses import FileResponse
 
 from app.api.deps import ValidatedProjectId, get_kg_service
-from app.core.validators import UUID_PATTERN
 from app.core.config import get_settings
+from app.core.validators import UUID_PATTERN
 from app.kg.domain import DiscoveryStatus, ProjectState
 from app.kg.persistence import load_knowledge_base
 from app.kg.resolution import MergeHistory, ResolutionCandidate
@@ -50,6 +48,7 @@ from app.models.requests import (
 )
 from app.services.kg_service import KnowledgeGraphService
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/kg", tags=["knowledge-graph"])
 
@@ -883,15 +882,12 @@ async def get_node_evidence(
         # Find first occurrence of any search term in transcript
         content_lower = content.content.lower()
         best_match_idx = -1
-        matched_term = None
-
         for term in search_terms:
             if len(term) < 2:  # Skip single-char terms
                 continue
             idx = content_lower.find(term)
             if idx >= 0 and (best_match_idx < 0 or idx < best_match_idx):
                 best_match_idx = idx
-                matched_term = term
 
         if best_match_idx >= 0:
             # Extract context around the match (100 chars before, 400 after)

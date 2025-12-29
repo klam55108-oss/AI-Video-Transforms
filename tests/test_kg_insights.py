@@ -106,8 +106,12 @@ def complex_kb() -> KnowledgeBase:
         kb.add_node(node)
 
     # Add sources
-    source1 = Source(id="src_doc1", title="Documentary Part 1", source_type=SourceType.VIDEO)
-    source2 = Source(id="src_doc2", title="Documentary Part 2", source_type=SourceType.VIDEO)
+    source1 = Source(
+        id="src_doc1", title="Documentary Part 1", source_type=SourceType.VIDEO
+    )
+    source2 = Source(
+        id="src_doc2", title="Documentary Part 2", source_type=SourceType.VIDEO
+    )
     kb.add_source(source1)
     kb.add_source(source2)
 
@@ -588,7 +592,7 @@ def test_large_graph_performance() -> None:
 
     # Create chain of edges
     for i in range(49):
-        edge = Edge(id=f"e{i}", source_node_id=f"n{i}", target_node_id=f"n{i+1}")
+        edge = Edge(id=f"e{i}", source_node_id=f"n{i}", target_node_id=f"n{i + 1}")
         edge.add_relationship(
             RelationshipDetail(
                 relationship_type="connected_to",

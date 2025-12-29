@@ -165,7 +165,10 @@ async def main() -> None:
 
     args = parser.parse_args()
 
-    print(f"Generating code with Gemini 3 Flash (thinking: {args.thinking_level})...", file=sys.stderr)
+    print(
+        f"Generating code with Gemini 3 Flash (thinking: {args.thinking_level})...",
+        file=sys.stderr,
+    )
     if args.language:
         print(f"Language: {args.language}", file=sys.stderr)
 

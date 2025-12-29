@@ -215,9 +215,7 @@ class TestAuditServiceResolutionLogging:
         return AuditService(data_path=tmp_path)
 
     @pytest.mark.asyncio
-    async def test_log_resolution_scan_event(
-        self, audit_service: AuditService
-    ) -> None:
+    async def test_log_resolution_scan_event(self, audit_service: AuditService) -> None:
         """Test logging a resolution scan event."""
         await audit_service.log_resolution_event(
             event_type=AuditEventType.RESOLUTION_SCAN_COMPLETE,

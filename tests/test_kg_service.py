@@ -971,7 +971,9 @@ class TestFindTranscriptByTitle:
         self, kg_service: KnowledgeGraphService
     ) -> None:
         """Test fuzzy match when saved title contains search term."""
-        mock_transcript = self._mock_transcript("def67890", "Full Video: My Video Title (2024)")
+        mock_transcript = self._mock_transcript(
+            "def67890", "Full Video: My Video Title (2024)"
+        )
 
         mock_storage = MagicMock()
         mock_storage.list_transcripts.return_value = [mock_transcript]
@@ -1005,7 +1007,9 @@ class TestFindTranscriptByTitle:
 
     def test_no_match_returns_none(self, kg_service: KnowledgeGraphService) -> None:
         """Test no match returns None."""
-        mock_transcript = self._mock_transcript("xyz99999", "Completely Different Title")
+        mock_transcript = self._mock_transcript(
+            "xyz99999", "Completely Different Title"
+        )
 
         mock_storage = MagicMock()
         mock_storage.list_transcripts.return_value = [mock_transcript]
@@ -1041,9 +1045,7 @@ class TestFindTranscriptByTitle:
             result = kg_service._find_transcript_by_title("Any Title")
             assert result is None
 
-    def test_case_insensitive_match(
-        self, kg_service: KnowledgeGraphService
-    ) -> None:
+    def test_case_insensitive_match(self, kg_service: KnowledgeGraphService) -> None:
         """Test matching is case insensitive."""
         mock_transcript = self._mock_transcript("case1234", "UPPERCASE VIDEO TITLE")
 

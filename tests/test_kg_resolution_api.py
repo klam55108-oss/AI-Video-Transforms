@@ -93,12 +93,14 @@ class MockKGService:
         if merged_id == "invalid":
             raise ValueError(f"Merged node not found: {merged_id}")
 
-        self.merge_calls.append({
-            "project_id": project_id,
-            "survivor_id": survivor_id,
-            "merged_id": merged_id,
-            "merge_type": merge_type,
-        })
+        self.merge_calls.append(
+            {
+                "project_id": project_id,
+                "survivor_id": survivor_id,
+                "merged_id": merged_id,
+                "merge_type": merge_type,
+            }
+        )
 
         history = MergeHistory(
             survivor_id=survivor_id,
@@ -441,7 +443,9 @@ class TestGetPendingMerges:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                response = await client.get("/kg/projects/abc123def456/merge-candidates")
+                response = await client.get(
+                    "/kg/projects/abc123def456/merge-candidates"
+                )
 
             assert response.status_code == 200
             data = response.json()
@@ -476,7 +480,9 @@ class TestGetPendingMerges:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                response = await client.get("/kg/projects/abc123def456/merge-candidates")
+                response = await client.get(
+                    "/kg/projects/abc123def456/merge-candidates"
+                )
 
             assert response.status_code == 200
             data = response.json()
@@ -754,9 +760,7 @@ class TestResolutionIntegration:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                response = await client.get(
-                    f"/kg/projects/{project.id}/duplicates"
-                )
+                response = await client.get(f"/kg/projects/{project.id}/duplicates")
 
             assert response.status_code == 200
             data = response.json()

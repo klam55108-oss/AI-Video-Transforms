@@ -672,7 +672,9 @@ class TestVideoTitleExtraction:
 
         mock_ydl = MagicMock()
         mock_ydl.extract_info.return_value = mock_info
-        mock_ydl.prepare_filename.return_value = str(temp_storage_dir / "Test Video Title.mp3")
+        mock_ydl.prepare_filename.return_value = str(
+            temp_storage_dir / "Test Video Title.mp3"
+        )
 
         # Create the expected output file
         output_file = temp_storage_dir / "Test Video Title.mp3"
@@ -680,7 +682,9 @@ class TestVideoTitleExtraction:
 
         with patch("app.agent.transcribe_tool.YOUTUBE_SUPPORT", True):
             with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
-                with patch("app.agent.transcribe_tool.yt_dlp.YoutubeDL") as mock_ydl_class:
+                with patch(
+                    "app.agent.transcribe_tool.yt_dlp.YoutubeDL"
+                ) as mock_ydl_class:
                     mock_ydl_class.return_value.__enter__.return_value = mock_ydl
 
                     from app.agent.transcribe_tool import _download_youtube_audio
@@ -711,7 +715,9 @@ class TestVideoTitleExtraction:
 
         with patch("app.agent.transcribe_tool.YOUTUBE_SUPPORT", True):
             with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
-                with patch("app.agent.transcribe_tool.yt_dlp.YoutubeDL") as mock_ydl_class:
+                with patch(
+                    "app.agent.transcribe_tool.yt_dlp.YoutubeDL"
+                ) as mock_ydl_class:
                     mock_ydl_class.return_value.__enter__.return_value = mock_ydl
 
                     from app.agent.transcribe_tool import _download_youtube_audio
@@ -761,7 +767,9 @@ class TestVideoTitleExtraction:
                                     "app.agent.transcribe_tool.AudioSegment.from_file",
                                     return_value=mock_audio,
                                 ):
-                                    result = _perform_transcription("/path/to/video.mp4")
+                                    result = _perform_transcription(
+                                        "/path/to/video.mp4"
+                                    )
 
         assert result["success"] is True
         assert "video_title" in result

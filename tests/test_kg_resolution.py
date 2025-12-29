@@ -806,9 +806,7 @@ class TestKGProjectResolutionFields:
         from app.kg.domain import KGProject
 
         project = KGProject(name="Test")
-        candidate = ResolutionCandidate(
-            node_a_id="n1", node_b_id="n2", confidence=0.85
-        )
+        candidate = ResolutionCandidate(node_a_id="n1", node_b_id="n2", confidence=0.85)
         project.pending_merges.append(candidate)
 
         assert len(project.pending_merges) == 1

@@ -144,7 +144,9 @@ class ResolutionConfig(BaseModel):
     type_weight: float = Field(default=0.2, ge=0.0, le=1.0)
     graph_weight: float = Field(default=0.15, ge=0.0, le=1.0)
     semantic_weight: float = Field(default=0.0, ge=0.0, le=1.0)
-    max_candidates: int = Field(default=1000, ge=1, description="Max candidates to return")
+    max_candidates: int = Field(
+        default=1000, ge=1, description="Max candidates to return"
+    )
 
 
 # ============================================================================
@@ -258,14 +260,10 @@ def alias_overlap_score(aliases_a: list[str], aliases_b: list[str]) -> float:
     # Normalize and filter empty strings in one pass
     # This handles: empty lists, lists with only empty strings, and mixed cases
     set_a = {
-        normalized
-        for a in aliases_a
-        if a and (normalized := normalize_entity_name(a))
+        normalized for a in aliases_a if a and (normalized := normalize_entity_name(a))
     }
     set_b = {
-        normalized
-        for b in aliases_b
-        if b and (normalized := normalize_entity_name(b))
+        normalized for b in aliases_b if b and (normalized := normalize_entity_name(b))
     }
 
     # Both sets empty after normalization means no valid aliases to compare
@@ -497,7 +495,9 @@ class EntityMatcher:
             limited to max_candidates.
         """
         candidates: list[ResolutionCandidate] = []
-        limit = max_candidates if max_candidates is not None else self.config.max_candidates
+        limit = (
+            max_candidates if max_candidates is not None else self.config.max_candidates
+        )
 
         if use_ngram_blocking:
             # Use n-gram blocking for better accuracy

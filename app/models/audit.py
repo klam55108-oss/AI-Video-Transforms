@@ -191,7 +191,9 @@ class AuditLogEntry(BaseModel):
         if event.event_type == AuditEventType.RESOLUTION_SCAN_START:
             summary = f"Resolution scan started for project {event.project_id}"
         elif event.event_type == AuditEventType.RESOLUTION_SCAN_COMPLETE:
-            duration = f" ({event.scan_duration_ms:.0f}ms)" if event.scan_duration_ms else ""
+            duration = (
+                f" ({event.scan_duration_ms:.0f}ms)" if event.scan_duration_ms else ""
+            )
             summary = f"Resolution scan complete: {event.candidates_found or 0} candidates{duration}"
         elif event.event_type == AuditEventType.ENTITY_MERGE:
             conf = f" ({event.confidence:.0%})" if event.confidence else ""

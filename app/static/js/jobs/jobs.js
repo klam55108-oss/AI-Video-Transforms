@@ -308,10 +308,8 @@ export async function loadJobs() {
             if (lastStatus && lastStatus !== job.status) {
                 // Status changed - check if it's a completion
                 if (job.status === 'completed') {
-                    console.log(`Sidebar detected job ${job.id} completed`);
                     triggerJobCompletionCallback(job);
                 } else if (job.status === 'failed') {
-                    console.log(`Sidebar detected job ${job.id} failed`);
                     triggerJobFailureCallback(job);
                 }
             }
@@ -552,17 +550,11 @@ async function sendMessageWhenReady(message, jobId, maxRetries = CALLBACK_MAX_RE
             try {
                 const success = await window.sendMessage(message, false);
                 if (success) {
-                    console.log(`Job ${jobId} callback sent successfully (attempt ${attempt + 1})`);
                     return true;
-                } else if (attempt === 0) {
-                    // Log when sendMessage returns false (not an exception) for debugging
-                    console.log(`Job ${jobId} callback returned false, will retry...`);
                 }
             } catch (err) {
                 console.warn(`Job ${jobId} callback error:`, err);
             }
-        } else if (attempt === 0) {
-            console.log(`Job ${jobId} callback waiting for processing to complete...`);
         }
 
         // Wait before retry
@@ -605,7 +597,6 @@ function triggerJobCompletionCallback(job) {
     }
 
     // Send the message with retry logic to handle race conditions
-    console.log(`Job ${job.id} completed, triggering agent continuation`);
     sendMessageWhenReady(message, job.id);
 }
 
@@ -630,7 +621,6 @@ function triggerJobFailureCallback(job) {
     const message = `The ${job.type} job failed with error: "${errorMsg}". What should I do? Can you suggest alternatives or help me troubleshoot?`;
 
     // Send the message with retry logic to handle race conditions
-    console.log(`Job ${job.id} failed, triggering agent error handling`);
     sendMessageWhenReady(message, job.id);
 }
 
