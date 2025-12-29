@@ -311,10 +311,10 @@ This is a community-driven project at the upgraded MVP stage. We welcome contrib
 | Issue | Difficulty | Area |
 |-------|------------|------|
 | Add "copy to clipboard" button in transcript viewer | Easy | Frontend |
-| Add keyboard shortcut for theme toggle | Easy | Frontend |
-| Show transcript language in library list | Medium | Full Stack |
-| Add full-text transcript search (backend) | Medium | Full Stack |
-| Implement time-aligned SRT/VTT export with timestamps | Harder | Backend |
+| Add keyboard shortcut for theme toggle (Ctrl/Cmd+D) | Easy | Frontend |
+| Show transcript language in library list | Easy | Full Stack |
+| Add transcript duration display in library | Easy | Full Stack |
+| Improve loading skeleton animations | Easy | Frontend |
 
 ### Get Started
 
@@ -331,28 +331,57 @@ See [CLAUDE.md](CLAUDE.md) for development guidelines and architecture patterns.
 
 ## Roadmap
 
-### What's Working
+> **Status Legend:** 🟢 Planned (ready to implement) · 🟡 Exploration (needs research/design) · 🔵 Future (long-term vision)
 
-- Video transcription (local + YouTube)
-- Knowledge graph extraction
-- Entity resolution with similarity matching
-- Interactive graph visualization
-- Background job queue with persistence
-- Audit trail and security blocking
+### 🔍 Search & Discovery
 
-### What's Next (Community Driven)
+| Feature | Status | Description |
+|---------|:------:|-------------|
+| Full-text transcript search | 🟢 | Backend indexing with SQLite FTS5 + frontend search UI |
+| Semantic search with embeddings | 🟡 | Vector similarity search for concept-based queries across transcripts |
+| Cross-transcript entity search | 🟢 | Find all mentions of an entity across multiple videos |
 
-- [ ] Time-aligned transcripts (SRT/VTT with timestamps)
-- [ ] Speaker diarization
-- [ ] Evidence/provenance linking in graph
-- [ ] Batch video processing
+### 📤 Export & Formats
 
-### Help Wanted
+| Feature | Status | Description |
+|---------|:------:|-------------|
+| Time-aligned SRT/VTT export | 🟢 | Generate subtitles with timestamps from transcription |
+| Speaker diarization | 🟡 | Identify and label different speakers in transcripts |
+| PDF report generation | 🔵 | Export KG analysis as formatted reports |
 
-- Demo video walkthrough
-- Documentation improvements
-- Test coverage expansion
-- Accessibility enhancements
+### 🔄 Processing & Scale
+
+| Feature | Status | Description |
+|---------|:------:|-------------|
+| Batch video processing | 🟢 | Queue multiple videos for sequential transcription |
+| Playlist/channel import | 🟡 | Import entire YouTube playlists or channels |
+| Parallel transcription | 🔵 | Process multiple videos concurrently |
+
+### 🧠 AI & Analysis
+
+| Feature | Status | Description |
+|---------|:------:|-------------|
+| Video frame analysis | 🟡 | Extract visual context (slides, diagrams) to enrich knowledge graphs |
+| Context window optimization | 🟡 | Improve agent context efficiency for longer conversations |
+| Evidence/provenance linking | 🟢 | Link KG nodes to source transcript timestamps |
+| Multi-model extraction | 🔵 | Use specialized models for different entity types |
+
+### 🎨 UI/UX Improvements
+
+| Feature | Status | Description |
+|---------|:------:|-------------|
+| Graph panel enhancements | 🟢 | Better layout algorithms, node clustering, improved zoom/pan |
+| Entity relationship explorer | 🟢 | Drill-down view for entity connections and paths |
+| Mobile responsive design | 🔵 | Full mobile experience for tablet/phone |
+| Collaborative workspaces | 🔵 | Share KG projects with team members |
+
+### 🔧 Developer Experience
+
+| Feature | Status | Description |
+|---------|:------:|-------------|
+| Plugin architecture | 🟡 | Custom extractors and analyzers as plugins |
+| REST API authentication | 🟢 | API keys and OAuth for programmatic access |
+| Webhook notifications | 🟢 | Notify external services on job completion |
 
 ---
 
