@@ -23,14 +23,14 @@ Step-by-step instructions for running CognivAgent's pre-release validation tests
 **Run all scripts from the project root directory:**
 
 ```bash
-cd /home/rudycosta3/agent-video-to-data
+cd /path/to/agent-video-to-data
 ./scripts/test-docker.sh
 ```
 
 Or from anywhere using the full path:
 
 ```bash
-/home/rudycosta3/agent-video-to-data/scripts/test-docker.sh
+/path/to/agent-video-to-data/scripts/test-docker.sh
 ```
 
 ### Virtual Environment
@@ -80,7 +80,7 @@ Validates the full development environment including test suite, type checking, 
 #### Step 1: Navigate to Project Root
 
 ```bash
-cd /home/rudycosta3/agent-video-to-data
+cd /path/to/agent-video-to-data
 ```
 
 #### Step 2: Verify Prerequisites
@@ -209,7 +209,7 @@ Same as Developer mode (see above).
 #### Step 1: Navigate to Project Root
 
 ```bash
-cd /home/rudycosta3/agent-video-to-data
+cd /path/to/agent-video-to-data
 ```
 
 #### Step 2: Run Quick Validation
@@ -311,7 +311,7 @@ Validates Docker image build, container startup, health checks, and data persist
 #### Step 1: Navigate to Project Root
 
 ```bash
-cd /home/rudycosta3/agent-video-to-data
+cd /path/to/agent-video-to-data
 ```
 
 #### Step 2: Verify Docker is Running
@@ -441,7 +441,7 @@ docker logs cognivagent 2>&1 | tail -50
 ### Sequential Execution (Recommended Order)
 
 ```bash
-cd /home/rudycosta3/agent-video-to-data
+cd /path/to/agent-video-to-data
 
 # 1. Developer mode first (catches code issues)
 ./scripts/test-dev-install.sh
@@ -456,7 +456,7 @@ cd /home/rudycosta3/agent-video-to-data
 ### One-Liner (Stops on First Failure)
 
 ```bash
-cd /home/rudycosta3/agent-video-to-data
+cd /path/to/agent-video-to-data
 ./scripts/test-dev-install.sh && ./scripts/test-user-install.sh && ./scripts/test-docker.sh
 ```
 
@@ -477,7 +477,7 @@ export OPENAI_API_KEY="sk-your-key-here"
 
 | Question | Answer |
 |----------|--------|
-| **Where to run from?** | Project root (`/home/rudycosta3/agent-video-to-data`) or anywhere with full path |
+| **Where to run from?** | Project root (`/path/to/agent-video-to-data`) or anywhere with full path |
 | **Need to activate venv?** | No — scripts create isolated environments |
 | **Where are test files?** | `/tmp/cognivagent-*-test/` (auto-cleaned) |
 | **Where are logs?** | `/tmp/cognivagent-*-test-server.log` (auto-cleaned) |

@@ -79,6 +79,6 @@ Based on the above context:
 2. **Identify** the key patterns (SessionActor, MCP tools, job queue, KG workflow)
 3. **Note** any focus areas relevant to: $ARGUMENTS
 4. **Be ready** to assist with development tasks using the established patterns
-5. **IMPORTANT:** DO NOT KEEP IN YOUR CONTEXT WINDOW ALL THE LOADED FILES. ONLY RETAIN THE SUMMARY AND KEY PATTERNS.
+5. **Note:** Summarize loaded files rather than retaining full contents in context.
 
 If a focus area was specified, prioritize understanding that area in depth.

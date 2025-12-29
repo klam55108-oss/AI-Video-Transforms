@@ -151,7 +151,7 @@ check_prerequisites() {
         print_info "uv not found - will be installed by install.sh"
     fi
 
-    # Check FFmpeg (CRITICAL - install.sh doesn't check this!)
+    # Check FFmpeg (required for transcription, also checked by install.sh)
     if command_exists ffmpeg; then
         local ffmpeg_version
         ffmpeg_version=$(ffmpeg -version 2>&1 | head -1 | grep -oP '\d+\.\d+' | head -1 || echo "unknown")
