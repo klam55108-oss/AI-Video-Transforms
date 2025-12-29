@@ -345,7 +345,7 @@ export function resizePanels(chatWidth, kgWidth);
 ### Upload Module
 
 #### `upload/upload.js`
-Video file upload handling.
+Video file upload handling with pre-upload options modal.
 
 ```javascript
 export function initFileUpload();
@@ -355,6 +355,30 @@ export async function handleFileSelect(event);
 **Validation**:
 - Max file size: 500MB
 - Accepted formats: `.mp4`, `.mkv`, `.avi`, `.mov`, `.webm`, `.m4v`
+
+**Upload Options Modal**:
+After file selection, a modal prompts for optional transcription parameters:
+- **Language**: ISO 639-1 dropdown (20+ languages) or auto-detect
+- **Domain Hints**: Free-text vocabulary hints for specialized terminology
+
+The modal defers upload until user confirms, enabling single-pass transcription with optimal parameters.
+
+```javascript
+// Internal functions (not exported)
+function showUploadModal(file);      // Display options modal
+function hideUploadModal();           // Close and reset modal
+function handleStartTranscription(); // Upload + send enriched message
+function buildTranscriptionMessage(filePath, language, domain);
+```
+
+**Message Format**:
+```
+Please transcribe this uploaded video file: {path}
+
+Language: {ISO-639-1 code}
+
+Domain/vocabulary hints: {user input}
+```
 
 ### Knowledge Graph Modules
 

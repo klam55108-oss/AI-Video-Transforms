@@ -127,6 +127,7 @@ window.sendMessage = sendMessage;  // For job callbacks
 - Max 500MB file size
 - Allowed: `.mp4`, `.mkv`, `.avi`, `.mov`, `.webm`, `.m4v`
 - Use FormData for multipart uploads
+- **Options Modal**: After file selection, modal collects language & domain hints before upload
 
 ## Design Tokens (style.css)
 

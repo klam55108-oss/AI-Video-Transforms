@@ -14,6 +14,7 @@ import { sendMessage } from '../chat/send.js';
 // ============================================
 
 let fileInput = null;
+let pendingFile = null;  // File waiting for modal confirmation
 
 // ============================================
 // Element References (Lazy Lookup)
@@ -21,6 +22,38 @@ let fileInput = null;
 
 function getAttachBtn() {
     return document.getElementById('attach-btn');
+}
+
+function getModal() {
+    return document.getElementById('upload-options-modal');
+}
+
+function getFilenameEl() {
+    return document.getElementById('upload-filename');
+}
+
+function getFilesizeEl() {
+    return document.getElementById('upload-filesize');
+}
+
+function getLanguageSelect() {
+    return document.getElementById('upload-language');
+}
+
+function getDomainTextarea() {
+    return document.getElementById('upload-domain');
+}
+
+function getCancelBtn() {
+    return document.getElementById('upload-modal-cancel');
+}
+
+function getStartBtn() {
+    return document.getElementById('upload-modal-start');
+}
+
+function getCloseBtn() {
+    return document.getElementById('upload-modal-close');
 }
 
 // ============================================
@@ -49,6 +82,106 @@ export function initFileUpload() {
 
     // Handle file selection
     fileInput.addEventListener('change', handleFileSelect);
+
+    // Wire up modal buttons
+    initModalHandlers();
+}
+
+// ============================================
+// Modal Handlers
+// ============================================
+
+function initModalHandlers() {
+    const cancelBtn = getCancelBtn();
+    const startBtn = getStartBtn();
+    const closeBtn = getCloseBtn();
+    const modal = getModal();
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', hideUploadModal);
+    }
+
+    if (startBtn) {
+        startBtn.addEventListener('click', handleStartTranscription);
+    }
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', hideUploadModal);
+    }
+
+    // Close on backdrop click
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                hideUploadModal();
+            }
+        });
+    }
+
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && getModal()?.classList.contains('flex')) {
+            hideUploadModal();
+        }
+    });
+}
+
+// ============================================
+// Modal Control
+// ============================================
+
+function showUploadModal(file) {
+    const modal = getModal();
+    const filenameEl = getFilenameEl();
+    const filesizeEl = getFilesizeEl();
+    const languageSelect = getLanguageSelect();
+    const domainTextarea = getDomainTextarea();
+
+    if (!modal) return;
+
+    // Store pending file
+    pendingFile = file;
+
+    // Populate file info
+    if (filenameEl) {
+        filenameEl.textContent = file.name;
+    }
+    if (filesizeEl) {
+        filesizeEl.textContent = formatFileSize(file.size);
+    }
+
+    // Reset form fields
+    if (languageSelect) {
+        languageSelect.value = '';
+    }
+    if (domainTextarea) {
+        domainTextarea.value = '';
+    }
+
+    // Show modal with flex display
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    // Focus domain textarea for quick typing
+    setTimeout(() => {
+        domainTextarea?.focus();
+    }, 100);
+}
+
+function hideUploadModal() {
+    const modal = getModal();
+    if (!modal) return;
+
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+
+    // Clear pending file
+    pendingFile = null;
+
+    // Reset file input
+    if (fileInput) {
+        fileInput.value = '';
+    }
 }
 
 // ============================================
@@ -66,6 +199,31 @@ export async function handleFileSelect(e) {
         fileInput.value = '';
         return;
     }
+
+    // Show modal instead of immediately uploading
+    showUploadModal(file);
+}
+
+// ============================================
+// Start Transcription Handler
+// ============================================
+
+async function handleStartTranscription() {
+    if (!pendingFile) {
+        hideUploadModal();
+        return;
+    }
+
+    const file = pendingFile;
+    const languageSelect = getLanguageSelect();
+    const domainTextarea = getDomainTextarea();
+
+    // Get optional params
+    const language = languageSelect?.value || '';
+    const domain = domainTextarea?.value?.trim() || '';
+
+    // Hide modal first
+    hideUploadModal();
 
     // Show upload message
     addMessage(`Uploading: ${file.name} (${formatFileSize(file.size)})...`, 'user');
@@ -104,8 +262,9 @@ export async function handleFileSelect(e) {
             showToast('File uploaded successfully', 'success');
             addMessage(`File uploaded successfully. Starting transcription...`, 'agent');
 
-            // Trigger transcription request using session-specific upload directory
-            const message = `Please transcribe this uploaded video file: uploads/${state.sessionId}/${data.file_id}_${file.name}`;
+            // Construct message with optional params
+            const filePath = `uploads/${state.sessionId}/${data.file_id}_${file.name}`;
+            const message = buildTranscriptionMessage(filePath, language, domain);
             await sendMessage(message, false);
         } else {
             showToast(data.error || 'Upload failed', 'error');
@@ -119,4 +278,28 @@ export async function handleFileSelect(e) {
 
     // Reset file input
     fileInput.value = '';
+}
+
+// ============================================
+// Message Construction
+// ============================================
+
+/**
+ * Build a transcription request message with optional params.
+ * Format is designed to be parsed by the agent for direct tool invocation.
+ */
+function buildTranscriptionMessage(filePath, language, domain) {
+    let message = `Please transcribe this uploaded video file: ${filePath}`;
+
+    // Add language if specified
+    if (language) {
+        message += `\n\nLanguage: ${language}`;
+    }
+
+    // Add domain hints if specified
+    if (domain) {
+        message += `\n\nDomain/vocabulary hints: ${domain}`;
+    }
+
+    return message;
 }
