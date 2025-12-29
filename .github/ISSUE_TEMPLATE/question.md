@@ -31,6 +31,6 @@ Any code snippets, logs, or screenshots that might help answer your question.
 
 ## Checklist
 
-- [ ] I have searched existing issues and discussions
-- [ ] I have checked the [documentation](../../guides/)
-- [ ] I have checked the [FAQ](#) (if exists)
+- [ ] I have searched existing issues
+- [ ] I have checked the [documentation](https://github.com/costiash/agent-video-to-data/tree/main/guides)
+- [ ] I have reviewed the [README](https://github.com/costiash/agent-video-to-data#readme)

@@ -97,6 +97,8 @@ install_uv() {
             export PATH="$HOME/.local/bin:$PATH"
             if command_exists uv; then
                 print_success "uv installed successfully!"
+                print_info "Note: Add this to your shell profile for persistence:"
+                echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
                 return 0
             fi
         fi
@@ -110,6 +112,8 @@ install_uv() {
             export PATH="$HOME/.local/bin:$PATH"
             if command_exists uv; then
                 print_success "uv installed via pip3!"
+                print_info "Note: Add this to your shell profile for persistence:"
+                echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
                 return 0
             fi
         fi
@@ -119,6 +123,8 @@ install_uv() {
             export PATH="$HOME/.local/bin:$PATH"
             if command_exists uv; then
                 print_success "uv installed via pip!"
+                print_info "Note: Add this to your shell profile for persistence:"
+                echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
                 return 0
             fi
         fi

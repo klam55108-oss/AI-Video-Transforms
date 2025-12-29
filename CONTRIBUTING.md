@@ -405,8 +405,8 @@ def extract_entities(
 
 ## Questions?
 
-- **Issues**: [GitHub Issues](https://github.com/costiash/agent-video-to-data/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/costiash/agent-video-to-data/discussions)
+- **Issues**: [GitHub Issues](https://github.com/costiash/agent-video-to-data/issues) — For bugs, features, and questions
+- **Documentation**: [Guides](https://github.com/costiash/agent-video-to-data/tree/main/guides) — Comprehensive documentation
 
 ---
 

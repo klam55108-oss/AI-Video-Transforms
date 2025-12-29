@@ -186,7 +186,7 @@ GET /status/{session_id}
 {
   "status": "processing",
   "is_processing": true,
-  "last_activity": "2024-01-15T10:30:00Z"
+  "last_activity": "2025-01-15T10:30:00Z"
 }
 ```
 
@@ -236,7 +236,7 @@ GET /transcripts
       "title": "Team Meeting",
       "duration_seconds": 2732,
       "word_count": 6847,
-      "created_at": "2024-01-15T10:30:00Z"
+      "created_at": "2025-01-15T10:30:00Z"
     }
   ],
   "total": 42

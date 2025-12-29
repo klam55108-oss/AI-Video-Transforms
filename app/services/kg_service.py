@@ -875,20 +875,15 @@ Call all bootstrap tools in order to build a complete domain profile.
         source_metadata: dict[str, Any] = {}
         if resolved_transcript_id:
             source_metadata["transcript_id"] = resolved_transcript_id
-            logger.info(
-                f"[EVIDENCE-DEBUG] Setting source.metadata['transcript_id'] = {resolved_transcript_id}"
-            )
+            logger.debug(f"Set source.metadata['transcript_id'] = {resolved_transcript_id}")
         else:
-            logger.warning(
-                "[EVIDENCE-DEBUG] NO transcript_id resolved - evidence linking will NOT work!"
-            )
+            logger.warning("No transcript_id resolved - evidence linking will not work")
 
         source = Source(
             id=source_id, title=title, source_type=SourceType.VIDEO, metadata=source_metadata
         )
-        logger.info(
-            f"[EVIDENCE-DEBUG] Created Source: id={source.id}, title={source.title}, "
-            f"metadata={source.metadata}"
+        logger.debug(
+            f"Created Source: id={source.id}, title={source.title}, metadata={source.metadata}"
         )
         kb.add_source(source)
 
@@ -1107,7 +1102,7 @@ Call all bootstrap tools in order to build a complete domain profile.
             # First pass: exact match on title field
             for t in transcripts:
                 if t.title and t.title.strip().lower() == search_normalized:
-                    logger.info(f"[EVIDENCE-DEBUG] EXACT MATCH found: id={t.id}")
+                    logger.debug(f"Exact title match found: id={t.id}")
                     return t.id
 
             # Second pass: fuzzy match (one contains the other)
@@ -1115,13 +1110,13 @@ Call all bootstrap tools in order to build a complete domain profile.
                 if t.title:
                     saved_normalized = t.title.strip().lower()
                     if search_normalized in saved_normalized or saved_normalized in search_normalized:
-                        logger.info(f"[EVIDENCE-DEBUG] FUZZY MATCH found: id={t.id}")
+                        logger.debug(f"Fuzzy title match found: id={t.id}")
                         return t.id
 
-            logger.info("[EVIDENCE-DEBUG] NO MATCH found for title")
+            logger.debug("No title match found")
             return None
         except Exception as e:
-            logger.warning(f"[EVIDENCE-DEBUG] Failed to search transcripts by title: {e}")
+            logger.warning(f"Failed to search transcripts by title: {e}")
             return None
 
     def _generate_discovery_question(self, disc: ExtractedDiscovery) -> str:
