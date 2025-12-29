@@ -79,6 +79,8 @@ graph LR
     HIST --> TS
 ```
 
+> **Note**: `/chat` and `/status` are both defined in `chat.py` but mounted as separate routers for cleaner URL structure.
+
 ---
 
 ## Response Format

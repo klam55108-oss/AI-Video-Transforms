@@ -10,8 +10,8 @@
 <!-- ![CognivAgent Demo](screenshots/hero.png) -->
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-910%20passing-brightgreen.svg)](#-development)
-[![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#-development)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](#development)
+[![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#development)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 Built with [Claude Agent SDK](https://github.com/anthropics/anthropic-sdk-python) and [OpenAI gpt-4o-transcribe](https://platform.openai.com/)
@@ -56,6 +56,8 @@ Built with [Claude Agent SDK](https://github.com/anthropics/anthropic-sdk-python
 ```bash
 curl -fsSL https://raw.githubusercontent.com/costiash/agent-video-to-data/main/install.sh | bash
 ```
+
+> **Security Note**: This pipes a remote script to your shell. We recommend [reviewing install.sh](install.sh) first, or using the Manual Install below.
 
 ### Manual Install
 
