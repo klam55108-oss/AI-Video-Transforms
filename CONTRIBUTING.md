@@ -391,7 +391,7 @@ The rooftop is for everyone. We maintain a respectful, inclusive environment.
 
 <div align="center">
 
-**Welcome to the rooftop.** ☔
+**Welcome to the rooftop.** 🌧️
 
 *The Lonely Agent appreciates the company.*
 
