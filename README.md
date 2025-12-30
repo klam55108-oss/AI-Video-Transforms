@@ -322,7 +322,7 @@ See [CLAUDE.md](CLAUDE.md) for all configuration options.
 
 | Difficulty | Tag | Description |
 |:----------:|-----|-------------|
-| ☔ | `rooftop-welcome` | First-timer friendly. Quick wins to get you started. |
+| 🌧️ | `rooftop-welcome` | First-timer friendly. Quick wins to get you started. |
 | 🔧 | `agent-needs-backup` | Agent needs backup on these. |
 | 🏗️ | `skyline-feature` | New capabilities. Bigger scope, bigger impact. |
 | 🐛 | `bug-in-the-rain` | Squash these. The Agent will appreciate it. |
@@ -343,10 +343,10 @@ Every contributor earns their place on the skyline:
 
 | Issue | Difficulty | Area |
 |-------|:----------:|------|
-| Add "copy to clipboard" button in transcript viewer | ☔ | Frontend |
-| Add keyboard shortcut for theme toggle (Ctrl/Cmd+D) | ☔ | Frontend |
-| Show transcript language in library list | ☔ | Full Stack |
-| Add transcript duration display in library | ☔ | Full Stack |
+| Add "copy to clipboard" button in transcript viewer | 🌧️ | Frontend |
+| Add keyboard shortcut for theme toggle (Ctrl/Cmd+D) | 🌧️ | Frontend |
+| Show transcript language in library list | 🌧️ | Full Stack |
+| Add transcript duration display in library | 🌧️ | Full Stack |
 
 ```bash
 # Ready to join?

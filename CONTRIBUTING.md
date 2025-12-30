@@ -81,13 +81,13 @@ New to the crew? Start here:
 
 ### Good First Issues
 
-| Issue | Area | Estimated Time |
-|-------|------|----------------|
-| Add "copy to clipboard" in transcript viewer | Frontend | 1-2 hours |
-| Add keyboard shortcut for theme toggle | Frontend | 1 hour |
-| Show transcript language in library list | Full Stack | 2-3 hours |
-| Add transcript duration display | Full Stack | 2-3 hours |
-| Add transcript preview on hover | Frontend | 2-3 hours |
+| Issue | Area |
+|-------|------|
+| Add "copy to clipboard" in transcript viewer | Frontend |
+| Add keyboard shortcut for theme toggle | Frontend |
+| Show transcript language in library list | Full Stack |
+| Add transcript duration display | Full Stack |
+| Add transcript preview on hover | Frontend |
 
 ---
 
