@@ -83,6 +83,7 @@ readonly REPO_NAME="CognivAgent"
 
 # Get or create project root
 # When piped from curl, we need to clone the repo first
+# NOTE: All status messages go to stderr so only the path goes to stdout
 get_project_root() {
     # Check if we're running from within the repo already
     if [ -n "${BASH_SOURCE[0]:-}" ] && [ "${BASH_SOURCE[0]}" != "/dev/stdin" ] && [ -f "${BASH_SOURCE[0]}" ]; then
@@ -94,29 +95,29 @@ get_project_root() {
     local install_dir="${PWD}/${REPO_NAME}"
 
     if [ -d "$install_dir" ]; then
-        print_warning "Directory $REPO_NAME already exists."
+        print_warning "Directory $REPO_NAME already exists." >&2
         read -rp "Remove and re-clone? [y/N]: " remove_choice < /dev/tty
         if [[ "$remove_choice" =~ ^[Yy]$ ]]; then
             rm -rf "$install_dir"
         else
-            print_info "Using existing directory."
+            print_info "Using existing directory." >&2
             echo "$install_dir"
             return
         fi
     fi
 
-    print_step "Cloning CognivAgent repository..."
+    print_step "Cloning CognivAgent repository..." >&2
     if ! command_exists git; then
-        print_error "git is required but not installed."
-        echo "Please install git and try again."
+        print_error "git is required but not installed." >&2
+        echo "Please install git and try again." >&2
         exit 1
     fi
 
-    if git clone "$REPO_URL" "$install_dir"; then
-        print_success "Repository cloned to $install_dir"
+    if git clone "$REPO_URL" "$install_dir" >&2; then
+        print_success "Repository cloned to $install_dir" >&2
         echo "$install_dir"
     else
-        print_error "Failed to clone repository"
+        print_error "Failed to clone repository" >&2
         exit 1
     fi
 }
