@@ -13,6 +13,18 @@
 set -euo pipefail
 
 # =============================================================================
+# TTY Check for Interactive Input
+# =============================================================================
+# When piped from curl, stdin is consumed. We read from /dev/tty instead.
+# This check ensures we're in an environment that supports interactive prompts.
+
+if ! [ -t 0 ] && ! [ -e /dev/tty ]; then
+    echo "ERROR: This installer requires an interactive terminal." >&2
+    echo "Please run: ./install.sh (after downloading)" >&2
+    exit 1
+fi
+
+# =============================================================================
 # Color Definitions
 # =============================================================================
 readonly RED='\033[0;31m'
@@ -96,7 +108,7 @@ check_ffmpeg() {
     echo ""
     print_warning "Continuing without FFmpeg - transcription will not work!"
     echo ""
-    read -rp "Continue anyway? [y/N]: " continue_choice
+    read -rp "Continue anyway? [y/N]: " continue_choice < /dev/tty
     if [[ ! "$continue_choice" =~ ^[Yy]$ ]]; then
         exit 1
     fi
@@ -288,7 +300,7 @@ install_native() {
     echo ""
 
     local profile_choice
-    read -rp "Enter choice [1/2]: " profile_choice
+    read -rp "Enter choice [1/2]: " profile_choice < /dev/tty
 
     case "$profile_choice" in
         1)
@@ -487,7 +499,7 @@ main() {
     echo ""
 
     local method_choice
-    read -rp "Enter choice [1/2]: " method_choice
+    read -rp "Enter choice [1/2]: " method_choice < /dev/tty
 
     case "$method_choice" in
         1)
