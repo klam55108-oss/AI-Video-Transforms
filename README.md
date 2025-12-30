@@ -10,7 +10,7 @@
 <!-- ![CognivAgent Demo](screenshots/hero.png) -->
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![CI](https://github.com/costiash/agent-video-to-data/actions/workflows/ci.yml/badge.svg)](https://github.com/costiash/agent-video-to-data/actions/workflows/ci.yml)
+[![CI](https://github.com/costiash/CognivAgent/actions/workflows/ci.yml/badge.svg)](https://github.com/costiash/CognivAgent/actions/workflows/ci.yml)
 [![Contributors Welcome](https://img.shields.io/badge/crew-recruiting-00d9ff.svg)](#-join-the-crew)
 [![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#development)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
@@ -55,7 +55,7 @@ Built with [Claude Agent SDK](https://github.com/anthropics/anthropic-sdk-python
 ### One-Line Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/costiash/agent-video-to-data/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/costiash/CognivAgent/main/install.sh | bash
 ```
 
 > **Security Note**: This pipes a remote script to your shell. We recommend [reviewing install.sh](install.sh) first, or using the Manual Install below.
@@ -63,8 +63,8 @@ curl -fsSL https://raw.githubusercontent.com/costiash/agent-video-to-data/main/i
 ### Manual Install
 
 ```bash
-git clone https://github.com/costiash/agent-video-to-data.git
-cd agent-video-to-data
+git clone https://github.com/costiash/CognivAgent.git
+cd CognivAgent
 uv sync
 
 cp .env.example .env
@@ -350,8 +350,8 @@ Every contributor earns their place on the skyline:
 
 ```bash
 # Ready to join?
-git clone https://github.com/costiash/agent-video-to-data.git
-cd agent-video-to-data
+git clone https://github.com/costiash/CognivAgent.git
+cd CognivAgent
 uv sync
 uv run pytest  # Make sure everything works
 ```

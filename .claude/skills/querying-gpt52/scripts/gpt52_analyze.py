@@ -61,7 +61,7 @@ async def analyze_code(
     client = GPT52Client()
 
     # Resolve target path relative to project root (4 levels up from scripts/)
-    # scripts → querying-gpt52 → skills → .claude → agent-video-to-data
+    # scripts → querying-gpt52 → skills → .claude → CognivAgent
     project_root = SCRIPT_DIR.resolve().parents[3]
     target_path = Path(target)
     if not target_path.is_absolute():

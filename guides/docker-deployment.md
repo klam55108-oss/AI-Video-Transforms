@@ -247,7 +247,7 @@ curl http://localhost:8000/health
 ### Docker Health Status
 
 ```bash
-docker inspect --format='{{.State.Health.Status}}' agent-video-to-data
+docker inspect --format='{{.State.Health.Status}}' cognivagent
 ```
 
 ### States
@@ -331,10 +331,10 @@ docker ps -a
 
 ```bash
 # Check if app is running
-docker exec -it agent-video-to-data curl http://localhost:8000/health
+docker exec -it cognivagent curl http://localhost:8000/health
 
 # Check startup logs
-docker logs agent-video-to-data --tail 50
+docker logs cognivagent --tail 50
 ```
 
 ### Permission Issues
@@ -416,7 +416,7 @@ readinessProbe:
 Override the base image or add dependencies:
 
 ```dockerfile
-FROM agent-video-to-data:latest
+FROM cognivagent:latest
 
 # Add custom tools
 RUN apt-get update && apt-get install -y your-package

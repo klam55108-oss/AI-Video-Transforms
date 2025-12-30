@@ -30,7 +30,7 @@ set -euo pipefail
 
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly TEST_DIR="/tmp/cognivagent-docker-test"
-readonly REPO_URL="https://github.com/costiash/agent-video-to-data.git"
+readonly REPO_URL="https://github.com/costiash/CognivAgent.git"
 readonly CONTAINER_NAME="cognivagent"
 readonly HEALTH_TIMEOUT=60
 readonly PORT=8000

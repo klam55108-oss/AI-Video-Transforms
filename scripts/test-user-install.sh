@@ -33,7 +33,7 @@ set -euo pipefail
 
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly TEST_DIR="/tmp/cognivagent-user-test"
-readonly REPO_URL="https://github.com/costiash/agent-video-to-data.git"
+readonly REPO_URL="https://github.com/costiash/CognivAgent.git"
 readonly HEALTH_TIMEOUT=30
 readonly PORT=8000
 

@@ -75,8 +75,8 @@ Every contributor earns their place. We track contributions and celebrate the cr
 
 New to the crew? Start here:
 
-1. **Browse [`rooftop-welcome`](https://github.com/costiash/agent-video-to-data/labels/rooftop-welcome) issues** — These are specifically curated for first-timers
-2. **Check [`agent-needs-backup`](https://github.com/costiash/agent-video-to-data/labels/agent-needs-backup)** — The Agent needs backup on these
+1. **Browse [`rooftop-welcome`](https://github.com/costiash/CognivAgent/labels/rooftop-welcome) issues** — These are specifically curated for first-timers
+2. **Check [`agent-needs-backup`](https://github.com/costiash/CognivAgent/labels/agent-needs-backup)** — The Agent needs backup on these
 3. **Read the existing code** — Understand the patterns before changing them
 
 ### Good First Issues
@@ -106,8 +106,8 @@ New to the crew? Start here:
 
 ```bash
 # 1. Fork the repo on GitHub, then clone your fork
-git clone https://github.com/YOUR_USERNAME/agent-video-to-data.git
-cd agent-video-to-data
+git clone https://github.com/YOUR_USERNAME/CognivAgent.git
+cd CognivAgent
 
 # 2. Install dependencies (includes dev tools)
 uv sync
@@ -217,7 +217,7 @@ git push origin feature/your-feature-name
 
 ### 2. Open a Pull Request
 
-Go to [Pull Requests](https://github.com/costiash/agent-video-to-data/pulls) and click "New Pull Request".
+Go to [Pull Requests](https://github.com/costiash/CognivAgent/pulls) and click "New Pull Request".
 
 ### 3. PR Template
 
@@ -384,7 +384,7 @@ The rooftop is for everyone. We maintain a respectful, inclusive environment.
 
 ## Questions?
 
-- **Issues**: [GitHub Issues](https://github.com/costiash/agent-video-to-data/issues) — Bugs, features, questions
+- **Issues**: [GitHub Issues](https://github.com/costiash/CognivAgent/issues) — Bugs, features, questions
 - **Docs**: [guides/](guides/) — Comprehensive documentation
 
 ---

@@ -74,6 +74,6 @@ How to extend this component.
 
 <div align="center">
 
-**Can't find what you need?** [Open an issue](https://github.com/costiash/agent-video-to-data/issues)
+**Can't find what you need?** [Open an issue](https://github.com/costiash/CognivAgent/issues)
 
 </div>

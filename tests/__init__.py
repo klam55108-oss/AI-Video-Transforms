@@ -1,1 +1,1 @@
-# Test package for agent-video-to-data
+# Test package for CognivAgent

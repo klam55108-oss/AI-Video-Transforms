@@ -52,7 +52,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/rudycosta3/agent-video-to-data/.claude/hooks/clean-claude-attributions.sh"
+            "command": "/home/rudycosta3/CognivAgent/.claude/hooks/clean-claude-attributions.sh"
           }
         ]
       }

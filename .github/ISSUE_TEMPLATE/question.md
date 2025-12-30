@@ -32,5 +32,5 @@ Any code snippets, logs, or screenshots that might help answer your question.
 ## Checklist
 
 - [ ] I have searched existing issues
-- [ ] I have checked the [documentation](https://github.com/costiash/agent-video-to-data/tree/main/guides)
-- [ ] I have reviewed the [README](https://github.com/costiash/agent-video-to-data#readme)
+- [ ] I have checked the [documentation](https://github.com/costiash/CognivAgent/tree/main/guides)
+- [ ] I have reviewed the [README](https://github.com/costiash/CognivAgent#readme)
