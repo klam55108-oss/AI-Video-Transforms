@@ -77,9 +77,48 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-# Get the script's directory (project root)
+# Repository URL
+readonly REPO_URL="https://github.com/costiash/CognivAgent.git"
+readonly REPO_NAME="CognivAgent"
+
+# Get or create project root
+# When piped from curl, we need to clone the repo first
 get_project_root() {
-    cd "$(dirname "${BASH_SOURCE[0]}")" && pwd
+    # Check if we're running from within the repo already
+    if [ -n "${BASH_SOURCE[0]:-}" ] && [ "${BASH_SOURCE[0]}" != "/dev/stdin" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+        cd "$(dirname "${BASH_SOURCE[0]}")" && pwd
+        return
+    fi
+
+    # Running from pipe - need to clone
+    local install_dir="${PWD}/${REPO_NAME}"
+
+    if [ -d "$install_dir" ]; then
+        print_warning "Directory $REPO_NAME already exists."
+        read -rp "Remove and re-clone? [y/N]: " remove_choice < /dev/tty
+        if [[ "$remove_choice" =~ ^[Yy]$ ]]; then
+            rm -rf "$install_dir"
+        else
+            print_info "Using existing directory."
+            echo "$install_dir"
+            return
+        fi
+    fi
+
+    print_step "Cloning CognivAgent repository..."
+    if ! command_exists git; then
+        print_error "git is required but not installed."
+        echo "Please install git and try again."
+        exit 1
+    fi
+
+    if git clone "$REPO_URL" "$install_dir"; then
+        print_success "Repository cloned to $install_dir"
+        echo "$install_dir"
+    else
+        print_error "Failed to clone repository"
+        exit 1
+    fi
 }
 
 # =============================================================================
