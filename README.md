@@ -11,6 +11,7 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/costiash/agent-video-to-data/actions/workflows/ci.yml/badge.svg)](https://github.com/costiash/agent-video-to-data/actions/workflows/ci.yml)
+[![Contributors Welcome](https://img.shields.io/badge/crew-recruiting-00d9ff.svg)](#-join-the-crew)
 [![Type Check](https://img.shields.io/badge/mypy-strict-blue.svg)](#development)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
@@ -22,7 +23,7 @@ Built with [Claude Agent SDK](https://github.com/anthropics/anthropic-sdk-python
 **[Features](#-features)** |
 **[Screenshots](#-screenshots)** |
 **[Documentation](#-documentation)** |
-**[Contributing](#-contributing)**
+**[Join the Crew](#-join-the-crew)**
 
 </div>
 
@@ -300,32 +301,62 @@ See [CLAUDE.md](CLAUDE.md) for all configuration options.
 
 ---
 
-## Contributing
+## 🤖 Join the Crew
 
-**CognivAgent is actively seeking contributors!**
+<div align="center">
 
-This is a community-driven project at the upgraded MVP stage. We welcome contributions of all sizes.
+<img src="assets/the-lonely-agent.png" alt="The Lonely Agent Initiative" width="400">
 
-### Good First Issues
+**The Lonely Agent Initiative**
+
+*The Agent has been grinding solo on rain-soaked rooftops, turning chaos into structure.*  
+*Every contribution makes the skyline a little less empty.*
+
+</div>
+
+---
+
+**CognivAgent is actively seeking contributors!** This is a community-driven project at the upgraded MVP stage. Whether you're fixing a typo or architecting a new feature, you're welcome on the rooftop.
+
+### The Mission Board
+
+| Difficulty | Tag | Description |
+|:----------:|-----|-------------|
+| ☔ | `rooftop-welcome` | First-timer friendly. Quick wins to get you started. |
+| 🔧 | `agent-needs-backup` | Agent needs backup on these. |
+| 🏗️ | `skyline-feature` | New capabilities. Bigger scope, bigger impact. |
+| 🐛 | `bug-in-the-rain` | Squash these. The Agent will appreciate it. |
+| 📝 | `docs-update` | Documentation improvements. Every word counts. |
+
+### Crew Ranks
+
+Every contributor earns their place on the skyline:
+
+| Rank | Badge | How to Earn |
+|------|:-----:|-------------|
+| **Rooftop Visitor** | 🌧️ | First PR merged |
+| **Rain Buddy** | ☔ | 3+ contributions |
+| **Skyline Regular** | 🏙️ | Major feature or 10+ PRs |
+| **Agent's Partner** | 🤝 | Core maintainer |
+
+### Quick First Issues
 
 | Issue | Difficulty | Area |
-|-------|------------|------|
-| Add "copy to clipboard" button in transcript viewer | Easy | Frontend |
-| Add keyboard shortcut for theme toggle (Ctrl/Cmd+D) | Easy | Frontend |
-| Show transcript language in library list | Easy | Full Stack |
-| Add transcript duration display in library | Easy | Full Stack |
-| Add transcript preview on hover | Easy | Frontend |
-
-### Get Started
+|-------|:----------:|------|
+| Add "copy to clipboard" button in transcript viewer | ☔ | Frontend |
+| Add keyboard shortcut for theme toggle (Ctrl/Cmd+D) | ☔ | Frontend |
+| Show transcript language in library list | ☔ | Full Stack |
+| Add transcript duration display in library | ☔ | Full Stack |
 
 ```bash
+# Ready to join?
 git clone https://github.com/costiash/agent-video-to-data.git
 cd agent-video-to-data
 uv sync
-uv run pytest  # Verify everything works
+uv run pytest  # Make sure everything works
 ```
 
-See [CLAUDE.md](CLAUDE.md) for development guidelines and architecture patterns.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full briefing.
 
 ---
 

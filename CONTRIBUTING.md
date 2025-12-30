@@ -1,52 +1,93 @@
-# Contributing to CognivAgent
+# Join the Crew 🤖
 
-Thank you for your interest in contributing to CognivAgent! This document provides guidelines and instructions for contributing.
+<div align="center">
+
+<img src="assets/the-lonely-agent.png" alt="The Lonely Agent" width="300">
+
+*The Lonely Agent has been grinding solo, turning videos into knowledge.*  
+*But every agent needs a crew for the big jobs.*
+
+**Your mission, should you choose to accept it...**
+
+</div>
 
 ---
 
 ## Table of Contents
 
-- [Code of Conduct](#code-of-conduct)
+- [The Mission](#the-mission)
+- [Crew Ranks](#crew-ranks)
 - [Getting Started](#getting-started)
 - [Development Setup](#development-setup)
 - [Making Contributions](#making-contributions)
 - [Pull Request Process](#pull-request-process)
 - [Coding Standards](#coding-standards)
 - [Testing](#testing)
-- [Documentation](#documentation)
+- [Code of Conduct](#code-of-conduct)
 
 ---
 
-## Code of Conduct
+## The Mission
 
-By participating in this project, you agree to maintain a respectful and inclusive environment. Please:
+CognivAgent transforms unstructured video content into queryable knowledge graphs. The Lonely Agent built the foundation solo—now it's time to scale up with a proper crew.
 
-- Be respectful of differing viewpoints and experiences
-- Accept constructive criticism gracefully
-- Focus on what's best for the community
-- Show empathy towards other community members
+### What We're Building
+
+| Component | Status | Help Wanted |
+|-----------|:------:|:-----------:|
+| Video Transcription | ✅ Solid | 🔧 Parallel processing |
+| Knowledge Graph Extraction | ✅ Working | 🧠 Prompt tuning |
+| Entity Resolution | ✅ MVP | 🧠 Embedding similarity |
+| Graph Visualization | ✅ Functional | 🎨 Layout & clustering |
+| Background Jobs | ✅ Stable | 📊 Metrics dashboard |
+| Audit Trail | ✅ Complete | — |
+
+### Mission Board
+
+| Tag | Meaning | Good For |
+|-----|---------|----------|
+| `rooftop-welcome` | First-timer friendly | New contributors |
+| `agent-needs-backup` | Agent needs backup | Anyone |
+| `skyline-feature` | New capability | Experienced devs |
+| `bug-in-the-rain` | Something's broken | Bug hunters |
+| `docs-update` | Documentation | Writers |
+
+---
+
+## Crew Ranks
+
+Every contributor earns their place. We track contributions and celebrate the crew.
+
+| Rank | Badge | Criteria | Perks |
+|------|:-----:|----------|-------|
+| **Rooftop Visitor** | 🌧️ | First PR merged | Welcome to the skyline |
+| **Rain Buddy** | ☔ | 3+ contributions | You're a regular now |
+| **Skyline Regular** | 🏙️ | Major feature or 10+ PRs | Trusted crew member |
+| **Agent's Partner** | 🤝 | Core maintainer | You run this rooftop |
+
+*Badges will be displayed in a contributors section. The Agent remembers everyone who showed up.*
 
 ---
 
 ## Getting Started
 
+### Find Your First Mission
+
+New to the crew? Start here:
+
+1. **Browse [`rooftop-welcome`](https://github.com/costiash/agent-video-to-data/labels/rooftop-welcome) issues** — These are specifically curated for first-timers
+2. **Check [`agent-needs-backup`](https://github.com/costiash/agent-video-to-data/labels/agent-needs-backup)** — The Agent needs backup on these
+3. **Read the existing code** — Understand the patterns before changing them
+
 ### Good First Issues
 
-New contributors should look for issues labeled:
-
-- `good first issue` - Simple, well-defined tasks
-- `help wanted` - Issues where we need community help
-- `documentation` - Documentation improvements
-
-### Areas We Need Help
-
-| Area | Difficulty | Description |
-|------|------------|-------------|
-| Documentation | Easy | Improve guides, add examples |
-| Testing | Medium | Increase test coverage |
-| Frontend | Medium | UI/UX improvements |
-| Features | Hard | New functionality |
-| Performance | Hard | Optimization work |
+| Issue | Area | Estimated Time |
+|-------|------|----------------|
+| Add "copy to clipboard" in transcript viewer | Frontend | 1-2 hours |
+| Add keyboard shortcut for theme toggle | Frontend | 1 hour |
+| Show transcript language in library list | Full Stack | 2-3 hours |
+| Add transcript duration display | Full Stack | 2-3 hours |
+| Add transcript preview on hover | Frontend | 2-3 hours |
 
 ---
 
@@ -54,89 +95,90 @@ New contributors should look for issues labeled:
 
 ### Prerequisites
 
-- Python 3.11+
-- uv (Python package manager)
-- FFmpeg 4.0+
-- Git 2.30+
+| Requirement | Version | Check |
+|-------------|---------|-------|
+| Python | 3.11+ | `python3 --version` |
+| FFmpeg | 4.0+ | `ffmpeg -version` |
+| uv | Latest | `uv --version` |
+| Git | 2.30+ | `git --version` |
 
 ### Setup Steps
 
 ```bash
-# Fork and clone
+# 1. Fork the repo on GitHub, then clone your fork
 git clone https://github.com/YOUR_USERNAME/agent-video-to-data.git
 cd agent-video-to-data
 
-# Install dependencies
+# 2. Install dependencies (includes dev tools)
 uv sync
 
-# Configure environment
+# 3. Configure environment
 cp .env.example .env
-# Add your API keys to .env
+# Edit .env and add your API keys:
+#   ANTHROPIC_API_KEY=sk-ant-...
+#   OPENAI_API_KEY=sk-...
 
-# Verify setup
-uv run pytest --co -q  # List tests
-uv run python -m app.main  # Start server
+# 4. Verify everything works
+uv run pytest -q  # Should see 910+ tests pass
+
+# 5. Start the dev server
+uv run python -m app.main
+# Open http://127.0.0.1:8000
 ```
 
 ### API Keys
 
-You'll need:
-- `ANTHROPIC_API_KEY` from [Anthropic Console](https://console.anthropic.com/)
-- `OPENAI_API_KEY` from [OpenAI Platform](https://platform.openai.com/)
+| Key | Source | Required For |
+|-----|--------|--------------|
+| `ANTHROPIC_API_KEY` | [Anthropic Console](https://console.anthropic.com/) | Claude Agent |
+| `OPENAI_API_KEY` | [OpenAI Platform](https://platform.openai.com/) | Transcription |
+
+*Tests use mocked API calls and don't require real keys. For running the actual app, real API keys are needed.*
 
 ---
 
 ## Making Contributions
 
-### 1. Find or Create an Issue
-
-- Check [existing issues](https://github.com/costiash/agent-video-to-data/issues)
-- For new features, create an issue first to discuss
-- For bugs, provide reproduction steps
-
-### 2. Create a Branch
+### 1. Create a Branch
 
 ```bash
-# Update main
+# Update your main
 git checkout main
 git pull origin main
 
-# Create feature branch
+# Create your mission branch
 git checkout -b feature/your-feature-name
 # or
 git checkout -b fix/issue-description
 ```
 
-### Branch Naming
+#### Branch Naming
 
 | Type | Format | Example |
 |------|--------|---------|
-| Feature | `feature/description` | `feature/add-srt-export` |
-| Bug fix | `fix/issue-description` | `fix/transcript-upload` |
-| Docs | `docs/what-changed` | `docs/api-reference` |
-| Refactor | `refactor/what-changed` | `refactor/kg-service` |
+| Feature | `feature/description` | `feature/srt-export` |
+| Bug fix | `fix/description` | `fix/transcript-upload` |
+| Docs | `docs/description` | `docs/api-examples` |
+| Refactor | `refactor/description` | `refactor/kg-service` |
 
-### 3. Make Changes
+### 2. Make Your Changes
 
-- Follow [coding standards](#coding-standards)
+- Follow the [coding standards](#coding-standards)
 - Write tests for new functionality
-- Update documentation as needed
+- Update documentation if needed
+- Keep commits focused and atomic
 
-### 4. Test Your Changes
+### 3. Test Your Changes
 
 ```bash
-# Run all tests
-uv run pytest
-
-# Type checking
-uv run mypy .
-
-# Linting
-uv run ruff check .
-uv run ruff format .
+# The full verification suite
+uv run pytest           # All 910+ tests
+uv run mypy .           # Type checking
+uv run ruff check .     # Linting
+uv run ruff format .    # Formatting
 ```
 
-### 5. Commit
+### 4. Commit
 
 ```bash
 git add .
@@ -153,21 +195,14 @@ type(scope): description
 [optional footer]
 ```
 
-**Types:**
-- `feat` - New feature
-- `fix` - Bug fix
-- `docs` - Documentation
-- `style` - Formatting
-- `refactor` - Code restructuring
-- `test` - Adding tests
-- `chore` - Maintenance
+**Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 
 **Examples:**
 ```
 feat(transcription): add SRT export format
 fix(kg): prevent duplicate entity creation
-docs(api): add rate limiting documentation
-test(services): add session timeout tests
+docs(api): add rate limiting examples
+test(services): add session timeout coverage
 ```
 
 ---
@@ -180,54 +215,56 @@ test(services): add session timeout tests
 git push origin feature/your-feature-name
 ```
 
-### 2. Create Pull Request
+### 2. Open a Pull Request
 
-- Go to [Pull Requests](https://github.com/costiash/agent-video-to-data/pulls)
-- Click "New Pull Request"
-- Select your branch
-- Fill out the template
+Go to [Pull Requests](https://github.com/costiash/agent-video-to-data/pulls) and click "New Pull Request".
 
 ### 3. PR Template
 
 ```markdown
-## Summary
-Brief description of changes
+## Mission Report
+
+Brief description of what this PR accomplishes.
 
 ## Related Issue
+
 Closes #123
 
-## Changes
+## Changes Made
+
 - Added X
 - Fixed Y
 - Updated Z
 
 ## Testing
-How to test these changes
 
-## Screenshots (if applicable)
-[Add screenshots for UI changes]
+How to verify these changes work.
 
 ## Checklist
+
 - [ ] Tests pass (`uv run pytest`)
 - [ ] Types check (`uv run mypy .`)
 - [ ] Lint passes (`uv run ruff check .`)
-- [ ] Documentation updated
-- [ ] No sensitive data committed
+- [ ] Docs updated (if needed)
+- [ ] No secrets committed
 ```
 
 ### 4. Review Process
 
-- Maintainers will review within 48 hours
+- Maintainers review within 48 hours
 - Address feedback with additional commits
-- Once approved, a maintainer will merge
+- Once approved, a maintainer merges
 
 ### 5. After Merge
 
 ```bash
+# Clean up
 git checkout main
 git pull origin main
 git branch -d feature/your-feature-name
 ```
+
+*Congratulations, you're officially part of the crew.* 🌧️
 
 ---
 
@@ -236,32 +273,17 @@ git branch -d feature/your-feature-name
 ### Python Style
 
 ```python
-# ✅ Modern type annotations
+# Modern type annotations
 def get_project(project_id: str) -> KGProject | None:
     ...
 
-# ✅ Use pathlib for paths
+# pathlib for paths
 from pathlib import Path
 data_dir = Path("data")
 
-# ✅ Async for I/O operations
+# Async for I/O
 async def fetch_data(url: str) -> dict[str, Any]:
     ...
-
-# ✅ Google-style docstrings
-def process(data: bytes, options: dict[str, Any]) -> str:
-    """Process data and return result.
-
-    Args:
-        data: Input bytes to process.
-        options: Processing options.
-
-    Returns:
-        Processed string output.
-
-    Raises:
-        ValueError: If data is empty.
-    """
 ```
 
 ### Import Order
@@ -282,32 +304,21 @@ from pydantic import BaseModel
 from app.core.config import get_settings
 ```
 
-### Error Handling
+### MCP Tools — Critical Pattern
 
 ```python
-# ✅ Specific exceptions
-try:
-    result = await process()
-except FileNotFoundError as e:
-    logger.error(f"File not found: {e}")
-    raise HTTPException(status_code=404, detail=str(e))
-
-# ❌ Bare exceptions
-except Exception:
-    raise  # Too broad!
-```
-
-### MCP Tools
-
-```python
-# ✅ Always return structured responses
+# ✅ ALWAYS return structured responses
 async def my_tool(args: dict[str, Any]) -> dict[str, Any]:
     try:
         result = await process(args)
         return {"content": [{"type": "text", "text": result}]}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+# ❌ NEVER raise exceptions — they crash the agent loop!
 ```
+
+See [CLAUDE.md](CLAUDE.md) for complete coding guidelines.
 
 ---
 
@@ -316,17 +327,10 @@ async def my_tool(args: dict[str, Any]) -> dict[str, Any]:
 ### Running Tests
 
 ```bash
-# All tests
-uv run pytest
-
-# Verbose
-uv run pytest -v
-
-# Specific file
-uv run pytest tests/test_kg_service.py
-
-# With coverage
-uv run pytest --cov=app --cov-report=html
+uv run pytest                    # All tests
+uv run pytest -v                 # Verbose
+uv run pytest tests/test_kg_service.py   # Specific file
+uv run pytest --cov=app          # With coverage
 ```
 
 ### Writing Tests
@@ -336,13 +340,10 @@ import pytest
 from app.services.kg_service import KnowledgeGraphService
 
 class TestCreateProject:
-    """Tests for KGService.create_project()"""
-
     @pytest.mark.asyncio
     async def test_creates_with_valid_name(self, kg_service):
         project = await kg_service.create_project("Test Project")
         assert project.name == "Test Project"
-        assert project.state == ProjectState.CREATED
 
     @pytest.mark.asyncio
     async def test_rejects_empty_name(self, kg_service):
@@ -352,72 +353,46 @@ class TestCreateProject:
 
 ### Test Requirements
 
-- All new features must have tests
-- Bug fixes should include regression tests
+- All new features need tests
+- Bug fixes need regression tests
 - Maintain or improve coverage
 - Tests must pass before merge
 
 ---
 
-## Documentation
+## Code of Conduct
 
-### When to Update Docs
+The rooftop is for everyone. We maintain a respectful, inclusive environment.
 
-- New features or API endpoints
-- Changed behavior
-- New configuration options
-- Bug workarounds
+**Be excellent to each other:**
 
-### Documentation Files
+- Respect differing viewpoints
+- Accept constructive feedback gracefully
+- Focus on what's best for the project
+- Show empathy to fellow crew members
 
-| File | Purpose |
-|------|---------|
-| `README.md` | Project overview |
-| `CLAUDE.md` | Development guidelines |
-| `guides/*.md` | User guides |
-| `CONTRIBUTING.md` | This file |
+**Not tolerated:**
 
-### Docstrings
+- Harassment of any kind
+- Trolling or insulting comments
+- Personal or political attacks
+- Publishing others' private information
 
-All public functions should have docstrings:
-
-```python
-def extract_entities(
-    transcript: str,
-    domain_profile: DomainProfile,
-) -> list[Entity]:
-    """Extract entities from transcript using domain profile.
-
-    Args:
-        transcript: Text content to analyze.
-        domain_profile: Domain configuration for extraction.
-
-    Returns:
-        List of extracted entities with types and properties.
-
-    Raises:
-        ValueError: If transcript is empty.
-        ExtractionError: If extraction fails.
-    """
-```
+*The Agent works alone by circumstance, not by choice. Let's build something together.*
 
 ---
 
 ## Questions?
 
-- **Issues**: [GitHub Issues](https://github.com/costiash/agent-video-to-data/issues) — For bugs, features, and questions
-- **Documentation**: [Guides](https://github.com/costiash/agent-video-to-data/tree/main/guides) — Comprehensive documentation
-
----
-
-## Thank You!
-
-Every contribution makes CognivAgent better. We appreciate your time and effort!
+- **Issues**: [GitHub Issues](https://github.com/costiash/agent-video-to-data/issues) — Bugs, features, questions
+- **Docs**: [guides/](guides/) — Comprehensive documentation
 
 ---
 
 <div align="center">
 
-**Happy contributing!**
+**Welcome to the rooftop.** ☔
+
+*The Lonely Agent appreciates the company.*
 
 </div>
